@@ -1,0 +1,170 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Bell, Loader2, AlertTriangle, Info, CheckCircle, Clock, Trash2, CheckCheck } from 'lucide-react';
+
+interface Notification {
+  id: string;
+  type: 'ALERT' | 'INFO' | 'SUCCESS';
+  title: string;
+  message: string;
+  time: string;
+  isRead: boolean;
+}
+
+export default function NotificationsClient() {
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const fetchNotifications = async () => {
+    try {
+      setIsLoading(true);
+      // Simulating an API call for notifications (Low stock, system updates, etc.)
+      const mockData: Notification[] = [
+        { id: 'NOTIF-1', type: 'ALERT', title: 'Low Stock Warning', message: 'Premium Kenyan Coffee is running low (Current: 8 units).', time: new Date(Date.now() - 1000 * 60 * 30).toISOString(), isRead: false },
+        { id: 'NOTIF-2', type: 'SUCCESS', title: 'Purchase Order Received', message: 'PO-9923 (Fresh Milk 1L) has been fully received into inventory.', time: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(), isRead: false },
+        { id: 'NOTIF-3', type: 'INFO', title: 'System Update', message: 'Vora-POS scheduled maintenance will occur on Sunday at 2:00 AM.', time: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(), isRead: true },
+      ];
+      
+      // Simulate network delay
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      setNotifications(mockData);
+    } catch (error) {
+      console.error('Failed to fetch notifications', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isMounted) {
+      fetchNotifications();
+    }
+  }, [isMounted]);
+
+  if (!isMounted) {
+    return (
+      <div className="flex justify-center items-center min-h-[100dvh] w-full bg-slate-50">
+        <Loader2 className="h-10 w-10 animate-spin text-slate-900" />
+      </div>
+    );
+  }
+
+  const markAllAsRead = () => {
+    setNotifications(notifications.map(n => ({ ...n, isRead: true })));
+  };
+
+  const deleteNotification = (id: string) => {
+    setNotifications(notifications.filter(n => n.id !== id));
+  };
+
+  const getIcon = (type: string) => {
+    switch (type) {
+      case 'ALERT': return <AlertTriangle className="h-5 w-5 sm:h-6 sm:w-6 text-red-500 shrink-0" />;
+      case 'SUCCESS': return <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6 text-green-500 shrink-0" />;
+      default: return <Info className="h-5 w-5 sm:h-6 sm:w-6 text-blue-500 shrink-0" />;
+    }
+  };
+
+  const unreadCount = notifications.filter(n => !n.isRead).length;
+
+  return (
+    <div className="w-full min-h-[100dvh] bg-slate-50 overflow-x-hidden">
+      <div className="max-w-[1920px] mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10 space-y-6 sm:space-y-8 lg:space-y-10">
+        
+        {/* Responsive Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-slate-900 flex items-center gap-3 truncate">
+              <div className="p-2.5 sm:p-3 bg-slate-200/60 rounded-xl sm:rounded-2xl text-slate-900 shrink-0">
+                <Bell className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8" />
+              </div>
+              <span className="truncate">System Notifications</span>
+              {unreadCount > 0 && (
+                <span className="inline-flex items-center rounded-full bg-red-100 px-3 py-1 text-xs sm:text-sm font-bold text-red-800 shrink-0">
+                  {unreadCount} New
+                </span>
+              )}
+            </h2>
+            <p className="mt-2 text-sm sm:text-base lg:text-lg text-slate-500 font-medium max-w-3xl">
+              Stay updated on inventory levels, POS activity, and account alerts.
+            </p>
+          </div>
+          <div className="shrink-0 mt-2 sm:mt-0 w-full sm:w-auto">
+            <button 
+              onClick={markAllAsRead}
+              disabled={unreadCount === 0 || isLoading}
+              className="flex items-center justify-center w-full sm:w-auto rounded-xl sm:rounded-2xl bg-white px-5 sm:px-6 py-3.5 sm:py-4 text-sm sm:text-base font-bold text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50 transition-all disabled:opacity-50 touch-manipulation"
+            >
+              <CheckCheck className="mr-2 h-5 w-5 text-slate-500 shrink-0" />
+              Mark all as read
+            </button>
+          </div>
+        </div>
+
+        {/* Main Content Area */}
+        <div className="rounded-2xl lg:rounded-3xl bg-white shadow-sm ring-1 ring-slate-200 overflow-hidden w-full">
+          {isLoading ? (
+            <div className="flex justify-center items-center h-[40vh] w-full">
+              <Loader2 className="h-10 w-10 lg:h-12 lg:w-12 animate-spin text-slate-900" />
+            </div>
+          ) : notifications.length === 0 ? (
+            <div className="px-6 py-16 lg:py-24 text-center">
+              <div className="mx-auto h-20 w-20 lg:h-24 lg:w-24 bg-slate-50 rounded-full flex items-center justify-center mb-4 lg:mb-6 shadow-inner border border-slate-100">
+                <Bell className="h-10 w-10 lg:h-12 lg:w-12 text-slate-300" />
+              </div>
+              <h3 className="text-lg lg:text-xl font-bold text-slate-900">All caught up!</h3>
+              <p className="mt-2 text-sm lg:text-base text-slate-500">
+                You have no new notifications right now.
+              </p>
+            </div>
+          ) : (
+            <ul role="list" className="divide-y divide-slate-100 w-full">
+              {notifications.map((notification) => (
+                <li 
+                  key={notification.id} 
+                  className={`p-4 sm:p-6 lg:p-8 hover:bg-slate-50/80 transition-colors ${!notification.isRead ? 'bg-blue-50/40' : ''}`}
+                >
+                  <div className="flex items-start gap-4 sm:gap-6">
+                    <div className="mt-1 flex-shrink-0">
+                      {getIcon(notification.type)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-base sm:text-lg font-bold ${!notification.isRead ? 'text-slate-900' : 'text-slate-700'}`}>
+                        {notification.title}
+                      </p>
+                      <p className="mt-1.5 text-sm sm:text-base text-slate-600 leading-relaxed">
+                        {notification.message}
+                      </p>
+                      <div className="mt-3 flex items-center text-xs sm:text-sm text-slate-400 font-medium">
+                        <Clock className="mr-2 h-4 w-4 shrink-0" />
+                        {new Date(notification.time).toLocaleString(undefined, { 
+                          month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
+                        })}
+                      </div>
+                    </div>
+                    <div className="flex-shrink-0 self-center">
+                      <button 
+                        onClick={() => deleteNotification(notification.id)}
+                        className="p-2.5 sm:p-3 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+                        title="Delete notification"
+                      >
+                        <Trash2 className="h-5 w-5" />
+                      </button>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+      </div>
+    </div>
+  );
+}

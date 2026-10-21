@@ -1,0 +1,125 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql" 
+  url      = env("DATABASE_URL")
+}
+
+model Product {
+  id           String   @id @default(cuid())
+  tenantId     String   @default("demo-tenant")
+  name         String
+  sku          String?  @unique
+  sellingPrice Float
+  stock        Int      @default(0)
+  minimumStock Int      @default(5)
+  category     String?
+  imageUrl     String?  // <-- I added this field here!
+  status       String   @default("ACTIVE")
+  createdAt    DateTime @default(now())
+}
+
+model Order {
+  id        String   @id @default(cuid())
+  tenantId  String   @default("demo-tenant")
+  orderNum  String   @unique
+  customer  String   @default("Walk-in Customer")
+  total     Float
+  status    String   @default("Completed")
+  method    String   
+  createdAt DateTime @default(now())
+}
+
+model Expense {
+  id            String   @id @default(cuid())
+  tenantId      String   @default("demo-tenant")
+  amount        Float
+  paymentMethod String
+  reference     String?
+  notes         String?
+  expenseDate   DateTime @default(now())
+  categoryName  String?
+  userName      String
+}
+
+model PurchaseOrder {
+  id           String   @id @default(uuid())
+  tenantId     String   @default("demo-tenant")
+  poNumber     String?  @unique
+  supplierName String
+  itemsSummary String
+  totalCost    Float
+  status       String   @default("Pending")
+  createdAt    DateTime @default(now())
+}
+
+model Branch {
+  id         String   @id @default(uuid())
+  name       String
+  location   String
+  manager    String
+  phone      String
+  status     String
+  staffCount Int
+  createdAt  DateTime @default(now())
+}
+
+model Till {
+  id          String    @id @default(uuid())
+  name        String
+  branch      String
+  status      String
+  floatAmount Float
+  cashier     String?
+  lastOpened  DateTime?
+  createdAt   DateTime  @default(now())
+}
+
+model Shift {
+  id          String    @id @default(uuid())
+  cashierName String
+  tillName    String
+  status      String    @default("Active")
+  startTime   DateTime  @default(now())
+  endTime     DateTime?
+  totalSales  Float     @default(0.0)
+  createdAt   DateTime  @default(now())
+}
+
+model Customer {
+  id        String   @id @default(uuid())
+  name      String   @default("Valary")
+  email     String?  @unique
+  phone     String?
+  points    Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+model Supplier {
+  id            String   @id @default(uuid())
+  name          String
+  contactPerson String
+  email         String?
+  phone         String
+  category      String
+  createdAt     DateTime @default(now())
+}
+
+model Category {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+}
+
+model CreditAccount {
+  id           String   @id @default(uuid())
+  customerName String
+  phone        String
+  balance      Float    @default(0.0)
+  status       String   @default("Active") // Active, Settled, Overdue
+  lastTxDate   DateTime @default(now())
+  createdAt    DateTime @default(now())
+}
