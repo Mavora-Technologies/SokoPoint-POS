@@ -8,8 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "preview": "npm run cf:build && wrangler dev",
-    "cf:build": "opennextjs-cloudflare build",
-    "deploy": "opennextjs-cloudflare build && wrangler deploy"
+    "cf:build": "npx @opennextjs/cloudflare build",
+    "deploy": "npx @opennextjs/cloudflare build && wrangler deploy"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
