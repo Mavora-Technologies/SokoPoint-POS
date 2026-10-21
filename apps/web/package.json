@@ -2,15 +2,15 @@
   "name": "@vora/web",
   "version": "0.1.0",
   "private": "true",
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint",
-    "preview": "npm run cf:build && wrangler dev",
-    "cf:build": "npx @opennextjs/cloudflare build",
-    "deploy": "npx @opennextjs/cloudflare build && wrangler deploy"
-  },
+"scripts": {
+  "dev": "next dev",
+  "build": "next build",
+  "start": "next start",
+  "lint": "eslint",
+  "preview": "npm run cf:build && wrangler dev",
+  "cf:build": "npx @opennextjs/cloudflare",
+  "deploy": "npx @opennextjs/cloudflare && wrangler deploy"
+},
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
     "@opennextjs/cloudflare": "^0.1.1",
