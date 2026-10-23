@@ -10,6 +10,7 @@ async function main() {
   await prisma.expense.deleteMany();
   await prisma.purchaseOrder.deleteMany();
   await prisma.category.deleteMany();
+  await prisma.user.deleteMany(); // Clear old users too
 
   console.log('Seeding categories...');
   await prisma.category.createMany({
@@ -87,11 +88,9 @@ async function main() {
   console.log('Seeding Admin User...');
   const hashedPassword = await bcrypt.hash('123456', 10);
   
-  await (prisma as any).user.upsert({
-    where: { email: 'admin@sokopoint.com' },
-    update: {},
-    create: {
-      email: 'admin@sokopoint.com',
+  await prisma.user.create({
+    data: {
+      email: 'admin@mavora.ac.ke',
       password: hashedPassword,
       firstName: 'Admin',
       lastName: 'User',
