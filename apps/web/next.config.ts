@@ -5,8 +5,6 @@ const nextConfig: NextConfig = {
   images: { 
     unoptimized: true 
   },
-  cacheComponents: true,
-  partialPrefetching: true,
   typescript: {
     ignoreBuildErrors: true,
   },
