@@ -2,7 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { authRoutes } from './modules/auth/auth.routes';
-import  productRoutes  from './modules/products/products.routes';
+import productRoutes from './modules/products/products.routes';
 import { orderRoutes } from './modules/orders/orders.routes';
 import inventoryRoutes from './modules/inventory/inventory.routes';
 import categoryRoutes from './modules/inventory/categories.routes'; 
@@ -24,6 +24,8 @@ export const createApp = () => {
   const allowedOrigins = [
     process.env.CLIENT_URL || 'http://localhost:3000',
     'http://127.0.0.1:3000',
+    'https://sokopoint.mavoratechnologies.com',
+    'https://sokopoint.pages.dev',
   ];
 
   app.use(
@@ -64,6 +66,14 @@ export const createApp = () => {
   app.use('/api/v1/shifts', shiftRoutes);
   app.use('/api/v1/reports', reportRoutes);
   app.use('/api/v1/credit', creditRoutes);
+
+  // Root-level aliases to handle requests missing /api/v1 prefix
+  app.use('/products', productRoutes);
+  app.use('/orders', orderRoutes);
+  app.use('/credit', creditRoutes);
+  app.use('/categories', categoryRoutes);
+  app.use('/customers', customerRoutes);
+  app.use('/suppliers', supplierRoutes);
 
   app.get('/api/v1', (_req: Request, res: Response) => {
     res.status(200).json({ message: 'Welcome to Vora-POS API v1' });
