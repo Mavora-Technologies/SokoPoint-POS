@@ -7,6 +7,18 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id           String   @id @default(cuid())
+  tenantId     String   @default("demo-tenant")
+  email        String   @unique
+  password     String
+  firstName    String?
+  lastName     String?
+  businessName String?
+  role         String   @default("ADMIN")
+  createdAt    DateTime @default(now())
+}
+
 model Product {
   id           String   @id @default(cuid())
   tenantId     String   @default("demo-tenant")
@@ -16,7 +28,7 @@ model Product {
   stock        Int      @default(0)
   minimumStock Int      @default(5)
   category     String?
-  imageUrl     String?  // <-- I added this field here!
+  imageUrl     String?  
   status       String   @default("ACTIVE")
   createdAt    DateTime @default(now())
 }
@@ -119,7 +131,7 @@ model CreditAccount {
   customerName String
   phone        String
   balance      Float    @default(0.0)
-  status       String   @default("Active") // Active, Settled, Overdue
+  status       String   @default("Active")
   lastTxDate   DateTime @default(now())
   createdAt    DateTime @default(now())
 }

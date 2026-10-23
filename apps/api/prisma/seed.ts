@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
@@ -8,10 +9,10 @@ async function main() {
   await prisma.order.deleteMany();
   await prisma.expense.deleteMany();
   await prisma.purchaseOrder.deleteMany();
-  await (prisma as any).category.deleteMany();
+  await prisma.category.deleteMany();
 
   console.log('Seeding categories...');
-  await (prisma as any).category.createMany({
+  await prisma.category.createMany({
     data: [
       { name: 'Beverages', description: 'Coffee, tea, water, sodas and juices' },
       { name: 'Dairy & Eggs', description: 'Milk, yogurt, butter, and farm eggs' },
@@ -81,6 +82,22 @@ async function main() {
       { poNumber: 'PO-2026-001', supplierName: 'Highland Dairies Ltd', itemsSummary: 'Fresh Milk 500ml', totalCost: 45000, status: 'RECEIVED' },
       { poNumber: 'PO-2026-002', supplierName: 'Nairobi Coffee Roasters', itemsSummary: 'Premium Kenyan Coffee', totalCost: 125000, status: 'PENDING' },
     ],
+  });
+
+  console.log('Seeding Admin User...');
+  const hashedPassword = await bcrypt.hash('123456', 10);
+  
+  await (prisma as any).user.upsert({
+    where: { email: 'admin@sokopoint.com' },
+    update: {},
+    create: {
+      email: 'admin@sokopoint.com',
+      password: hashedPassword,
+      firstName: 'Admin',
+      lastName: 'User',
+      businessName: 'SokoPoint POS',
+      role: 'ADMIN'
+    },
   });
 
   console.log('Database seeded successfully!');
