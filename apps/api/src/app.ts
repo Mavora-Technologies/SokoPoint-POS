@@ -67,13 +67,20 @@ export const createApp = () => {
   app.use('/api/v1/reports', reportRoutes);
   app.use('/api/v1/credit', creditRoutes);
 
-  // Root-level aliases to handle requests missing /api/v1 prefix
+  // Root-level aliases to handle all requests missing /api/v1 prefix
   app.use('/products', productRoutes);
   app.use('/orders', orderRoutes);
-  app.use('/credit', creditRoutes);
+  app.use('/inventory', inventoryRoutes);
   app.use('/categories', categoryRoutes);
   app.use('/customers', customerRoutes);
   app.use('/suppliers', supplierRoutes);
+  app.use('/purchase-orders', purchasingRoutes);
+  app.use('/expenses', expenseRoutes);
+  app.use('/branches', branchRoutes);
+  app.use('/tills', tillRoutes);
+  app.use('/shifts', shiftRoutes);
+  app.use('/reports', reportRoutes);
+  app.use('/credit', creditRoutes);
 
   app.get('/api/v1', (_req: Request, res: Response) => {
     res.status(200).json({ message: 'Welcome to Vora-POS API v1' });
