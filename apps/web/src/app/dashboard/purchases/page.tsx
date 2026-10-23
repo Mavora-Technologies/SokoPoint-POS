@@ -4,7 +4,7 @@ import { Loader2 } from 'lucide-react';
 // @ts-ignore
 import PurchasesClient from './purchases-client';
 
-export const instant = false;
+
 
 export default function PurchasesPage() {
   return (

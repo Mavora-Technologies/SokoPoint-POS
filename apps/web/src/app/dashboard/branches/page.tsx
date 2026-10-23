@@ -5,7 +5,7 @@ import { Loader2 } from 'lucide-react';
 import BranchesClient from './branches-client';
 
 // Opt out of Turbopack's strict instant-navigation validation
-export const instant = false;
+
 
 export default function BranchesPage() {
   return (

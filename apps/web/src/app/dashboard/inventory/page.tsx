@@ -4,7 +4,7 @@ import { Loader2 } from 'lucide-react';
 // @ts-ignore
 import InventoryClient from './inventory-client';
 
-export const instant = false;
+
 
 export default function InventoryPage() {
   return (

@@ -4,7 +4,7 @@ import { Loader2 } from 'lucide-react';
 // @ts-ignore
 import CustomersClient from './customers-client';
 
-export const instant = false;
+
 
 export default function CustomersPage() {
   return (

@@ -5,7 +5,7 @@ import { Loader2 } from 'lucide-react';
 import PurchasingClient from './purchasing-client';
 
 // This flag safely shuts up the Next.js 16 Turbopack error
-export const instant = false;
+
 
 export default function PurchasingPage() {
   return (

@@ -5,7 +5,7 @@ import { Loader2 } from 'lucide-react';
 import OrdersClient from './orders-client';
 
 // Opt out of Turbopack's strict instant-navigation validation for this dynamic route
-export const instant = false;
+
 
 export default function OrdersPage() {
   return (

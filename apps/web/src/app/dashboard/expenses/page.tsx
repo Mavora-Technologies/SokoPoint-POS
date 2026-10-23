@@ -4,7 +4,7 @@ import { Loader2 } from 'lucide-react';
 // @ts-ignore
 import ExpensesClient from './expenses-client';
 
-export const instant = false;
+
 
 export default function ExpensesPage() {
   return (

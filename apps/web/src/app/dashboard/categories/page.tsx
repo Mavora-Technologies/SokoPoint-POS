@@ -4,7 +4,7 @@ import { Loader2 } from 'lucide-react';
 // @ts-ignore
 import CategoriesClient from './categories-client';
 
-export const instant = false;
+
 
 export default function CategoriesPage() {
   return (
