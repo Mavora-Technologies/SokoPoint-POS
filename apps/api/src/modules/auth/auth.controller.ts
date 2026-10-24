@@ -17,6 +17,8 @@ export class AuthController {
       const { email, password, businessName, firstName, lastName } = validation.data;
       const hashedPassword = await bcrypt.hash(password, 10);
       
+      // TODO: Save user to database here with prisma.user.create(...)
+
       return res.status(201).json({
         success: true,
         message: 'Business registered successfully',
@@ -34,10 +36,23 @@ export class AuthController {
         return res.status(400).json({ success: false, errors: validation.error.format() });
       }
 
-      const { email } = validation.data;
+      const { email, password } = validation.data;
 
+      // 1. Find user in the database (safely cast to bypass pre-generation type sync lag)
+      const user = await (prisma as any).user.findUnique({ where: { email } });
+      if (!user) {
+        return res.status(401).json({ success: false, message: 'Invalid email or password' });
+      }
+
+      // 2. Strictly compare the entered password with the stored hash
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      if (!isPasswordValid) {
+        return res.status(401).json({ success: false, message: 'Invalid email or password' });
+      }
+
+      // 3. Generate token only if password matches
       const token = jwt.sign(
-        { email, role: 'ADMIN', tenantId: 'demo-tenant' },
+        { userId: user.id, email: user.email, role: user.role || 'ADMIN' },
         process.env.AUTH_SECRET || 'super_secret_auth_key_vora_pos_2026',
         { expiresIn: '7d' }
       );
@@ -47,7 +62,12 @@ export class AuthController {
         message: 'Login successful',
         data: {
           token,
-          user: { email, name: 'Admin User', role: 'ADMIN' }
+          user: { 
+            id: user.id, 
+            email: user.email, 
+            name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Admin User', 
+            role: user.role || 'ADMIN' 
+          }
         },
       });
     } catch (error: any) {

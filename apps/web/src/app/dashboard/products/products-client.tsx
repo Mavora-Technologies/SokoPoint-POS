@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Package, Plus, Loader2, Search, Trash2, Edit3, X, CheckCircle2, Image as ImageIcon } from 'lucide-react';
+import { Package, Plus, Loader2, Search, Trash2, Edit3, X, CheckCircle2, Image as ImageIcon, ImagePlus } from 'lucide-react';
 import api from '../../../lib/api';
 
 interface Product {
@@ -40,6 +40,7 @@ export default function ProductsClient() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '', category: 'General', price: '', stock: '', sku: '', imageUrl: '',
@@ -66,6 +67,35 @@ export default function ProductsClient() {
   useEffect(() => {
     if (isMounted) fetchProducts();
   }, [isMounted]);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    const uploadData = new FormData();
+    uploadData.append('file', file);
+    
+    // TODO: Replace these with your actual Cloudinary credentials
+    uploadData.append('upload_preset', 'YOUR_UPLOAD_PRESET'); 
+    const CLOUD_NAME = 'YOUR_CLOUD_NAME';
+
+    try {
+      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+        method: 'POST',
+        body: uploadData,
+      });
+      const data = await res.json();
+      if (data.secure_url) {
+        setFormData({ ...formData, imageUrl: data.secure_url });
+      }
+    } catch (error) {
+      console.error('Image upload failed:', error);
+      alert('Failed to upload image. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -205,10 +235,10 @@ export default function ProductsClient() {
             </div>
           ) : (
             <div className="w-full">
-              {/* MOBILE/TABLET VIEW: Card Layout to completely eliminate horizontal scrolling */}
+              {/* MOBILE/TABLET VIEW: Card Layout */}
               <div className="block md:hidden divide-y divide-slate-100">
                 {filtered.map(item => {
-                  const displayImage = item.name ? `/products/${item.name}.jpg` : item.imageUrl;
+                  const displayImage = item.imageUrl || (item.name ? `/products/${item.name}.jpg` : null);
                   
                   return (
                     <div key={item.id} className="p-4 sm:p-5 hover:bg-slate-50/80 transition-colors space-y-3">
@@ -272,7 +302,7 @@ export default function ProductsClient() {
                 })}
               </div>
 
-              {/* DESKTOP VIEW: Table Layout for larger screens */}
+              {/* DESKTOP VIEW: Table Layout */}
               <table className="hidden md:table min-w-full divide-y divide-slate-200">
                 <thead className="bg-slate-50/80">
                   <tr>
@@ -295,7 +325,7 @@ export default function ProductsClient() {
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
                   {filtered.map(item => {
-                    const displayImage = item.name ? `/products/${item.name}.jpg` : item.imageUrl;
+                    const displayImage = item.imageUrl || (item.name ? `/products/${item.name}.jpg` : null);
                     
                     return (
                       <tr key={item.id} className="hover:bg-slate-50/80 transition-colors group">
@@ -379,6 +409,32 @@ export default function ProductsClient() {
               </div>
 
               <form onSubmit={handleAddProduct} className="p-5 sm:p-6 lg:p-8 space-y-5 sm:space-y-6">
+                
+                {/* Cloudinary Image Upload */}
+                <div>
+                  <label className="block text-sm sm:text-base font-bold text-slate-700 mb-2">Product Image</label>
+                  <div className="flex items-center gap-4">
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={handleImageUpload} 
+                      disabled={isUploading}
+                      className="hidden"
+                      id="image-upload-add"
+                    />
+                    <label 
+                      htmlFor="image-upload-add" 
+                      className="cursor-pointer flex items-center justify-center px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl hover:bg-slate-100 transition-all text-sm font-bold text-slate-700 shadow-sm"
+                    >
+                      {isUploading ? <Loader2 className="animate-spin h-5 w-5 text-slate-600 mr-2" /> : <ImagePlus className="h-5 w-5 text-slate-600 mr-2" />}
+                      {isUploading ? 'Uploading...' : 'Upload Image'}
+                    </label>
+                    {formData.imageUrl && (
+                      <img src={formData.imageUrl} alt="Preview" className="h-12 w-12 sm:h-14 sm:w-14 object-cover rounded-xl shadow-sm border border-slate-200" />
+                    )}
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-sm sm:text-base font-bold text-slate-700 mb-2">Product Name</label>
                   <input 
@@ -440,17 +496,6 @@ export default function ProductsClient() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm sm:text-base font-bold text-slate-700 mb-2">Image URL (Optional)</label>
-                  <input 
-                    type="url" 
-                    value={formData.imageUrl} 
-                    onChange={e => setFormData({...formData, imageUrl: e.target.value})} 
-                    className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-green-600 focus:border-green-600 outline-none transition-all text-sm sm:text-base shadow-sm placeholder:text-slate-400" 
-                    placeholder="https://..." 
-                  />
-                </div>
-
                 <div className="pt-6 border-t border-slate-100 mt-8 flex flex-col sm:flex-row justify-end gap-3 sm:gap-4">
                   <button 
                     type="button" 
@@ -461,7 +506,8 @@ export default function ProductsClient() {
                   </button>
                   <button 
                     type="submit" 
-                    className="w-full sm:w-auto px-6 py-3.5 sm:py-3 text-sm sm:text-base font-bold text-white bg-green-600 hover:bg-green-700 rounded-xl sm:rounded-2xl flex items-center justify-center transition-colors shadow-md shadow-green-600/20"
+                    disabled={isUploading}
+                    className="w-full sm:w-auto px-6 py-3.5 sm:py-3 text-sm sm:text-base font-bold text-white bg-green-600 hover:bg-green-700 disabled:opacity-70 rounded-xl sm:rounded-2xl flex items-center justify-center transition-colors shadow-md shadow-green-600/20"
                   >
                     <CheckCircle2 className="mr-2 h-5 w-5" /> Save Product
                   </button>
@@ -490,6 +536,32 @@ export default function ProductsClient() {
               </div>
 
               <form onSubmit={handleUpdateProduct} className="p-5 sm:p-6 lg:p-8 space-y-5 sm:space-y-6">
+                
+                {/* Cloudinary Image Upload for Edit */}
+                <div>
+                  <label className="block text-sm sm:text-base font-bold text-slate-700 mb-2">Product Image</label>
+                  <div className="flex items-center gap-4">
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={handleImageUpload} 
+                      disabled={isUploading}
+                      className="hidden"
+                      id="image-upload-edit"
+                    />
+                    <label 
+                      htmlFor="image-upload-edit" 
+                      className="cursor-pointer flex items-center justify-center px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl hover:bg-slate-100 transition-all text-sm font-bold text-slate-700 shadow-sm"
+                    >
+                      {isUploading ? <Loader2 className="animate-spin h-5 w-5 text-slate-600 mr-2" /> : <ImagePlus className="h-5 w-5 text-slate-600 mr-2" />}
+                      {isUploading ? 'Uploading...' : 'Change Image'}
+                    </label>
+                    {formData.imageUrl && (
+                      <img src={formData.imageUrl} alt="Preview" className="h-12 w-12 sm:h-14 sm:w-14 object-cover rounded-xl shadow-sm border border-slate-200" />
+                    )}
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-sm sm:text-base font-bold text-slate-700 mb-2">Product Name</label>
                   <input 
@@ -547,16 +619,6 @@ export default function ProductsClient() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm sm:text-base font-bold text-slate-700 mb-2">Image URL (Optional)</label>
-                  <input 
-                    type="url" 
-                    value={formData.imageUrl} 
-                    onChange={e => setFormData({...formData, imageUrl: e.target.value})} 
-                    className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-green-600 focus:border-green-600 outline-none transition-all text-sm sm:text-base shadow-sm" 
-                  />
-                </div>
-
                 <div className="pt-6 border-t border-slate-100 mt-8 flex flex-col sm:flex-row justify-end gap-3 sm:gap-4">
                   <button 
                     type="button" 
@@ -567,7 +629,8 @@ export default function ProductsClient() {
                   </button>
                   <button 
                     type="submit" 
-                    className="w-full sm:w-auto px-6 py-3.5 sm:py-3 text-sm sm:text-base font-bold text-white bg-green-600 hover:bg-green-700 rounded-xl sm:rounded-2xl flex items-center justify-center transition-colors shadow-md shadow-green-600/20"
+                    disabled={isUploading}
+                    className="w-full sm:w-auto px-6 py-3.5 sm:py-3 text-sm sm:text-base font-bold text-white bg-green-600 hover:bg-green-700 disabled:opacity-70 rounded-xl sm:rounded-2xl flex items-center justify-center transition-colors shadow-md shadow-green-600/20"
                   >
                     <CheckCircle2 className="mr-2 h-5 w-5" /> Update Product
                   </button>

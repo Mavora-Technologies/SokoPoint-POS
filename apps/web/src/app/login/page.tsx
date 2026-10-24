@@ -1,48 +1,84 @@
+//apps/web/src/app/login/page.tsx
 'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Loader2, ArrowRight, ShieldCheck, Mail, Lock, Store } from 'lucide-react';
-// import { useAuth } from '../../context/AuthContext'; // Uncomment if you want strict auth enforcement
+import { Loader2, ArrowRight, ShieldCheck, Mail, Lock } from 'lucide-react';
+import api from '../../lib/api';
 
 export default function LoginPage() {
   const router = useRouter();
   
-  // Pre-filled with your demo credentials
-  const [email, setEmail] = useState('admin@sokopoint.com');
-  const [password, setPassword] = useState('••••••••••••');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMessage('');
+
+    // Strict validation: check if email contains '@'
+    if (!email.includes('@')) {
+      setErrorMessage('Please enter a valid email address containing "@".');
+      return;
+    }
+
+    // Strict validation: check if password is provided and not empty
+    if (!password || password.trim() === '') {
+      setErrorMessage('Password cannot be empty.');
+      return;
+    }
+
     setIsLoading(true);
 
-    // DEMO-SAFE BYPASS: Simulates network request, then forces navigation to the dashboard 
-    // so a backend database crash cannot stop your presentation today.
-    setTimeout(() => {
+    try {
+      // Secure call to your Express backend auth endpoint
+      const response = await api.post('/auth/login', { email, password });
+      
+      // Extract token and user safely supporting both wrapped and direct payloads
+      const responseBody = response.data;
+      const token = responseBody?.data?.token || responseBody?.token;
+      const user = responseBody?.data?.user || responseBody?.user;
+
+      if (!token) {
+        setErrorMessage('Invalid authentication response from server: Missing token.');
+        setIsLoading(false);
+        return;
+      }
+
+      // Securely store the token and user data matching your AuthContext layout
+      localStorage.setItem('vora_token', token);
+      localStorage.setItem('vora_user', JSON.stringify(user));
+      
+      // Redirect to dashboard on success
       router.push('/dashboard');
-    }, 800);
+    } catch (error: any) {
+      console.error('Login failed:', error);
+      setErrorMessage(
+        error.response?.data?.message || 'Invalid email or password. Please try again.'
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen w-full flex bg-white selection:bg-green-900 selection:text-white font-sans">
       
-      {/* LEFT PANEL: Branding & Visuals (Hidden on Mobile, 50% width on Laptops/Desktops) */}
+      {/* LEFT PANEL: Branding & Visuals */}
       <div className="hidden lg:flex w-1/2 relative bg-slate-900 flex-col justify-between overflow-hidden">
-        {/* Background Image & Overlay */}
         <div className="absolute inset-0 z-0">
           <img 
             src="https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=1600" 
             alt="Retail Supermarket" 
             className="object-cover w-full h-full opacity-60" 
           />
-          {/* Lightened overlay so the supermarket image pops out more */}
           <div className="absolute inset-0 bg-slate-900/50"></div>
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-900/40 to-transparent"></div>
         </div>
 
-        {/* Top Branding */}
         <div className="relative z-10 p-12 xl:p-16">
           <Link href="/" className="flex items-center gap-3">
             <div className="h-12 w-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
@@ -52,7 +88,6 @@ export default function LoginPage() {
           </Link>
         </div>
 
-        {/* Bottom Messaging */}
         <div className="relative z-10 p-12 xl:p-16 text-white max-w-2xl">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-500/20 border border-green-400/30 text-green-300 text-sm font-semibold mb-6 backdrop-blur-md">
             <ShieldCheck className="h-4 w-4" /> Enterprise-Grade Security
@@ -66,25 +101,28 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* RIGHT PANEL: Login Form (Full width on Mobile, 50% width on Laptops) */}
+      {/* RIGHT PANEL: Secure Login Form */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12 lg:p-16 xl:p-24 relative bg-slate-50 lg:bg-white">
-        
-        {/* Subtle grid background for mobile only, to match your original aesthetic */}
         <div className="absolute inset-0 z-0 lg:hidden bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]"></div>
 
         <div className="w-full max-w-md relative z-10 bg-white lg:bg-transparent p-8 lg:p-0 rounded-3xl shadow-xl lg:shadow-none ring-1 ring-slate-900/5 lg:ring-0">
           
-          {/* Mobile Logo (Hidden on Desktop) */}
           <div className="flex lg:hidden justify-center mb-8">
             <div className="h-16 w-16 bg-white rounded-2xl flex items-center justify-center shadow-md ring-1 ring-slate-100">
               <img src="/SokoPoint POS Logo.png" alt="SokoPoint-POS Logo" className="h-10 w-auto object-contain" />
             </div>
           </div>
 
-          <div className="text-center lg:text-left mb-10">
+          <div className="text-center lg:text-left mb-8">
             <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight mb-3">Sign in to SokoPoint-POS</h2>
             <p className="text-slate-500">Enter your credentials to access your business workspace.</p>
           </div>
+
+          {errorMessage && (
+            <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm font-medium">
+              {errorMessage}
+            </div>
+          )}
 
           <form onSubmit={handleLogin} className="space-y-6">
             <div>
@@ -94,7 +132,7 @@ export default function LoginPage() {
                   <Mail className="h-5 w-5 text-slate-400" />
                 </div>
                 <input
-                  type="email"
+                  type="text"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
