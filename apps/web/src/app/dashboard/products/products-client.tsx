@@ -40,11 +40,13 @@ export default function ProductsClient() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '', category: 'General', price: '', stock: '', sku: '', imageUrl: '',
   });
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string>('');
 
   useEffect(() => { setIsMounted(true); }, []);
 
@@ -68,43 +70,33 @@ export default function ProductsClient() {
     if (isMounted) fetchProducts();
   }, [isMounted]);
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    setIsUploading(true);
-    const uploadData = new FormData();
-    uploadData.append('file', file);
-    
-    // TODO: Replace these with your actual Cloudinary credentials
-    uploadData.append('upload_preset', 'YOUR_UPLOAD_PRESET'); 
-    const CLOUD_NAME = 'YOUR_CLOUD_NAME';
-
-    try {
-      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
-        method: 'POST',
-        body: uploadData,
-      });
-      const data = await res.json();
-      if (data.secure_url) {
-        setFormData({ ...formData, imageUrl: data.secure_url });
-      }
-    } catch (error) {
-      console.error('Image upload failed:', error);
-      alert('Failed to upload image. Please try again.');
-    } finally {
-      setIsUploading(false);
-    }
+    setSelectedFile(file);
+    setImagePreview(URL.createObjectURL(file));
   };
 
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
     try {
-      const res = await api.post('/products', {
-        name: formData.name, category: formData.category,
-        sellingPrice: Number(formData.price) || 0, stock: Number(formData.stock) || 0,
-        sku: formData.sku || undefined, imageUrl: formData.imageUrl || undefined,
+      const data = new FormData();
+      data.append('name', formData.name);
+      data.append('category', formData.category);
+      data.append('sellingPrice', formData.price);
+      data.append('stock', formData.stock);
+      if (formData.sku) data.append('sku', formData.sku);
+      if (selectedFile) {
+        data.append('file', selectedFile);
+      } else if (formData.imageUrl) {
+        data.append('imageUrl', formData.imageUrl);
+      }
+
+      const res = await api.post('/products', data, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
+      
       const created = res.data?.data || res.data;
       if (created) {
         setProducts([created, ...products]);
@@ -113,30 +105,51 @@ export default function ProductsClient() {
       }
       setIsAddModalOpen(false);
       setFormData({ name: '', category: 'General', price: '', stock: '', sku: '', imageUrl: '' });
+      setSelectedFile(null);
+      setImagePreview('');
     } catch (error) {
       console.error('Failed to add product', error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const openEditModal = (product: Product) => {
     setSelectedProduct(product);
     setFormData({
-      name: product?.name || '', category: product?.category || 'General',
+      name: product?.name || '', 
+      category: product?.category || 'General',
       price: (product?.sellingPrice ?? product?.price ?? 0).toString(),
-      stock: (product?.stock ?? 0).toString(), sku: product?.sku || '', imageUrl: product?.imageUrl || '',
+      stock: (product?.stock ?? 0).toString(), 
+      sku: product?.sku || '', 
+      imageUrl: product?.imageUrl || '',
     });
+    setImagePreview(product?.imageUrl || '');
+    setSelectedFile(null);
     setIsEditModalOpen(true);
   };
 
   const handleUpdateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProduct) return;
+    setIsSubmitting(true);
     try {
-      const res = await api.put(`/products/${selectedProduct.id}`, {
-        name: formData.name, category: formData.category,
-        sellingPrice: Number(formData.price) || 0, stock: Number(formData.stock) || 0,
-        sku: formData.sku || undefined, imageUrl: formData.imageUrl || undefined,
+      const data = new FormData();
+      data.append('name', formData.name);
+      data.append('category', formData.category);
+      data.append('sellingPrice', formData.price);
+      data.append('stock', formData.stock);
+      if (formData.sku) data.append('sku', formData.sku);
+      if (selectedFile) {
+        data.append('file', selectedFile);
+      } else if (formData.imageUrl) {
+        data.append('imageUrl', formData.imageUrl);
+      }
+
+      const res = await api.put(`/products/${selectedProduct.id}`, data, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
+      
       const updated = res.data?.data || res.data;
       if (updated) {
         setProducts(products.map(p => (p.id === selectedProduct.id ? updated : p)));
@@ -146,8 +159,12 @@ export default function ProductsClient() {
       setIsEditModalOpen(false);
       setSelectedProduct(null);
       setFormData({ name: '', category: 'General', price: '', stock: '', sku: '', imageUrl: '' });
+      setSelectedFile(null);
+      setImagePreview('');
     } catch (error) {
       console.error('Failed to update product', error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -176,11 +193,28 @@ export default function ProductsClient() {
     (p?.sku || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const getDisplayImage = (item: Product) => {
+    if (item.imageUrl && !item.imageUrl.includes('placehold.co')) {
+      return item.imageUrl;
+    }
+    return `/products/${item.name}.jpg`;
+  };
+
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    const target = e.target as HTMLImageElement;
+    if (target.src.endsWith('.jpg')) {
+      target.src = target.src.replace('.jpg', '.png');
+    } else {
+      target.style.display = 'none';
+      target.nextElementSibling?.classList.remove('hidden');
+    }
+  };
+
   return (
     <div className="w-full min-h-[100dvh] bg-slate-50 overflow-x-hidden">
       <div className="max-w-[1920px] mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10 space-y-6 sm:space-y-8 lg:space-y-10">
         
-        {/* Responsive Header */}
+        {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex-1 min-w-0">
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-slate-900 flex items-center gap-3 truncate">
@@ -195,6 +229,8 @@ export default function ProductsClient() {
             <button 
               onClick={() => {
                 setFormData({ name: '', category: 'General', price: '', stock: '', sku: '', imageUrl: '' });
+                setSelectedFile(null);
+                setImagePreview('');
                 setIsAddModalOpen(true);
               }} 
               className="flex items-center justify-center w-full sm:w-auto rounded-xl sm:rounded-2xl bg-green-600 px-5 sm:px-6 py-3.5 sm:py-4 text-sm sm:text-base font-bold text-white shadow-sm hover:bg-green-500 hover:shadow-md transition-all active:scale-[0.98] touch-manipulation"
@@ -207,7 +243,6 @@ export default function ProductsClient() {
         {/* Main Content Area */}
         <div className="bg-white rounded-2xl lg:rounded-3xl shadow-sm ring-1 ring-slate-200 overflow-hidden flex flex-col w-full">
           
-          {/* Edge-to-edge Search Bar */}
           <div className="p-4 sm:p-5 lg:p-6 border-b border-slate-100 bg-slate-50/50 w-full">
             <div className="relative w-full max-w-2xl">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
@@ -235,11 +270,10 @@ export default function ProductsClient() {
             </div>
           ) : (
             <div className="w-full">
-              {/* MOBILE/TABLET VIEW: Card Layout */}
+              {/* Mobile View */}
               <div className="block md:hidden divide-y divide-slate-100">
                 {filtered.map(item => {
-                  const displayImage = item.imageUrl || (item.name ? `/products/${item.name}.jpg` : null);
-                  
+                  const displayImage = getDisplayImage(item);
                   return (
                     <div key={item.id} className="p-4 sm:p-5 hover:bg-slate-50/80 transition-colors space-y-3">
                       <div className="flex items-start gap-3.5">
@@ -248,10 +282,7 @@ export default function ProductsClient() {
                             src={displayImage} 
                             alt={item.name} 
                             className="h-12 w-12 sm:h-14 sm:w-14 rounded-2xl object-cover ring-1 ring-slate-200 bg-white shrink-0" 
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).style.display = 'none';
-                              (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
-                            }}
+                            onError={handleImageError}
                           />
                         ) : null}
                         <div className={`h-12 w-12 sm:h-14 sm:w-14 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 shrink-0 ${displayImage ? 'hidden' : ''}`}>
@@ -281,18 +312,10 @@ export default function ProductsClient() {
                           <span className="text-xs font-medium text-slate-500 ml-2">({item.stock} units)</span>
                         </div>
                         <div className="flex items-center gap-1">
-                          <button 
-                            onClick={() => openEditModal(item)} 
-                            className="p-2.5 text-green-600 hover:bg-green-50 rounded-xl transition-colors" 
-                            title="Edit Product"
-                          >
+                          <button onClick={() => openEditModal(item)} className="p-2.5 text-green-600 hover:bg-green-50 rounded-xl transition-colors">
                             <Edit3 className="h-5 w-5" />
                           </button>
-                          <button 
-                            onClick={() => handleDeleteProduct(item.id)} 
-                            className="p-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-colors" 
-                            title="Delete Product"
-                          >
+                          <button onClick={() => handleDeleteProduct(item.id)} className="p-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-colors">
                             <Trash2 className="h-5 w-5" />
                           </button>
                         </div>
@@ -302,31 +325,20 @@ export default function ProductsClient() {
                 })}
               </div>
 
-              {/* DESKTOP VIEW: Table Layout */}
+              {/* Desktop View */}
               <table className="hidden md:table min-w-full divide-y divide-slate-200">
                 <thead className="bg-slate-50/80">
                   <tr>
-                    <th className="py-4 pl-6 lg:pl-8 pr-3 text-left text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider">
-                      Product
-                    </th>
-                    <th className="px-3 py-4 text-left text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider">
-                      Category
-                    </th>
-                    <th className="px-3 py-4 text-right text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider">
-                      Price (KES)
-                    </th>
-                    <th className="px-3 py-4 text-right text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider">
-                      Stock
-                    </th>
-                    <th className="px-3 py-4 text-right text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider pr-6 lg:pr-8">
-                      Actions
-                    </th>
+                    <th className="py-4 pl-6 lg:pl-8 pr-3 text-left text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider">Product</th>
+                    <th className="px-3 py-4 text-left text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider">Category</th>
+                    <th className="px-3 py-4 text-right text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider">Price (KES)</th>
+                    <th className="px-3 py-4 text-right text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider">Stock</th>
+                    <th className="px-3 py-4 text-right text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider pr-6 lg:pr-8">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
                   {filtered.map(item => {
-                    const displayImage = item.imageUrl || (item.name ? `/products/${item.name}.jpg` : null);
-                    
+                    const displayImage = getDisplayImage(item);
                     return (
                       <tr key={item.id} className="hover:bg-slate-50/80 transition-colors group">
                         <td className="py-4 pl-6 lg:pl-8 pr-3 text-sm lg:text-base font-bold text-slate-900 align-middle">
@@ -336,10 +348,7 @@ export default function ProductsClient() {
                                 src={displayImage} 
                                 alt={item.name} 
                                 className="h-12 w-12 rounded-2xl object-cover ring-1 ring-slate-200 bg-white shrink-0" 
-                                onError={(e) => {
-                                  (e.target as HTMLImageElement).style.display = 'none';
-                                  (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
-                                }}
+                                onError={handleImageError}
                               />
                             ) : null}
                             <div className={`h-12 w-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 shrink-0 ${displayImage ? 'hidden' : ''}`}>
@@ -367,18 +376,10 @@ export default function ProductsClient() {
                           {item.stock} units
                         </td>
                         <td className="px-3 py-4 text-sm text-right pr-6 lg:pr-8 align-middle space-x-1">
-                          <button 
-                            onClick={() => openEditModal(item)} 
-                            className="p-2.5 text-green-600 hover:bg-green-50 rounded-xl transition-colors inline-flex items-center" 
-                            title="Edit Product"
-                          >
+                          <button onClick={() => openEditModal(item)} className="p-2.5 text-green-600 hover:bg-green-50 rounded-xl transition-colors inline-flex items-center">
                             <Edit3 className="h-5 w-5" />
                           </button>
-                          <button 
-                            onClick={() => handleDeleteProduct(item.id)} 
-                            className="p-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-colors inline-flex items-center" 
-                            title="Delete Product"
-                          >
+                          <button onClick={() => handleDeleteProduct(item.id)} className="p-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-colors inline-flex items-center">
                             <Trash2 className="h-5 w-5" />
                           </button>
                         </td>
@@ -400,116 +401,60 @@ export default function ProductsClient() {
                 <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900 flex items-center gap-3">
                   <Package className="h-6 w-6 text-green-600" /> Add New Product
                 </h3>
-                <button 
-                  onClick={() => setIsAddModalOpen(false)} 
-                  className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-2 rounded-full transition-colors"
-                >
+                <button onClick={() => setIsAddModalOpen(false)} className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-2 rounded-full transition-colors">
                   <X className="h-6 w-6" />
                 </button>
               </div>
 
               <form onSubmit={handleAddProduct} className="p-5 sm:p-6 lg:p-8 space-y-5 sm:space-y-6">
-                
-                {/* Cloudinary Image Upload */}
                 <div>
                   <label className="block text-sm sm:text-base font-bold text-slate-700 mb-2">Product Image</label>
                   <div className="flex items-center gap-4">
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      onChange={handleImageUpload} 
-                      disabled={isUploading}
-                      className="hidden"
-                      id="image-upload-add"
-                    />
-                    <label 
-                      htmlFor="image-upload-add" 
-                      className="cursor-pointer flex items-center justify-center px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl hover:bg-slate-100 transition-all text-sm font-bold text-slate-700 shadow-sm"
-                    >
-                      {isUploading ? <Loader2 className="animate-spin h-5 w-5 text-slate-600 mr-2" /> : <ImagePlus className="h-5 w-5 text-slate-600 mr-2" />}
-                      {isUploading ? 'Uploading...' : 'Upload Image'}
+                    <input type="file" accept="image/*" onChange={handleFileChange} disabled={isSubmitting} className="hidden" id="image-upload-add" />
+                    <label htmlFor="image-upload-add" className="cursor-pointer flex items-center justify-center px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl hover:bg-slate-100 transition-all text-sm font-bold text-slate-700 shadow-sm">
+                      <ImagePlus className="h-5 w-5 text-slate-600 mr-2" /> Upload Image
                     </label>
-                    {formData.imageUrl && (
-                      <img src={formData.imageUrl} alt="Preview" className="h-12 w-12 sm:h-14 sm:w-14 object-cover rounded-xl shadow-sm border border-slate-200" />
+                    {imagePreview && (
+                      <img src={imagePreview} alt="Preview" className="h-12 w-12 sm:h-14 sm:w-14 object-cover rounded-xl shadow-sm border border-slate-200" />
                     )}
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-sm sm:text-base font-bold text-slate-700 mb-2">Product Name</label>
-                  <input 
-                    required 
-                    type="text" 
-                    value={formData.name} 
-                    onChange={e => setFormData({...formData, name: e.target.value})} 
-                    className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-green-600 focus:border-green-600 outline-none transition-all text-sm sm:text-base shadow-sm placeholder:text-slate-400" 
-                    placeholder="e.g., Premium Coffee" 
-                  />
+                  <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-green-600 focus:border-green-600 outline-none transition-all text-sm sm:text-base shadow-sm" placeholder="e.g., Premium Coffee" />
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
                   <div>
                     <label className="block text-sm sm:text-base font-bold text-slate-700 mb-2">Price (KES)</label>
-                    <input 
-                      required 
-                      type="number" 
-                      step="0.01" 
-                      value={formData.price} 
-                      onChange={e => setFormData({...formData, price: e.target.value})} 
-                      className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-green-600 focus:border-green-600 outline-none transition-all text-sm sm:text-base shadow-sm placeholder:text-slate-400" 
-                      placeholder="0.00" 
-                    />
+                    <input required type="number" step="0.01" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-green-600 focus:border-green-600 outline-none transition-all text-sm sm:text-base shadow-sm" placeholder="0.00" />
                   </div>
                   <div>
                     <label className="block text-sm sm:text-base font-bold text-slate-700 mb-2">Initial Stock</label>
-                    <input 
-                      required 
-                      type="number" 
-                      value={formData.stock} 
-                      onChange={e => setFormData({...formData, stock: e.target.value})} 
-                      className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-green-600 focus:border-green-600 outline-none transition-all text-sm sm:text-base shadow-sm placeholder:text-slate-400" 
-                      placeholder="0" 
-                    />
+                    <input required type="number" value={formData.stock} onChange={e => setFormData({...formData, stock: e.target.value})} className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-green-600 focus:border-green-600 outline-none transition-all text-sm sm:text-base shadow-sm" placeholder="0" />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
                   <div>
                     <label className="block text-sm sm:text-base font-bold text-slate-700 mb-2">Category</label>
-                    <select 
-                      value={formData.category} 
-                      onChange={e => setFormData({...formData, category: e.target.value})} 
-                      className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-green-600 focus:border-green-600 outline-none transition-all text-sm sm:text-base shadow-sm appearance-none bg-white"
-                    >
+                    <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-green-600 focus:border-green-600 outline-none transition-all text-sm sm:text-base shadow-sm appearance-none bg-white">
                       {PRODUCT_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="block text-sm sm:text-base font-bold text-slate-700 mb-2">SKU Code</label>
-                    <input 
-                      type="text" 
-                      value={formData.sku} 
-                      onChange={e => setFormData({...formData, sku: e.target.value})} 
-                      className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-green-600 focus:border-green-600 outline-none transition-all text-sm sm:text-base shadow-sm placeholder:text-slate-400" 
-                      placeholder="e.g., SKU-101" 
-                    />
+                    <input type="text" value={formData.sku} onChange={e => setFormData({...formData, sku: e.target.value})} className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-green-600 focus:border-green-600 outline-none transition-all text-sm sm:text-base shadow-sm" placeholder="e.g., SKU-101" />
                   </div>
                 </div>
 
                 <div className="pt-6 border-t border-slate-100 mt-8 flex flex-col sm:flex-row justify-end gap-3 sm:gap-4">
-                  <button 
-                    type="button" 
-                    onClick={() => setIsAddModalOpen(false)} 
-                    className="w-full sm:w-auto px-6 py-3.5 sm:py-3 text-sm sm:text-base font-bold text-slate-700 hover:bg-slate-100 rounded-xl sm:rounded-2xl transition-colors"
-                  >
+                  <button type="button" onClick={() => setIsAddModalOpen(false)} className="w-full sm:w-auto px-6 py-3.5 sm:py-3 text-sm sm:text-base font-bold text-slate-700 hover:bg-slate-100 rounded-xl sm:rounded-2xl transition-colors">
                     Cancel
                   </button>
-                  <button 
-                    type="submit" 
-                    disabled={isUploading}
-                    className="w-full sm:w-auto px-6 py-3.5 sm:py-3 text-sm sm:text-base font-bold text-white bg-green-600 hover:bg-green-700 disabled:opacity-70 rounded-xl sm:rounded-2xl flex items-center justify-center transition-colors shadow-md shadow-green-600/20"
-                  >
-                    <CheckCircle2 className="mr-2 h-5 w-5" /> Save Product
+                  <button type="submit" disabled={isSubmitting} className="w-full sm:w-auto px-6 py-3.5 sm:py-3 text-sm sm:text-base font-bold text-white bg-green-600 hover:bg-green-700 disabled:opacity-70 rounded-xl sm:rounded-2xl flex items-center justify-center transition-colors shadow-md shadow-green-600/20">
+                    {isSubmitting ? <Loader2 className="animate-spin h-5 w-5 mr-2" /> : <CheckCircle2 className="mr-2 h-5 w-5" />} Save Product
                   </button>
                 </div>
               </form>
@@ -527,112 +472,60 @@ export default function ProductsClient() {
                 <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900 flex items-center gap-3">
                   <Edit3 className="h-6 w-6 text-green-600" /> Edit Product
                 </h3>
-                <button 
-                  onClick={() => setIsEditModalOpen(false)} 
-                  className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-2 rounded-full transition-colors"
-                >
+                <button onClick={() => setIsEditModalOpen(false)} className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-2 rounded-full transition-colors">
                   <X className="h-6 w-6" />
                 </button>
               </div>
 
               <form onSubmit={handleUpdateProduct} className="p-5 sm:p-6 lg:p-8 space-y-5 sm:space-y-6">
-                
-                {/* Cloudinary Image Upload for Edit */}
                 <div>
                   <label className="block text-sm sm:text-base font-bold text-slate-700 mb-2">Product Image</label>
                   <div className="flex items-center gap-4">
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      onChange={handleImageUpload} 
-                      disabled={isUploading}
-                      className="hidden"
-                      id="image-upload-edit"
-                    />
-                    <label 
-                      htmlFor="image-upload-edit" 
-                      className="cursor-pointer flex items-center justify-center px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl hover:bg-slate-100 transition-all text-sm font-bold text-slate-700 shadow-sm"
-                    >
-                      {isUploading ? <Loader2 className="animate-spin h-5 w-5 text-slate-600 mr-2" /> : <ImagePlus className="h-5 w-5 text-slate-600 mr-2" />}
-                      {isUploading ? 'Uploading...' : 'Change Image'}
+                    <input type="file" accept="image/*" onChange={handleFileChange} disabled={isSubmitting} className="hidden" id="image-upload-edit" />
+                    <label htmlFor="image-upload-edit" className="cursor-pointer flex items-center justify-center px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl hover:bg-slate-100 transition-all text-sm font-bold text-slate-700 shadow-sm">
+                      <ImagePlus className="h-5 w-5 text-slate-600 mr-2" /> Change Image
                     </label>
-                    {formData.imageUrl && (
-                      <img src={formData.imageUrl} alt="Preview" className="h-12 w-12 sm:h-14 sm:w-14 object-cover rounded-xl shadow-sm border border-slate-200" />
+                    {imagePreview && (
+                      <img src={imagePreview} alt="Preview" className="h-12 w-12 sm:h-14 sm:w-14 object-cover rounded-xl shadow-sm border border-slate-200" />
                     )}
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-sm sm:text-base font-bold text-slate-700 mb-2">Product Name</label>
-                  <input 
-                    required 
-                    type="text" 
-                    value={formData.name} 
-                    onChange={e => setFormData({...formData, name: e.target.value})} 
-                    className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-green-600 focus:border-green-600 outline-none transition-all text-sm sm:text-base shadow-sm" 
-                  />
+                  <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-green-600 focus:border-green-600 outline-none transition-all text-sm sm:text-base shadow-sm" />
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
                   <div>
                     <label className="block text-sm sm:text-base font-bold text-slate-700 mb-2">Price (KES)</label>
-                    <input 
-                      required 
-                      type="number" 
-                      step="0.01" 
-                      value={formData.price} 
-                      onChange={e => setFormData({...formData, price: e.target.value})} 
-                      className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-green-600 focus:border-green-600 outline-none transition-all text-sm sm:text-base shadow-sm" 
-                    />
+                    <input required type="number" step="0.01" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-green-600 focus:border-green-600 outline-none transition-all text-sm sm:text-base shadow-sm" />
                   </div>
                   <div>
                     <label className="block text-sm sm:text-base font-bold text-slate-700 mb-2">Stock</label>
-                    <input 
-                      required 
-                      type="number" 
-                      value={formData.stock} 
-                      onChange={e => setFormData({...formData, stock: e.target.value})} 
-                      className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-green-600 focus:border-green-600 outline-none transition-all text-sm sm:text-base shadow-sm" 
-                    />
+                    <input required type="number" value={formData.stock} onChange={e => setFormData({...formData, stock: e.target.value})} className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-green-600 focus:border-green-600 outline-none transition-all text-sm sm:text-base shadow-sm" />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
                   <div>
                     <label className="block text-sm sm:text-base font-bold text-slate-700 mb-2">Category</label>
-                    <select 
-                      value={formData.category} 
-                      onChange={e => setFormData({...formData, category: e.target.value})} 
-                      className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-green-600 focus:border-green-600 outline-none transition-all text-sm sm:text-base shadow-sm appearance-none bg-white"
-                    >
+                    <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-green-600 focus:border-green-600 outline-none transition-all text-sm sm:text-base shadow-sm appearance-none bg-white">
                       {PRODUCT_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="block text-sm sm:text-base font-bold text-slate-700 mb-2">SKU Code</label>
-                    <input 
-                      type="text" 
-                      value={formData.sku} 
-                      onChange={e => setFormData({...formData, sku: e.target.value})} 
-                      className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-green-600 focus:border-green-600 outline-none transition-all text-sm sm:text-base shadow-sm" 
-                    />
+                    <input type="text" value={formData.sku} onChange={e => setFormData({...formData, sku: e.target.value})} className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-green-600 focus:border-green-600 outline-none transition-all text-sm sm:text-base shadow-sm" />
                   </div>
                 </div>
 
                 <div className="pt-6 border-t border-slate-100 mt-8 flex flex-col sm:flex-row justify-end gap-3 sm:gap-4">
-                  <button 
-                    type="button" 
-                    onClick={() => setIsEditModalOpen(false)} 
-                    className="w-full sm:w-auto px-6 py-3.5 sm:py-3 text-sm sm:text-base font-bold text-slate-700 hover:bg-slate-100 rounded-xl sm:rounded-2xl transition-colors"
-                  >
+                  <button type="button" onClick={() => setIsEditModalOpen(false)} className="w-full sm:w-auto px-6 py-3.5 sm:py-3 text-sm sm:text-base font-bold text-slate-700 hover:bg-slate-100 rounded-xl sm:rounded-2xl transition-colors">
                     Cancel
                   </button>
-                  <button 
-                    type="submit" 
-                    disabled={isUploading}
-                    className="w-full sm:w-auto px-6 py-3.5 sm:py-3 text-sm sm:text-base font-bold text-white bg-green-600 hover:bg-green-700 disabled:opacity-70 rounded-xl sm:rounded-2xl flex items-center justify-center transition-colors shadow-md shadow-green-600/20"
-                  >
-                    <CheckCircle2 className="mr-2 h-5 w-5" /> Update Product
+                  <button type="submit" disabled={isSubmitting} className="w-full sm:w-auto px-6 py-3.5 sm:py-3 text-sm sm:text-base font-bold text-white bg-green-600 hover:bg-green-700 disabled:opacity-70 rounded-xl sm:rounded-2xl flex items-center justify-center transition-colors shadow-md shadow-green-600/20">
+                    {isSubmitting ? <Loader2 className="animate-spin h-5 w-5 mr-2" /> : <CheckCircle2 className="mr-2 h-5 w-5" />} Update Product
                   </button>
                 </div>
               </form>

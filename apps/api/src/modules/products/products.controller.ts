@@ -4,7 +4,6 @@ import { v2 as cloudinary } from 'cloudinary';
 
 const prisma = new PrismaClient();
 
-// Local file interface to avoid global namespace conflicts
 interface UploadedFile {
   buffer: Buffer;
   originalname: string;
