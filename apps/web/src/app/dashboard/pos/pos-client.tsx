@@ -212,17 +212,7 @@ export default function POSClient() {
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 min-[1920px]:grid-cols-7 gap-3 sm:gap-4 lg:gap-5 xl:gap-6">
                 {filteredProducts.map((product) => {
-                  const rawImageUrl = product.imageUrl?.trim();
-                  let displayImage = null;
-                  
-                  if (rawImageUrl) {
-                    displayImage = rawImageUrl.startsWith('http') || rawImageUrl.startsWith('/') 
-                      ? rawImageUrl 
-                      : `/products/${rawImageUrl}`;
-                  } else if (product.name) {
-                    displayImage = `/products/${product.name}.jpg`;
-                  }
-
+                  const displayImage = product.imageUrl || (product.name ? `/products/${product.name}.jpg` : null);
                   const isOutOfStock = Number(product.stock) <= 0;
 
                   return (
@@ -243,19 +233,8 @@ export default function POSClient() {
                             alt={product.name}
                             className={`object-cover w-full h-full bg-white transition-transform duration-500 ${!isOutOfStock ? 'group-hover:scale-105' : ''}`}
                             onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              if (!target.dataset.fallback) {
-                                target.dataset.fallback = 'name';
-                                target.src = `/products/${product.name}.jpg`;
-                              } else if (target.dataset.fallback === 'name') {
-                                target.dataset.fallback = 'sku';
-                                target.src = `/products/${product.sku}.jpg`;
-                              } else {
-                                target.style.display = 'none';
-                                if (target.nextElementSibling) {
-                                  target.nextElementSibling.classList.remove('hidden');
-                                }
-                              }
+                              (e.target as HTMLImageElement).style.display = 'none';
+                              (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
                             }}
                           />
                         ) : null}
@@ -263,7 +242,7 @@ export default function POSClient() {
                           <ImageIcon className="h-10 w-10 lg:h-12 lg:w-12" />
                         </div>
                         {isOutOfStock && (
-                          <div className="absolute inset-0 bg-white/70 backdrop-blur-[2px] flex items-center justify-center">
+                          <div className="absolute inset-0 bg-white/70 backdrop-blur-[2px] flex items-center justify-center z-10">
                             <span className="bg-red-600 text-white text-xs lg:text-sm font-bold px-3 py-1.5 rounded-full uppercase tracking-widest shadow-sm">Out of Stock</span>
                           </div>
                         )}
@@ -414,7 +393,7 @@ export default function POSClient() {
         </div>
       </div>
 
-      {/* FIXED RECEIPT MODAL - Now perfectly scrollable on any device and formatted for print */}
+      {/* FIXED RECEIPT MODAL */}
       {receiptData && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm overflow-y-auto custom-scrollbar print:static print:bg-transparent print:overflow-visible">
           <div className="min-h-full flex items-center justify-center p-4 sm:p-6 lg:p-8 text-center print:p-0 print:block">
