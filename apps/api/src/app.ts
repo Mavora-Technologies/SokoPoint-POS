@@ -67,7 +67,9 @@ export const createApp = () => {
   app.use('/api/v1/reports', reportRoutes);
   app.use('/api/v1/credit', creditRoutes);
 
-  // Root-level aliases to handle all requests missing /api/v1 prefix
+  // Root-level and generic /api aliases to handle all requests missing /api/v1 prefix
+  app.use('/auth', authRoutes);
+  app.use('/api/auth', authRoutes);
   app.use('/products', productRoutes);
   app.use('/orders', orderRoutes);
   app.use('/inventory', inventoryRoutes);
