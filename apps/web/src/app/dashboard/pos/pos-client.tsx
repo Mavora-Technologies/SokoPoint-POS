@@ -212,7 +212,8 @@ export default function POSClient() {
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 min-[1920px]:grid-cols-7 gap-3 sm:gap-4 lg:gap-5 xl:gap-6">
                 {filteredProducts.map((product) => {
-                  const displayImage = product.imageUrl || (product.name ? `/products/${product.name}.jpg` : null);
+                  const hasRealImage = product.imageUrl && !product.imageUrl.includes('placehold.co');
+                  const displayImage = hasRealImage ? product.imageUrl : null;
                   const isOutOfStock = Number(product.stock) <= 0;
 
                   return (
