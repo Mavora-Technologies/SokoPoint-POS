@@ -4,17 +4,6 @@ import { v2 as cloudinary } from 'cloudinary';
 
 const prisma = new PrismaClient();
 
-interface UploadedFile {
-  buffer: Buffer;
-  originalname: string;
-  mimetype: string;
-  size: number;
-}
-
-interface MulterRequest extends Request {
-  file?: UploadedFile;
-}
-
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -43,13 +32,14 @@ export const getProducts = async (_req: Request, res: Response): Promise<void> =
   }
 };
 
-export const createProduct = async (req: MulterRequest, res: Response): Promise<void> => {
+export const createProduct = async (req: Request, res: Response): Promise<void> => {
   try {
     const { name, category, sellingPrice, stock, sku } = req.body;
     let imageUrl = req.body.imageUrl;
 
-    if (req.file) {
-      const uploadResult = await uploadToCloudinary(req.file.buffer);
+    const file = (req as any).file;
+    if (file && file.buffer) {
+      const uploadResult = await uploadToCloudinary(file.buffer);
       imageUrl = uploadResult.secure_url;
     }
 
@@ -71,7 +61,7 @@ export const createProduct = async (req: MulterRequest, res: Response): Promise<
   }
 };
 
-export const updateProduct = async (req: MulterRequest, res: Response): Promise<void> => {
+export const updateProduct = async (req: Request, res: Response): Promise<void> => {
   try {
     const rawId = req.params.id || req.query.id;
     const productId = Array.isArray(rawId) ? rawId[0] : rawId;
@@ -81,11 +71,12 @@ export const updateProduct = async (req: MulterRequest, res: Response): Promise<
       return;
     }
 
-    const { name, category, sellingPrice, stock, sku } = req.body;
+    const { name, category, sellingPrice, stock, sku }  = req.body;
     let imageUrl = req.body.imageUrl;
 
-    if (req.file) {
-      const uploadResult = await uploadToCloudinary(req.file.buffer);
+    const file = (req as any).file;
+    if (file && file.buffer) {
+      const uploadResult = await uploadToCloudinary(file.buffer);
       imageUrl = uploadResult.secure_url;
     }
 
