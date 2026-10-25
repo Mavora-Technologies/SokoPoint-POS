@@ -24,6 +24,7 @@ export default function InventoryClient() {
   // Adjustment Modal State
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [newStockVal, setNewStockVal] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => { setIsMounted(true); }, []);
 
@@ -31,8 +32,10 @@ export default function InventoryClient() {
     const fetchInventory = async () => {
       try {
         setIsLoading(true);
-        const res = await api.get('/inventory');
-        setInventory(res.data.data);
+        // Changed from /inventory to /products to fetch the real seeded database!
+        const res = await api.get('/products');
+        const data = res.data?.data || res.data || [];
+        setInventory(Array.isArray(data) ? data : []);
       } catch (error) {
         console.error('Failed to load inventory', error);
       } finally {
@@ -45,13 +48,23 @@ export default function InventoryClient() {
   const handleUpdateStock = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedItem) return;
+    
     try {
-      const res = await api.patch(`/inventory/${selectedItem.id}/stock`, { stock: newStockVal });
-      setInventory(inventory.map(item => item.id === selectedItem.id ? { ...item, stock: res.data.data.stock } : item));
+      setIsUpdating(true);
+      // Pushing the stock update directly to the product database
+      await api.put(`/products/${selectedItem.id}`, { stock: Number(newStockVal) });
+      
+      setInventory(inventory.map(item => 
+        item.id === selectedItem.id ? { ...item, stock: Number(newStockVal) } : item
+      ));
+      
       setSelectedItem(null);
       setNewStockVal('');
     } catch (error) {
       console.error('Failed to update stock', error);
+      alert('Failed to update stock. Please try again.');
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -63,13 +76,13 @@ export default function InventoryClient() {
     );
   }
 
-  // Extract unique categories for filter tabs
-  const categories = ['All', ...Array.from(new Set(inventory.map(i => i.category || 'General')))];
+  // Extract unique categories dynamically based on actual database products
+  const categories = ['All', ...Array.from(new Set(inventory.map(i => i.category || 'Uncategorized'))).filter(c => c !== 'Uncategorized')];
 
   const filtered = inventory.filter(item => {
     const nameMatch = (item?.name || '').toLowerCase().includes(searchQuery.toLowerCase());
     const skuMatch = item?.sku ? item.sku.toLowerCase().includes(searchQuery.toLowerCase()) : false;
-    const itemCat = item?.category || 'General';
+    const itemCat = item?.category || 'Uncategorized';
     const categoryMatch = selectedCategory === 'All' || itemCat === selectedCategory;
     return (nameMatch || skuMatch) && categoryMatch;
   });
@@ -88,7 +101,7 @@ export default function InventoryClient() {
               <span className="truncate">Inventory & Categories</span>
             </h2>
             <p className="mt-2 text-sm sm:text-base lg:text-lg text-slate-500 font-medium max-w-3xl">
-              Monitor stock levels, filter by product categories, and manage reorders.
+              Monitor real-time stock levels, filter by product categories, and manage reorders.
             </p>
           </div>
         </div>
@@ -119,7 +132,7 @@ export default function InventoryClient() {
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
               <input
                 type="text"
-                placeholder="Search inventory by name or SKU..."
+                placeholder="Search inventory by real name or SKU..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 className="w-full pl-12 pr-4 py-3 sm:py-3.5 bg-white border border-slate-200 rounded-xl sm:rounded-2xl focus:ring-2 focus:ring-blue-600 focus:border-blue-600 text-sm sm:text-base outline-none transition-all shadow-sm placeholder:text-slate-400"
@@ -141,7 +154,7 @@ export default function InventoryClient() {
             </div>
           ) : (
             <div className="w-full">
-              {/* MOBILE/TABLET VIEW: Card Layout to completely eliminate horizontal scrolling */}
+              {/* MOBILE/TABLET VIEW */}
               <div className="block md:hidden divide-y divide-slate-100">
                 {filtered.map(item => {
                   const stockCount = typeof item.stock === 'number' ? item.stock : 0;
@@ -150,12 +163,12 @@ export default function InventoryClient() {
 
                   return (
                     <div key={item.id} className="p-4 sm:p-5 hover:bg-slate-50/80 transition-colors space-y-3">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h4 className="text-base font-bold text-slate-900">{item.name || 'Unnamed Product'}</h4>
-                          <p className="text-xs sm:text-sm font-mono text-slate-400 mt-0.5">SKU: {item.sku || 'N/A'}</p>
+                      <div className="flex justify-between items-start gap-3">
+                        <div className="min-w-0">
+                          <h4 className="text-base font-bold text-slate-900 truncate">{item.name || 'Unnamed Product'}</h4>
+                          <p className="text-xs sm:text-sm font-mono text-slate-400 mt-0.5 truncate">SKU: {item.sku || 'N/A'}</p>
                         </div>
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20 shrink-0">
                           <Tag className="h-3 w-3" /> {item.category || 'General'}
                         </span>
                       </div>
@@ -177,7 +190,7 @@ export default function InventoryClient() {
                         </div>
                         <button 
                           onClick={() => { setSelectedItem(item); setNewStockVal(stockCount.toString()); }}
-                          className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-blue-50 text-blue-600 hover:bg-blue-100 font-bold rounded-xl text-xs transition-colors shadow-sm"
+                          className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-blue-50 text-blue-600 hover:bg-blue-100 font-bold rounded-xl text-xs transition-colors shadow-sm active:scale-95"
                         >
                           <SlidersHorizontal className="h-4 w-4" /> Adjust Stock
                         </button>
@@ -187,11 +200,11 @@ export default function InventoryClient() {
                 })}
               </div>
 
-              {/* DESKTOP VIEW: Table Layout for larger screens */}
+              {/* DESKTOP VIEW */}
               <table className="hidden md:table min-w-full divide-y divide-slate-200">
                 <thead className="bg-slate-50/80">
                   <tr>
-                    <th className="py-4 pl-6 lg:pl-8 pr-3 text-left text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider">
+                    <th className="py-4 pl-6 lg:pl-8 pr-3 text-left text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider w-1/3">
                       Product Name
                     </th>
                     <th className="px-3 py-4 text-left text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider">
@@ -247,7 +260,7 @@ export default function InventoryClient() {
                         <td className="px-3 py-4 text-sm text-right pr-6 lg:pr-8 align-middle">
                           <button 
                             onClick={() => { setSelectedItem(item); setNewStockVal(stockCount.toString()); }}
-                            className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 font-bold rounded-xl text-xs lg:text-sm transition-colors shadow-sm"
+                            className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 font-bold rounded-xl text-xs lg:text-sm transition-colors shadow-sm active:scale-95"
                           >
                             <SlidersHorizontal className="h-4 w-4" /> Adjust Stock
                           </button>
@@ -292,7 +305,8 @@ export default function InventoryClient() {
                       min="0" 
                       value={newStockVal} 
                       onChange={e => setNewStockVal(e.target.value)} 
-                      className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all text-sm sm:text-base shadow-sm" 
+                      disabled={isUpdating}
+                      className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all text-sm sm:text-base shadow-sm disabled:opacity-50" 
                     />
                   </div>
 
@@ -300,15 +314,18 @@ export default function InventoryClient() {
                     <button 
                       type="button" 
                       onClick={() => setSelectedItem(null)} 
-                      className="w-full sm:w-auto px-6 py-3.5 sm:py-3 text-sm sm:text-base font-bold text-slate-700 hover:bg-slate-100 rounded-xl sm:rounded-2xl transition-colors"
+                      disabled={isUpdating}
+                      className="w-full sm:w-auto px-6 py-3.5 sm:py-3 text-sm sm:text-base font-bold text-slate-700 hover:bg-slate-100 rounded-xl sm:rounded-2xl transition-colors disabled:opacity-50"
                     >
                       Cancel
                     </button>
                     <button 
                       type="submit" 
-                      className="w-full sm:w-auto px-6 py-3.5 sm:py-3 text-sm sm:text-base font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl sm:rounded-2xl flex items-center justify-center transition-colors shadow-md shadow-blue-600/20"
+                      disabled={isUpdating}
+                      className="w-full sm:w-auto px-6 py-3.5 sm:py-3 text-sm sm:text-base font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl sm:rounded-2xl flex items-center justify-center transition-colors shadow-md shadow-blue-600/20 disabled:opacity-50"
                     >
-                      <CheckCircle2 className="mr-2 h-5 w-5" /> Update Stock
+                      {isUpdating ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <CheckCircle2 className="mr-2 h-5 w-5" />}
+                      Update Stock
                     </button>
                   </div>
                 </form>
