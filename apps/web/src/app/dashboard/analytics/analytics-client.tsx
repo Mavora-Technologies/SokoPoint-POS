@@ -35,7 +35,6 @@ export default function AnalyticsClient() {
     const fetchAnalytics = async () => {
       try {
         setIsLoading(true);
-        // Fallback to fetching products & orders if a unified analytics endpoint isn't mapped yet
         const [productsRes, ordersRes, expensesRes] = await Promise.all([
           api.get('/products'),
           api.get('/orders'),
@@ -105,7 +104,7 @@ export default function AnalyticsClient() {
         </div>
 
         {isLoading ? (
-          <div className="flex justify-center items-center h-[50vh] w-full">
+          <div className="flex justify-center items-center h-[50vh] w-full bg-white rounded-2xl lg:rounded-3xl shadow-sm ring-1 ring-slate-200">
             <Loader2 className="h-10 w-10 lg:h-12 lg:w-12 animate-spin text-blue-600" />
           </div>
         ) : (
@@ -113,56 +112,57 @@ export default function AnalyticsClient() {
             
             {/* Fluid KPI Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6 lg:gap-8 w-full">
+              
               {/* Revenue Card */}
-              <div className="bg-white overflow-hidden rounded-2xl lg:rounded-3xl shadow-sm hover:shadow-md ring-1 ring-slate-200 transition-all p-5 sm:p-6 lg:p-8 flex items-center w-full">
-                <div className="p-3 sm:p-4 rounded-xl lg:rounded-2xl bg-blue-50 text-blue-600 shrink-0">
-                  <DollarSign className="h-6 w-6 sm:h-8 sm:w-8" />
+              <div className="bg-white overflow-hidden rounded-2xl lg:rounded-3xl shadow-sm hover:shadow-md ring-1 ring-slate-200 transition-all p-5 sm:p-6 lg:p-8 flex flex-col justify-between h-40 sm:h-44 w-full">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2.5 sm:p-3 rounded-xl lg:rounded-2xl bg-blue-50 text-blue-600 shrink-0">
+                    <DollarSign className="h-5 w-5 sm:h-6 sm:w-6" />
+                  </div>
+                  <p className="text-sm sm:text-base font-bold text-slate-500">Total Revenue</p>
                 </div>
-                <div className="ml-4 sm:ml-5 min-w-0 flex-1">
-                  <p className="text-sm sm:text-base font-semibold text-slate-500 truncate">Total Revenue</p>
-                  <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 truncate">
-                    KES {data.totalRevenue.toLocaleString()}
-                  </p>
-                </div>
+                <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight whitespace-nowrap overflow-visible mt-auto">
+                  KES {data.totalRevenue.toLocaleString()}
+                </p>
               </div>
 
               {/* Profit Card */}
-              <div className="bg-white overflow-hidden rounded-2xl lg:rounded-3xl shadow-sm hover:shadow-md ring-1 ring-slate-200 transition-all p-5 sm:p-6 lg:p-8 flex items-center w-full">
-                <div className="p-3 sm:p-4 rounded-xl lg:rounded-2xl bg-green-50 text-green-600 shrink-0">
-                  <TrendingUp className="h-6 w-6 sm:h-8 sm:w-8" />
+              <div className="bg-white overflow-hidden rounded-2xl lg:rounded-3xl shadow-sm hover:shadow-md ring-1 ring-slate-200 transition-all p-5 sm:p-6 lg:p-8 flex flex-col justify-between h-40 sm:h-44 w-full">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2.5 sm:p-3 rounded-xl lg:rounded-2xl bg-green-50 text-green-600 shrink-0">
+                    <TrendingUp className="h-5 w-5 sm:h-6 sm:w-6" />
+                  </div>
+                  <p className="text-sm sm:text-base font-bold text-slate-500">Net Profit</p>
                 </div>
-                <div className="ml-4 sm:ml-5 min-w-0 flex-1">
-                  <p className="text-sm sm:text-base font-semibold text-slate-500 truncate">Net Profit</p>
-                  <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 truncate">
-                    KES {data.netProfit.toLocaleString()}
-                  </p>
-                </div>
+                <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight whitespace-nowrap overflow-visible mt-auto">
+                  KES {data.netProfit.toLocaleString()}
+                </p>
               </div>
 
               {/* Orders Card */}
-              <div className="bg-white overflow-hidden rounded-2xl lg:rounded-3xl shadow-sm hover:shadow-md ring-1 ring-slate-200 transition-all p-5 sm:p-6 lg:p-8 flex items-center w-full">
-                <div className="p-3 sm:p-4 rounded-xl lg:rounded-2xl bg-purple-50 text-purple-600 shrink-0">
-                  <ShoppingBag className="h-6 w-6 sm:h-8 sm:w-8" />
+              <div className="bg-white overflow-hidden rounded-2xl lg:rounded-3xl shadow-sm hover:shadow-md ring-1 ring-slate-200 transition-all p-5 sm:p-6 lg:p-8 flex flex-col justify-between h-40 sm:h-44 w-full">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2.5 sm:p-3 rounded-xl lg:rounded-2xl bg-purple-50 text-purple-600 shrink-0">
+                    <ShoppingBag className="h-5 w-5 sm:h-6 sm:w-6" />
+                  </div>
+                  <p className="text-sm sm:text-base font-bold text-slate-500">Total Orders</p>
                 </div>
-                <div className="ml-4 sm:ml-5 min-w-0 flex-1">
-                  <p className="text-sm sm:text-base font-semibold text-slate-500 truncate">Total Orders</p>
-                  <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 truncate">
-                    {data.totalOrders.toLocaleString()}
-                  </p>
-                </div>
+                <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight whitespace-nowrap overflow-visible mt-auto">
+                  {data.totalOrders.toLocaleString()}
+                </p>
               </div>
 
               {/* Alerts Card */}
-              <div className="bg-white overflow-hidden rounded-2xl lg:rounded-3xl shadow-sm hover:shadow-md ring-1 ring-slate-200 transition-all p-5 sm:p-6 lg:p-8 flex items-center w-full">
-                <div className="p-3 sm:p-4 rounded-xl lg:rounded-2xl bg-amber-50 text-amber-600 shrink-0">
-                  <Package className="h-6 w-6 sm:h-8 sm:w-8" />
+              <div className="bg-white overflow-hidden rounded-2xl lg:rounded-3xl shadow-sm hover:shadow-md ring-1 ring-slate-200 transition-all p-5 sm:p-6 lg:p-8 flex flex-col justify-between h-40 sm:h-44 w-full">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2.5 sm:p-3 rounded-xl lg:rounded-2xl bg-amber-50 text-amber-600 shrink-0">
+                    <Package className="h-5 w-5 sm:h-6 sm:w-6" />
+                  </div>
+                  <p className="text-sm sm:text-base font-bold text-slate-500">Low Stock Alerts</p>
                 </div>
-                <div className="ml-4 sm:ml-5 min-w-0 flex-1">
-                  <p className="text-sm sm:text-base font-semibold text-slate-500 truncate">Low Stock Alerts</p>
-                  <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 truncate">
-                    {data.lowStockCount.toLocaleString()}
-                  </p>
-                </div>
+                <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight whitespace-nowrap overflow-visible mt-auto">
+                  {data.lowStockCount.toLocaleString()}
+                </p>
               </div>
             </div>
 
@@ -170,8 +170,8 @@ export default function AnalyticsClient() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 lg:gap-10 w-full">
               
               {/* Category Distribution Chart */}
-              <div className="bg-white rounded-2xl lg:rounded-3xl shadow-sm ring-1 ring-slate-200 p-5 sm:p-6 lg:p-8 flex flex-col w-full">
-                <div className="flex items-center gap-3 mb-6 sm:mb-8 border-b border-slate-100 pb-4">
+              <div className="bg-white rounded-2xl lg:rounded-3xl shadow-sm ring-1 ring-slate-200 p-5 sm:p-6 lg:p-8 flex flex-col w-full h-[400px]">
+                <div className="flex items-center gap-3 mb-6 sm:mb-8 border-b border-slate-100 pb-4 shrink-0">
                   <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
                     <PieChart className="h-5 w-5 sm:h-6 sm:w-6" />
                   </div>
@@ -205,8 +205,8 @@ export default function AnalyticsClient() {
               </div>
 
               {/* Recent Live Transactions */}
-              <div className="bg-white rounded-2xl lg:rounded-3xl shadow-sm ring-1 ring-slate-200 p-5 sm:p-6 lg:p-8 flex flex-col w-full">
-                <div className="flex items-center gap-3 mb-4 sm:mb-6 border-b border-slate-100 pb-4">
+              <div className="bg-white rounded-2xl lg:rounded-3xl shadow-sm ring-1 ring-slate-200 p-5 sm:p-6 lg:p-8 flex flex-col w-full h-[400px]">
+                <div className="flex items-center gap-3 mb-4 sm:mb-6 border-b border-slate-100 pb-4 shrink-0">
                   <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
                     <ArrowUpRight className="h-5 w-5 sm:h-6 sm:w-6" />
                   </div>
