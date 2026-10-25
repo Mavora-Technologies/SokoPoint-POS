@@ -10,56 +10,49 @@ async function main() {
   await prisma.expense.deleteMany();
   await prisma.purchaseOrder.deleteMany();
   await prisma.category.deleteMany();
-  await prisma.user.deleteMany(); // Clear old users too
+  await prisma.user.deleteMany(); 
 
   console.log('Seeding categories...');
   await prisma.category.createMany({
     data: [
+      { name: 'General', description: 'Uncategorized items' },
+      { name: 'Bakery', description: 'Bread and pastries' },
       { name: 'Beverages', description: 'Coffee, tea, water, sodas and juices' },
       { name: 'Dairy & Eggs', description: 'Milk, yogurt, butter, and farm eggs' },
-      { name: 'Bakery', description: 'Bread and pastries' },
       { name: 'Grains & Flour', description: 'Maize flour, wheat flour, and rice' },
-      { name: 'Pantry & Oils', description: 'Cooking oil, sugar, salt, and spices' },
       { name: 'Household & Essentials', description: 'Cleaning supplies and paper products' },
+      { name: 'Pantry & Oils', description: 'Cooking oil, sugar, salt, and spices' },
+      { name: 'Clothes (Male)', description: 'Men apparel' },
+      { name: 'Clothes (Female)', description: 'Women apparel' },
+      { name: 'Shoes', description: 'Footwear' },
+      { name: 'Utensils', description: 'Kitchen and dining tools' },
+      { name: 'Farm Tools', description: 'Agricultural equipment' },
+      { name: 'Machines', description: 'Heavy machinery and pumps' },
     ],
   });
 
-  console.log('Seeding 30 products with images...');
+  console.log('Seeding products based on Cloudinary catalog...');
   
   const getImg = (name: string) => `https://placehold.co/400x400/f1f5f9/0f172a?text=${encodeURIComponent(name)}`;
   
   await prisma.product.createMany({
     data: [
-      { name: 'Premium Kenyan Coffee (AA)', sku: 'COF-001', sellingPrice: 850, stock: 25, minimumStock: 15, category: 'Beverages', imageUrl: getImg('Kenyan Coffee') },
-      { name: 'Fresh Milk (1L)', sku: 'MLK-001', sellingPrice: 120, stock: 45, minimumStock: 30, category: 'Dairy & Eggs', imageUrl: getImg('Fresh Milk') },
-      { name: 'Whole Wheat Bread', sku: 'BRD-002', sellingPrice: 80, stock: 18, minimumStock: 20, category: 'Bakery', imageUrl: getImg('Wheat Bread') },
-      { name: 'Kericho Gold Tea (500g)', sku: 'TEA-045', sellingPrice: 250, stock: 35, minimumStock: 10, category: 'Beverages', imageUrl: getImg('Kericho Tea') },
-      { name: 'White Sugar (1kg)', sku: 'SGR-001', sellingPrice: 150, stock: 60, minimumStock: 50, category: 'Pantry & Oils', imageUrl: getImg('White Sugar') },
-      { name: 'Brown Sugar (1kg)', sku: 'SGR-002', sellingPrice: 170, stock: 40, minimumStock: 50, category: 'Pantry & Oils', imageUrl: getImg('Brown Sugar') },
-      { name: 'Maize Flour (2kg)', sku: 'MZF-001', sellingPrice: 200, stock: 55, minimumStock: 40, category: 'Grains & Flour', imageUrl: getImg('Maize Flour') },
-      { name: 'Wheat Flour (2kg)', sku: 'WHF-001', sellingPrice: 220, stock: 50, minimumStock: 40, category: 'Grains & Flour', imageUrl: getImg('Wheat Flour') },
-      { name: 'Vegetable Cooking Oil (1L)', sku: 'OIL-001', sellingPrice: 350, stock: 30, minimumStock: 25, category: 'Pantry & Oils', imageUrl: getImg('Cooking Oil 1L') },
-      { name: 'Vegetable Cooking Oil (3L)', sku: 'OIL-003', sellingPrice: 1000, stock: 12, minimumStock: 15, category: 'Pantry & Oils', imageUrl: getImg('Cooking Oil 3L') },
-      { name: 'Table Salt (500g)', sku: 'SLT-001', sellingPrice: 40, stock: 75, minimumStock: 60, category: 'Pantry & Oils', imageUrl: getImg('Table Salt') },
-      { name: 'Basmati Rice (1kg)', sku: 'RCE-001', sellingPrice: 300, stock: 40, minimumStock: 30, category: 'Grains & Flour', imageUrl: getImg('Basmati Rice') },
-      { name: 'Pishori Rice (1kg)', sku: 'RCE-002', sellingPrice: 350, stock: 25, minimumStock: 20, category: 'Grains & Flour', imageUrl: getImg('Pishori Rice') },
-      { name: 'Green Grams (1kg)', sku: 'GRM-001', sellingPrice: 280, stock: 22, minimumStock: 20, category: 'Grains & Flour', imageUrl: getImg('Green Grams') },
-      { name: 'Red Kidney Beans (1kg)', sku: 'BNS-001', sellingPrice: 250, stock: 28, minimumStock: 20, category: 'Grains & Flour', imageUrl: getImg('Kidney Beans') },
-      { name: 'Spaghetti (500g)', sku: 'SPG-001', sellingPrice: 100, stock: 45, minimumStock: 40, category: 'Pantry & Oils', imageUrl: getImg('Spaghetti') },
-      { name: 'Macaroni (500g)', sku: 'MAC-001', sellingPrice: 110, stock: 35, minimumStock: 30, category: 'Pantry & Oils', imageUrl: getImg('Macaroni') },
-      { name: 'Tomato Paste (400g)', sku: 'TMP-001', sellingPrice: 150, stock: 30, minimumStock: 25, category: 'Pantry & Oils', imageUrl: getImg('Tomato Paste') },
-      { name: 'Baked Beans (415g)', sku: 'BKB-001', sellingPrice: 180, stock: 24, minimumStock: 20, category: 'Pantry & Oils', imageUrl: getImg('Baked Beans') },
-      { name: 'Mineral Water (500ml)', sku: 'WTR-500', sellingPrice: 50, stock: 120, minimumStock: 100, category: 'Beverages', imageUrl: getImg('Water 500ml') },
-      { name: 'Mineral Water (1L)', sku: 'WTR-1000', sellingPrice: 90, stock: 95, minimumStock: 80, category: 'Beverages', imageUrl: getImg('Water 1L') },
-      { name: 'Assorted Soda (500ml)', sku: 'SDA-500', sellingPrice: 70, stock: 110, minimumStock: 100, category: 'Beverages', imageUrl: getImg('Assorted Soda') },
-      { name: 'Mango Juice (1L)', sku: 'JCE-001', sellingPrice: 250, stock: 25, minimumStock: 20, category: 'Beverages', imageUrl: getImg('Mango Juice') },
-      { name: 'Vanilla Yogurt (500ml)', sku: 'YGT-001', sellingPrice: 150, stock: 28, minimumStock: 25, category: 'Dairy & Eggs', imageUrl: getImg('Vanilla Yogurt') },
-      { name: 'Salted Butter (250g)', sku: 'BTR-001', sellingPrice: 350, stock: 20, minimumStock: 15, category: 'Dairy & Eggs', imageUrl: getImg('Salted Butter') },
-      { name: 'Margarine (500g)', sku: 'MRG-001', sellingPrice: 250, stock: 22, minimumStock: 20, category: 'Dairy & Eggs', imageUrl: getImg('Margarine') },
-      { name: 'Cheddar Cheese (250g)', sku: 'CHS-001', sellingPrice: 450, stock: 15, minimumStock: 10, category: 'Dairy & Eggs', imageUrl: getImg('Cheddar Cheese') },
-      { name: 'Farm Eggs (Tray of 30)', sku: 'EGG-030', sellingPrice: 450, stock: 25, minimumStock: 20, category: 'Dairy & Eggs', imageUrl: getImg('Farm Eggs') },
-      { name: 'Beef Sausages (500g)', sku: 'SAU-001', sellingPrice: 350, stock: 18, minimumStock: 15, category: 'Dairy & Eggs', imageUrl: getImg('Beef Sausages') },
-      { name: 'Premium Toilet Paper (10 Pack)', sku: 'TLP-010', sellingPrice: 400, stock: 40, minimumStock: 30, category: 'Household & Essentials', imageUrl: getImg('Toilet Paper') },
+      { name: 'Crocodile Heavy Duty Jembe (Hoe)', sku: 'FRM-001', sellingPrice: 850, stock: 25, minimumStock: 10, category: 'Farm Tools', imageUrl: getImg('Jembe') },
+      { name: 'Heavy Duty Ceramic Dinner Plates (6pcs)', sku: 'UTN-001', sellingPrice: 1500, stock: 40, minimumStock: 15, category: 'Utensils', imageUrl: getImg('Ceramic Plates') },
+      { name: 'Honda Petrol Water Pump Machine', sku: 'MCH-001', sellingPrice: 28000, stock: 5, minimumStock: 2, category: 'Machines', imageUrl: getImg('Water Pump') },
+      { name: 'Jogoo Premium Maize Flour 2kg', sku: 'GRN-001', sellingPrice: 220, stock: 100, minimumStock: 50, category: 'Grains & Flour', imageUrl: getImg('Jogoo 2kg') },
+      { name: 'Kabras White Sugar 1kg', sku: 'PNT-001', sellingPrice: 165, stock: 80, minimumStock: 30, category: 'Pantry & Oils', imageUrl: getImg('Kabras Sugar') },
+      { name: 'Men\'s Classic Denim Jacket', sku: 'CLM-001', sellingPrice: 1800, stock: 15, minimumStock: 5, category: 'Clothes (Male)', imageUrl: getImg('Denim Jacket') },
+      { name: 'Men\'s Cotton Polo Shirt', sku: 'CLM-002', sellingPrice: 850, stock: 35, minimumStock: 10, category: 'Clothes (Male)', imageUrl: getImg('Polo Shirt') },
+      { name: 'Mwea Pishori Rice 5kg', sku: 'GRN-002', sellingPrice: 1400, stock: 45, minimumStock: 20, category: 'Grains & Flour', imageUrl: getImg('Pishori 5kg') },
+      { name: 'Omo Fast Action Laundry Detergent', sku: 'HSH-001', sellingPrice: 250, stock: 60, minimumStock: 20, category: 'Household & Essentials', imageUrl: getImg('Omo Detergent') },
+      { name: 'Philips Energy Saving LED Bulb 9W', sku: 'HSH-002', sellingPrice: 350, stock: 120, minimumStock: 40, category: 'Household & Essentials', imageUrl: getImg('LED Bulb') },
+      { name: 'Stainless Steel Cooking Pot Set (6pcs)', sku: 'UTN-002', sellingPrice: 4500, stock: 12, minimumStock: 5, category: 'Utensils', imageUrl: getImg('Pot Set 6pcs') },
+      { name: 'Stainless Steel Cooking Pot Set', sku: 'UTN-003', sellingPrice: 3200, stock: 18, minimumStock: 5, category: 'Utensils', imageUrl: getImg('Pot Set') },
+      { name: 'Toilet Tissue (10 Pack)', sku: 'HSH-003', sellingPrice: 450, stock: 85, minimumStock: 30, category: 'Household & Essentials', imageUrl: getImg('Toilet Tissue') },
+      { name: 'Whole Wheat Bread 400g', sku: 'BAK-001', sellingPrice: 65, stock: 30, minimumStock: 10, category: 'Bakery', imageUrl: getImg('Wheat Bread') },
+      { name: 'Women\'s Athletic Running Shoes', sku: 'SHO-001', sellingPrice: 2500, stock: 20, minimumStock: 5, category: 'Shoes', imageUrl: getImg('Running Shoes') },
+      { name: 'Women\'s Floral Summer Dress', sku: 'CLF-001', sellingPrice: 1500, stock: 25, minimumStock: 8, category: 'Clothes (Female)', imageUrl: getImg('Summer Dress') },
     ],
   });
 
