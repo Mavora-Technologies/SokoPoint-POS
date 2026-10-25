@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { 
@@ -10,7 +10,6 @@ import {
   Bot, Clock, Inbox, MonitorSmartphone, Store
 } from 'lucide-react';
 
-// Master Navigation Array linking all your modules
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'POS Terminal', href: '/dashboard/pos', icon: MonitorSmartphone },
@@ -39,18 +38,32 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const pathname = usePathname();
   const [isSidebarOpen, setSidebarOpen] = useState(false);
+  const [user, setUser] = useState({ firstName: 'User', lastName: '', initials: 'U' });
 
-  // DEV OVERRIDE: Force authenticated state so layout never bounces back
+  useEffect(() => {
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      try {
+        const parsed = JSON.parse(storedUser);
+        const fName = parsed.firstName || 'User';
+        const lName = parsed.lastName || '';
+        setUser({
+          firstName: fName,
+          lastName: lName,
+          initials: `${fName.charAt(0) || ''}${lName.charAt(0) || ''}`.toUpperCase() || 'U'
+        });
+      } catch (e) {
+        console.error('Failed to parse user data', e);
+      }
+    }
+  }, []);
+
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     document.cookie = 'token=; path=/; max-age=0';
     router.push('/login');
   };
-
-  const firstName = 'Valary';
-  const lastName = 'Femy';
-  const initials = 'VF';
 
   return (
     <div className="h-screen w-full bg-slate-50 flex overflow-hidden selection:bg-blue-900 selection:text-white">
@@ -62,7 +75,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         />
       )}
 
-      {/* Blue Theme Sidebar */}
       <aside className={`fixed inset-y-0 left-0 z-50 w-64 xl:w-72 bg-blue-950 text-white transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 flex flex-col shadow-2xl lg:shadow-none ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         
         <div className="flex h-16 xl:h-20 shrink-0 items-center px-4 xl:px-6 border-b border-blue-900/50 bg-blue-900/20">
@@ -130,10 +142,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className="hidden lg:block lg:h-6 lg:w-px lg:bg-gray-200" aria-hidden="true" />
             <div className="flex items-center gap-x-4 cursor-pointer hover:opacity-80 transition-opacity">
               <div className="h-8 w-8 sm:h-9 sm:w-9 xl:h-10 xl:w-10 rounded-full bg-gradient-to-tr from-blue-600 to-blue-400 flex items-center justify-center text-white font-bold text-sm xl:text-base shadow-sm ring-2 ring-white">
-                {initials}
+                {user.initials}
               </div>
               <span className="hidden lg:flex lg:items-center text-sm xl:text-base font-semibold leading-6 text-gray-900">
-                {firstName} {lastName}
+                {user.firstName} {user.lastName}
               </span>
             </div>
           </div>
