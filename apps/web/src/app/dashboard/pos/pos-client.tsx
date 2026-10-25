@@ -121,13 +121,10 @@ export default function POSClient() {
     setIsProcessing(true);
 
     try {
+      // 1. Deduct Stock
       await Promise.all(
         cart.map(async (item) => {
-          if (!item.id) {
-            console.error('Cart item missing ID:', item);
-            return;
-          }
-
+          if (!item.id) return;
           const freshProduct = products.find((p) => p.id === item.id);
           const currentStock = freshProduct ? Number(freshProduct.stock) : Number(item.stock);
           const remainingStock = Math.max(0, currentStock - item.quantity);
@@ -138,7 +135,16 @@ export default function POSClient() {
         })
       );
 
+      // 2. Create the actual Order in the database so the Dashboard sees it!
       const mockOrderNumber = `SOKO-${Math.floor(Math.random() * 1000000000)}`;
+      await api.post('/orders', {
+        orderNum: mockOrderNumber,
+        customer: 'Walk-in Customer',
+        total: total,
+        method: paymentMethod
+      });
+
+      // 3. Show Receipt
       setReceiptData({
         orderNumber: mockOrderNumber,
         date: new Date().toLocaleString(),
@@ -152,8 +158,8 @@ export default function POSClient() {
       setCart([]);
       await loadProducts();
     } catch (error) {
-      console.error('Failed to complete sale and deduct stock:', error);
-      alert('Checkout completed, but failed to deduct some stock in the database.');
+      console.error('Failed to complete sale:', error);
+      alert('Failed to complete checkout. Please try again.');
     } finally {
       setIsProcessing(false);
     }
@@ -210,9 +216,8 @@ export default function POSClient() {
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 min-[1920px]:grid-cols-7 gap-3 sm:gap-4 lg:gap-5 xl:gap-6">
                 {filteredProducts.map((product) => {
                   
-                  // CLOUDINARY SHORTCUT LOGIC
                   const CLOUD_NAME = 'YOUR_CLOUD_NAME'; 
-                  const FOLDER_NAME = 'sokopoint-products/'; // Leave as '' if uploaded to root folder
+                  const FOLDER_NAME = 'sokopoint-products/'; 
                   
                   const hasRealImageInDB = product.imageUrl && !product.imageUrl.includes('placehold.co');
                   const fallbackCloudinaryUrl = `https://res.cloudinary.com/${CLOUD_NAME}/image/upload/${FOLDER_NAME}${encodeURIComponent(product.name)}.jpg`;
@@ -238,7 +243,6 @@ export default function POSClient() {
                             alt={product.name}
                             className={`object-cover w-full h-full bg-white transition-transform duration-500 ${!isOutOfStock ? 'group-hover:scale-105' : ''}`}
                             onError={(e) => {
-                              // If .jpg fails, attempt .png. If that fails, show the placeholder icon.
                               const target = e.target as HTMLImageElement;
                               if (target.src.endsWith('.jpg')) {
                                 target.src = target.src.replace('.jpg', '.png');
@@ -346,7 +350,6 @@ export default function POSClient() {
             )}
           </div>
 
-          {/* Checkout Footer */}
           <div className="p-4 sm:p-5 lg:p-6 xl:p-8 bg-white border-t border-slate-200 shrink-0 shadow-[0_-4px_20px_rgba(0,0,0,0.03)] z-10 pb-8 lg:pb-6">
             <div className="mb-5 lg:mb-6">
               <p className="text-[11px] lg:text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Payment Method</p>
@@ -404,7 +407,6 @@ export default function POSClient() {
         </div>
       </div>
 
-      {/* FIXED RECEIPT MODAL */}
       {receiptData && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm overflow-y-auto custom-scrollbar print:static print:bg-transparent print:overflow-visible">
           <div className="min-h-full flex items-center justify-center p-4 sm:p-6 lg:p-8 text-center print:p-0 print:block">

@@ -68,75 +68,65 @@ export default function DashboardClient() {
         </p>
       </div>
 
+      {/* FIXED RESPONSIVE CARDS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 w-full">
-        {/* Sales Card */}
-        <div className="rounded-2xl bg-white p-5 sm:p-6 shadow-sm ring-1 ring-gray-900/5 transition-all hover:shadow-md hover:ring-blue-600/10 flex flex-col justify-center">
-          <div className="flex items-center gap-4">
-            <div className="p-3 sm:p-4 bg-green-50 rounded-xl text-green-600 shrink-0">
-              <DollarSign className="h-6 w-6 sm:h-7 sm:w-7" />
+        
+        <div className="rounded-2xl bg-white p-5 sm:p-6 shadow-sm ring-1 ring-gray-900/5 transition-all hover:shadow-md flex flex-col justify-between h-36">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2.5 bg-green-50 rounded-xl text-green-600 shrink-0">
+              <DollarSign className="h-5 w-5" />
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-gray-500 mb-1">Gross Sales</p>
-              <p className="text-xl sm:text-2xl lg:text-2xl xl:text-3xl font-bold text-gray-900 break-words leading-tight">
-                {isLoading ? '...' : `KES ${stats.totalSales.toLocaleString()}`}
-              </p>
+            <p className="text-sm font-bold text-gray-500">Gross Sales</p>
+          </div>
+          <p className="text-2xl xl:text-3xl font-black text-gray-900 tracking-tight whitespace-nowrap">
+            {isLoading ? '...' : `KES ${stats.totalSales.toLocaleString()}`}
+          </p>
+        </div>
+
+        <div className="rounded-2xl bg-white p-5 sm:p-6 shadow-sm ring-1 ring-gray-900/5 transition-all hover:shadow-md flex flex-col justify-between h-36">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2.5 bg-red-50 rounded-xl text-red-600 shrink-0">
+              <Receipt className="h-5 w-5" />
             </div>
+            <p className="text-sm font-bold text-gray-500">Total Expenses</p>
+          </div>
+          <p className="text-2xl xl:text-3xl font-black text-gray-900 tracking-tight whitespace-nowrap">
+            {isLoading ? '...' : `KES ${stats.totalExpenses.toLocaleString()}`}
+          </p>
+        </div>
+
+        <div className="rounded-2xl bg-white p-5 sm:p-6 shadow-sm ring-1 ring-gray-900/5 transition-all hover:shadow-md flex flex-col justify-between h-36 relative overflow-hidden">
+          <div className="flex items-center gap-3 mb-2 relative z-10">
+            <div className={`p-2.5 rounded-xl shrink-0 ${isProfitable ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>
+              <TrendingUp className="h-5 w-5" />
+            </div>
+            <p className="text-sm font-bold text-gray-500">Net Profit</p>
+          </div>
+          <div className="flex items-center gap-3 relative z-10">
+            <p className="text-2xl xl:text-3xl font-black text-gray-900 tracking-tight whitespace-nowrap">
+              {isLoading ? '...' : `KES ${Math.abs(netProfit).toLocaleString()}`}
+            </p>
+            {!isLoading && (
+              <span className="shrink-0">
+                {isProfitable 
+                  ? <ArrowUpRight className="h-6 w-6 text-green-500 stroke-[3]" />
+                  : <ArrowDownRight className="h-6 w-6 text-red-500 stroke-[3]" />
+                }
+              </span>
+            )}
           </div>
         </div>
 
-        {/* Expenses Card */}
-        <div className="rounded-2xl bg-white p-5 sm:p-6 shadow-sm ring-1 ring-gray-900/5 transition-all hover:shadow-md hover:ring-blue-600/10 flex flex-col justify-center">
-          <div className="flex items-center gap-4">
-            <div className="p-3 sm:p-4 bg-red-50 rounded-xl text-red-600 shrink-0">
-              <Receipt className="h-6 w-6 sm:h-7 sm:w-7" />
+        <div className="rounded-2xl bg-white p-5 sm:p-6 shadow-sm ring-1 ring-gray-900/5 transition-all hover:shadow-md flex flex-col justify-between h-36">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2.5 bg-purple-50 rounded-xl text-purple-600 shrink-0">
+              <Users className="h-5 w-5" />
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-gray-500 mb-1">Total Expenses</p>
-              <p className="text-xl sm:text-2xl lg:text-2xl xl:text-3xl font-bold text-gray-900 break-words leading-tight">
-                {isLoading ? '...' : `KES ${stats.totalExpenses.toLocaleString()}`}
-              </p>
-            </div>
+            <p className="text-sm font-bold text-gray-500">Total Customers</p>
           </div>
-        </div>
-
-        {/* Net Profit Card */}
-        <div className="rounded-2xl bg-white p-5 sm:p-6 shadow-sm ring-1 ring-gray-900/5 transition-all hover:shadow-md hover:ring-blue-600/10 flex flex-col justify-center">
-          <div className="flex items-center gap-4">
-            <div className={`p-3 sm:p-4 rounded-xl shrink-0 ${isProfitable ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>
-              <TrendingUp className="h-6 w-6 sm:h-7 sm:w-7" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-gray-500 mb-1">Net Profit</p>
-              <div className="flex items-center gap-2">
-                <p className="text-xl sm:text-2xl lg:text-2xl xl:text-3xl font-bold text-gray-900 break-words leading-tight">
-                  {isLoading ? '...' : `KES ${Math.abs(netProfit).toLocaleString()}`}
-                </p>
-                {!isLoading && (
-                  <span className="shrink-0 flex items-center justify-center">
-                    {isProfitable 
-                      ? <ArrowUpRight className="h-5 w-5 text-green-500 stroke-[3]" />
-                      : <ArrowDownRight className="h-5 w-5 text-red-500 stroke-[3]" />
-                    }
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Customers Card */}
-        <div className="rounded-2xl bg-white p-5 sm:p-6 shadow-sm ring-1 ring-gray-900/5 transition-all hover:shadow-md hover:ring-blue-600/10 flex flex-col justify-center">
-          <div className="flex items-center gap-4">
-            <div className="p-3 sm:p-4 bg-purple-50 rounded-xl text-purple-600 shrink-0">
-              <Users className="h-6 w-6 sm:h-7 sm:w-7" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-gray-500 mb-1">Total Customers</p>
-              <p className="text-xl sm:text-2xl lg:text-2xl xl:text-3xl font-bold text-gray-900 break-words leading-tight">
-                {isLoading ? '...' : stats.totalCustomers.toLocaleString()}
-              </p>
-            </div>
-          </div>
+          <p className="text-2xl xl:text-3xl font-black text-gray-900 tracking-tight whitespace-nowrap">
+            {isLoading ? '...' : stats.totalCustomers.toLocaleString()}
+          </p>
         </div>
       </div>
 
@@ -150,7 +140,7 @@ export default function DashboardClient() {
               <ShoppingCart className="h-7 w-7 sm:h-8 sm:w-8 text-gray-400 group-hover:text-blue-600 mb-3 transition-colors" />
               <span className="text-sm font-bold text-gray-900 group-hover:text-blue-900 text-center transition-colors">Open POS Terminal</span>
             </a>
-            <a href="/dashboard/expenses/new" className="flex flex-col items-center justify-center p-5 sm:p-6 bg-slate-50/50 rounded-xl hover:bg-blue-50 transition-all border border-slate-100 hover:border-blue-200 group active:scale-[0.98]">
+            <a href="/dashboard/expenses" className="flex flex-col items-center justify-center p-5 sm:p-6 bg-slate-50/50 rounded-xl hover:bg-blue-50 transition-all border border-slate-100 hover:border-blue-200 group active:scale-[0.98]">
               <Receipt className="h-7 w-7 sm:h-8 sm:w-8 text-gray-400 group-hover:text-blue-600 mb-3 transition-colors" />
               <span className="text-sm font-bold text-gray-900 group-hover:text-blue-900 text-center transition-colors">Log New Expense</span>
             </a>
@@ -158,9 +148,9 @@ export default function DashboardClient() {
               <Package className="h-7 w-7 sm:h-8 sm:w-8 text-gray-400 group-hover:text-blue-600 mb-3 transition-colors" />
               <span className="text-sm font-bold text-gray-900 group-hover:text-blue-900 text-center transition-colors">Manage Inventory</span>
             </a>
-            <a href="/dashboard/customers/new" className="flex flex-col items-center justify-center p-5 sm:p-6 bg-slate-50/50 rounded-xl hover:bg-blue-50 transition-all border border-slate-100 hover:border-blue-200 group active:scale-[0.98]">
+            <a href="/dashboard/customers" className="flex flex-col items-center justify-center p-5 sm:p-6 bg-slate-50/50 rounded-xl hover:bg-blue-50 transition-all border border-slate-100 hover:border-blue-200 group active:scale-[0.98]">
               <Users className="h-7 w-7 sm:h-8 sm:w-8 text-gray-400 group-hover:text-blue-600 mb-3 transition-colors" />
-              <span className="text-sm font-bold text-gray-900 group-hover:text-blue-900 text-center transition-colors">Add Customer</span>
+              <span className="text-sm font-bold text-gray-900 group-hover:text-blue-900 text-center transition-colors">Manage Customers</span>
             </a>
           </div>
         </div>
