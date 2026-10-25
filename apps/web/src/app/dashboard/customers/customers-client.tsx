@@ -17,8 +17,10 @@ export default function CustomersClient() {
   const [isLoading, setIsLoading] = useState(true);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newCustomer, setNewCustomer] = useState({ name: 'Valary', email: '', phone: '' });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [newCustomer, setNewCustomer] = useState({ name: '', email: '', phone: '' });
 
   useEffect(() => { setIsMounted(true); }, []);
 
@@ -27,9 +29,11 @@ export default function CustomersClient() {
       try {
         setIsLoading(true);
         const res = await api.get('/customers');
-        setCustomers(res.data.data);
+        const data = res.data?.data || res.data || [];
+        setCustomers(Array.isArray(data) ? data : []);
       } catch (error) {
         console.error('Failed to load customers', error);
+        setCustomers([]);
       } finally {
         setIsLoading(false);
       }
@@ -40,12 +44,24 @@ export default function CustomersClient() {
   const handleAddCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      setIsSubmitting(true);
       const res = await api.post('/customers', newCustomer);
-      setCustomers([res.data.data, ...customers]);
+      const created = res.data?.data || res.data;
+      
+      if (created) {
+        setCustomers([created, ...customers]);
+      } else {
+        const refresh = await api.get('/customers');
+        setCustomers(refresh.data?.data || refresh.data || []);
+      }
+      
       setIsModalOpen(false);
-      setNewCustomer({ name: 'Valary', email: '', phone: '' });
+      setNewCustomer({ name: '', email: '', phone: '' });
     } catch (error) {
       console.error('Failed to add customer', error);
+      alert('Failed to save customer. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -57,7 +73,16 @@ export default function CustomersClient() {
     );
   }
 
-  const filtered = customers.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()) || (c.phone && c.phone.includes(searchQuery)));
+  // Safe checks prevent toLowerCase crashes if any item field is null/undefined
+  const filtered = customers.filter(c => {
+    const name = c?.name || '';
+    const phone = c?.phone || '';
+    const email = c?.email || '';
+    const q = searchQuery.toLowerCase();
+    return name.toLowerCase().includes(q) || 
+           phone.toLowerCase().includes(q) || 
+           email.toLowerCase().includes(q);
+  });
 
   return (
     <div className="w-full min-h-[100dvh] bg-slate-50 overflow-x-hidden">
@@ -81,7 +106,7 @@ export default function CustomersClient() {
               onClick={() => setIsModalOpen(true)} 
               className="flex items-center justify-center w-full sm:w-auto rounded-xl sm:rounded-2xl bg-blue-600 px-5 sm:px-6 py-3.5 sm:py-4 text-sm sm:text-base font-bold text-white shadow-sm hover:bg-blue-500 hover:shadow-md transition-all active:scale-[0.98] touch-manipulation"
             >
-              <Plus className="mr-2 h-5 w-5" /> Add Customer
+              <Plus className="mr-2 h-5 w-5 shrink-0" /> Add Customer
             </button>
           </div>
         </div>
@@ -95,7 +120,7 @@ export default function CustomersClient() {
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
               <input
                 type="text"
-                placeholder="Search customers by name or phone..."
+                placeholder="Search customers by name, phone, or email..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 className="w-full pl-12 pr-4 py-3 sm:py-3.5 bg-white border border-slate-200 rounded-xl sm:rounded-2xl focus:ring-2 focus:ring-blue-600 focus:border-blue-600 text-sm sm:text-base outline-none transition-all shadow-sm placeholder:text-slate-400"
@@ -117,17 +142,17 @@ export default function CustomersClient() {
             </div>
           ) : (
             <div className="w-full">
-              {/* MOBILE/TABLET VIEW: Card Layout to completely eliminate horizontal scrolling */}
+              {/* MOBILE/TABLET VIEW */}
               <div className="block md:hidden divide-y divide-slate-100">
                 {filtered.map(c => (
                   <div key={c.id} className="p-4 sm:p-5 hover:bg-slate-50/80 transition-colors space-y-3">
                     <div className="flex justify-between items-start">
-                      <h4 className="text-base font-bold text-slate-900">{c.name}</h4>
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20">
-                        <Award className="h-3.5 w-3.5" /> {c.points} pts
+                      <h4 className="text-base font-bold text-slate-900 truncate pr-2">{c.name}</h4>
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20 shrink-0">
+                        <Award className="h-3.5 w-3.5" /> {(Number(c.points) || 0).toLocaleString()} pts
                       </span>
                     </div>
-                    <div className="space-y-1.5 pt-1 text-sm text-slate-500">
+                    <div className="space-y-2 pt-1 text-sm text-slate-500">
                       <p className="flex items-center gap-2 truncate">
                         <Mail className="h-4 w-4 text-slate-400 shrink-0" /> {c.email || '—'}
                       </p>
@@ -139,14 +164,14 @@ export default function CustomersClient() {
                 ))}
               </div>
 
-              {/* DESKTOP VIEW: Table Layout for larger screens */}
+              {/* DESKTOP VIEW */}
               <table className="hidden md:table min-w-full divide-y divide-slate-200">
                 <thead className="bg-slate-50/80">
                   <tr>
-                    <th className="py-4 pl-6 lg:pl-8 pr-3 text-left text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider">
+                    <th className="py-4 pl-6 lg:pl-8 pr-3 text-left text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider w-1/3">
                       Name
                     </th>
-                    <th className="px-3 py-4 text-left text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider">
+                    <th className="px-3 py-4 text-left text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider w-1/3">
                       Email
                     </th>
                     <th className="px-3 py-4 text-left text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider">
@@ -172,14 +197,14 @@ export default function CustomersClient() {
                       </td>
                       <td className="px-3 py-4 text-sm lg:text-base text-slate-500 align-middle">
                         {c.phone ? (
-                          <span className="inline-flex items-center gap-2">
+                          <span className="inline-flex items-center gap-2 whitespace-nowrap">
                             <Phone className="h-4 w-4 text-slate-400 shrink-0" /> {c.phone}
                           </span>
                         ) : '—'}
                       </td>
                       <td className="px-3 py-4 text-sm lg:text-base font-black text-blue-600 text-right pr-6 lg:pr-8 align-middle">
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20">
-                          <Award className="h-4 w-4" /> {c.points} pts
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20 whitespace-nowrap">
+                          <Award className="h-4 w-4" /> {(Number(c.points) || 0).toLocaleString()} pts
                         </span>
                       </td>
                     </tr>
@@ -201,7 +226,8 @@ export default function CustomersClient() {
                 </h3>
                 <button 
                   onClick={() => setIsModalOpen(false)} 
-                  className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-2 rounded-full transition-colors"
+                  disabled={isSubmitting}
+                  className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-2 rounded-full transition-colors disabled:opacity-50"
                 >
                   <X className="h-6 w-6" />
                 </button>
@@ -215,8 +241,9 @@ export default function CustomersClient() {
                     type="text" 
                     value={newCustomer.name} 
                     onChange={e => setNewCustomer({...newCustomer, name: e.target.value})} 
-                    className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all text-sm sm:text-base shadow-sm placeholder:text-slate-400" 
-                    placeholder="e.g., Valary" 
+                    disabled={isSubmitting}
+                    className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all text-sm sm:text-base shadow-sm placeholder:text-slate-400 disabled:opacity-50 disabled:bg-slate-50" 
+                    placeholder="e.g., John Doe" 
                   />
                 </div>
                 <div>
@@ -225,8 +252,9 @@ export default function CustomersClient() {
                     type="email" 
                     value={newCustomer.email} 
                     onChange={e => setNewCustomer({...newCustomer, email: e.target.value})} 
-                    className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all text-sm sm:text-base shadow-sm placeholder:text-slate-400" 
-                    placeholder="valary@example.com" 
+                    disabled={isSubmitting}
+                    className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all text-sm sm:text-base shadow-sm placeholder:text-slate-400 disabled:opacity-50 disabled:bg-slate-50" 
+                    placeholder="john@example.com" 
                   />
                 </div>
                 <div>
@@ -235,7 +263,8 @@ export default function CustomersClient() {
                     type="text" 
                     value={newCustomer.phone} 
                     onChange={e => setNewCustomer({...newCustomer, phone: e.target.value})} 
-                    className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all text-sm sm:text-base shadow-sm placeholder:text-slate-400" 
+                    disabled={isSubmitting}
+                    className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all text-sm sm:text-base shadow-sm placeholder:text-slate-400 disabled:opacity-50 disabled:bg-slate-50" 
                     placeholder="+254 700..." 
                   />
                 </div>
@@ -244,15 +273,18 @@ export default function CustomersClient() {
                   <button 
                     type="button" 
                     onClick={() => setIsModalOpen(false)} 
-                    className="w-full sm:w-auto px-6 py-3.5 sm:py-3 text-sm sm:text-base font-bold text-slate-700 hover:bg-slate-100 rounded-xl sm:rounded-2xl transition-colors"
+                    disabled={isSubmitting}
+                    className="w-full sm:w-auto px-6 py-3.5 sm:py-3 text-sm sm:text-base font-bold text-slate-700 hover:bg-slate-100 rounded-xl sm:rounded-2xl transition-colors disabled:opacity-50"
                   >
                     Cancel
                   </button>
                   <button 
                     type="submit" 
-                    className="w-full sm:w-auto px-6 py-3.5 sm:py-3 text-sm sm:text-base font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl sm:rounded-2xl flex items-center justify-center transition-colors shadow-md shadow-blue-600/20"
+                    disabled={isSubmitting}
+                    className="w-full sm:w-auto px-6 py-3.5 sm:py-3 text-sm sm:text-base font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl sm:rounded-2xl flex items-center justify-center transition-colors shadow-md shadow-blue-600/20 disabled:opacity-50"
                   >
-                    <CheckCircle2 className="mr-2 h-5 w-5" /> Save Customer
+                    {isSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <CheckCircle2 className="mr-2 h-5 w-5" />} 
+                    Save Customer
                   </button>
                 </div>
               </form>
