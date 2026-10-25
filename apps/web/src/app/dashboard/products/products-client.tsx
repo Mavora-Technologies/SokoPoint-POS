@@ -194,10 +194,14 @@ export default function ProductsClient() {
   );
 
   const getDisplayImage = (item: Product) => {
-    if (item.imageUrl && !item.imageUrl.includes('placehold.co')) {
+    const CLOUD_NAME = 'YOUR_CLOUD_NAME'; 
+    const FOLDER_NAME = 'sokopoint-products/'; // Leave as '' if uploaded to root folder
+    
+    const hasRealImageInDB = item.imageUrl && !item.imageUrl.includes('placehold.co');
+    if (hasRealImageInDB) {
       return item.imageUrl;
     }
-    return `/products/${item.name}.jpg`;
+    return `https://res.cloudinary.com/${CLOUD_NAME}/image/upload/${FOLDER_NAME}${encodeURIComponent(item.name)}.jpg`;
   };
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {

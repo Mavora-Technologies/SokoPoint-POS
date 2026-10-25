@@ -177,13 +177,11 @@ export default function POSClient() {
         `
       }} />
 
-      {/* FLUID APPLICATION LAYOUT */}
       <div id="pos-layout" className="flex flex-col lg:flex-row w-full bg-slate-50 relative print:hidden lg:h-[calc(100vh-4rem)]">
         
         {/* LEFT PANEL: Product Grid */}
         <div className="flex flex-col w-full lg:flex-1 h-[55vh] lg:h-full overflow-hidden bg-white border-b-8 border-slate-100 lg:border-b-0 lg:border-r lg:border-slate-200 shrink-0">
           
-          {/* Flush Header */}
           <div className="p-3 sm:p-4 lg:p-5 xl:p-6 border-b border-slate-200 bg-white z-10 shrink-0 shadow-sm">
             <div className="relative max-w-full">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
@@ -197,7 +195,6 @@ export default function POSClient() {
             </div>
           </div>
 
-          {/* Fluid Scrolling Grid */}
           <div className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-5 xl:p-6 custom-scrollbar bg-slate-50/50">
             {isLoading ? (
               <div className="h-full flex items-center justify-center">
@@ -212,8 +209,15 @@ export default function POSClient() {
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 min-[1920px]:grid-cols-7 gap-3 sm:gap-4 lg:gap-5 xl:gap-6">
                 {filteredProducts.map((product) => {
-                  const hasRealImage = product.imageUrl && !product.imageUrl.includes('placehold.co');
-                  const displayImage = hasRealImage ? product.imageUrl : null;
+                  
+                  // CLOUDINARY SHORTCUT LOGIC
+                  const CLOUD_NAME = 'YOUR_CLOUD_NAME'; 
+                  const FOLDER_NAME = 'sokopoint-products/'; // Leave as '' if uploaded to root folder
+                  
+                  const hasRealImageInDB = product.imageUrl && !product.imageUrl.includes('placehold.co');
+                  const fallbackCloudinaryUrl = `https://res.cloudinary.com/${CLOUD_NAME}/image/upload/${FOLDER_NAME}${encodeURIComponent(product.name)}.jpg`;
+                  const displayImage = hasRealImageInDB ? product.imageUrl : fallbackCloudinaryUrl;
+                  
                   const isOutOfStock = Number(product.stock) <= 0;
 
                   return (
@@ -234,8 +238,14 @@ export default function POSClient() {
                             alt={product.name}
                             className={`object-cover w-full h-full bg-white transition-transform duration-500 ${!isOutOfStock ? 'group-hover:scale-105' : ''}`}
                             onError={(e) => {
-                              (e.target as HTMLImageElement).style.display = 'none';
-                              (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+                              // If .jpg fails, attempt .png. If that fails, show the placeholder icon.
+                              const target = e.target as HTMLImageElement;
+                              if (target.src.endsWith('.jpg')) {
+                                target.src = target.src.replace('.jpg', '.png');
+                              } else {
+                                target.style.display = 'none';
+                                target.nextElementSibling?.classList.remove('hidden');
+                              }
                             }}
                           />
                         ) : null}
