@@ -1,15 +1,19 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Receipt, Plus, Loader2, Search, CheckCircle2, X, DollarSign } from 'lucide-react';
+import { Receipt, Plus, Loader2, Search, CheckCircle2, X, DollarSign, Tag, Calendar, CreditCard } from 'lucide-react';
 import api from '../../../lib/api';
 
 interface Expense {
   id: string;
-  title: string;
+  title?: string;
+  notes?: string;
   amount: number;
-  category: string;
-  date: string;
+  category?: string;
+  categoryName?: string;
+  date?: string;
+  createdAt?: string;
+  paymentMethod?: string;
 }
 
 export default function ExpensesClient() {
@@ -17,8 +21,10 @@ export default function ExpensesClient() {
   const [isLoading, setIsLoading] = useState(true);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newExpense, setNewExpense] = useState({ title: '', amount: '', category: 'Utilities' });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [newExpense, setNewExpense] = useState({ notes: '', amount: '', categoryName: 'Utilities', paymentMethod: 'Cash' });
 
   useEffect(() => { setIsMounted(true); }, []);
 
@@ -27,7 +33,6 @@ export default function ExpensesClient() {
       try {
         setIsLoading(true);
         const res = await api.get('/expenses');
-        // Ensure we always assign an array even if the API response structure varies
         const data = res.data?.data || res.data || [];
         setExpenses(Array.isArray(data) ? data : []);
       } catch (error) {
@@ -43,15 +48,32 @@ export default function ExpensesClient() {
   const handleAddExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await api.post('/expenses', newExpense);
+      setIsSubmitting(true);
+      const payload = {
+        notes: newExpense.notes,
+        amount: Number(newExpense.amount),
+        categoryName: newExpense.categoryName,
+        paymentMethod: newExpense.paymentMethod,
+        userName: 'Admin'
+      };
+      
+      const res = await api.post('/expenses', payload);
       const created = res.data?.data || res.data;
       if (created) {
         setExpenses([created, ...expenses]);
+      } else {
+        // Fallback reload if API doesn't return the created object
+        const refresh = await api.get('/expenses');
+        setExpenses(refresh.data?.data || refresh.data || []);
       }
+      
       setIsModalOpen(false);
-      setNewExpense({ title: '', amount: '', category: 'Utilities' });
+      setNewExpense({ notes: '', amount: '', categoryName: 'Utilities', paymentMethod: 'Cash' });
     } catch (error) {
       console.error('Failed to add expense', error);
+      alert('Failed to save expense. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -63,11 +85,12 @@ export default function ExpensesClient() {
     );
   }
 
-  // Safe checks prevent toLowerCase crashes if any item field is null/undefined
-  const filtered = expenses.filter(e => 
-    (e?.title || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
-    (e?.category || '').toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filtered = expenses.filter(e => {
+    const title = e?.notes || e?.title || '';
+    const cat = e?.categoryName || e?.category || '';
+    return title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+           cat.toLowerCase().includes(searchQuery.toLowerCase());
+  });
   
   const totalExpenses = expenses.reduce((sum, item) => sum + (Number(item?.amount) || 0), 0);
 
@@ -93,19 +116,19 @@ export default function ExpensesClient() {
               onClick={() => setIsModalOpen(true)} 
               className="flex items-center justify-center w-full sm:w-auto rounded-xl sm:rounded-2xl bg-blue-600 px-5 sm:px-6 py-3.5 sm:py-4 text-sm sm:text-base font-bold text-white shadow-sm hover:bg-blue-500 hover:shadow-md transition-all active:scale-[0.98] touch-manipulation"
             >
-              <Plus className="mr-2 h-5 w-5" /> Add Expense
+              <Plus className="mr-2 h-5 w-5 shrink-0" /> Add Expense
             </button>
           </div>
         </div>
 
         {/* Total Expenses Summary Card */}
-        <div className="bg-white p-5 sm:p-6 lg:p-8 rounded-2xl lg:rounded-3xl shadow-sm ring-1 ring-slate-200 flex items-center gap-4 sm:gap-6 w-full">
+        <div className="bg-white p-5 sm:p-6 lg:p-8 rounded-2xl lg:rounded-3xl shadow-sm ring-1 ring-slate-200 flex items-center gap-4 sm:gap-6 w-full overflow-hidden">
           <div className="p-3 sm:p-4 bg-red-50 text-red-600 rounded-xl lg:rounded-2xl shrink-0">
             <DollarSign className="h-6 w-6 sm:h-8 sm:w-8" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm sm:text-base font-semibold text-slate-500 truncate">Total Recorded Expenses</p>
-            <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 truncate">
+            <p className="text-sm sm:text-base font-semibold text-slate-500 truncate mb-1">Total Recorded Expenses</p>
+            <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight whitespace-nowrap">
               KES {totalExpenses.toLocaleString()}
             </p>
           </div>
@@ -142,35 +165,50 @@ export default function ExpensesClient() {
             </div>
           ) : (
             <div className="w-full">
-              {/* MOBILE/TABLET VIEW: Card Layout to completely eliminate horizontal scrolling */}
+              {/* MOBILE/TABLET VIEW */}
               <div className="block md:hidden divide-y divide-slate-100">
-                {filtered.map(item => (
-                  <div key={item.id} className="p-4 sm:p-5 hover:bg-slate-50/80 transition-colors space-y-3">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h4 className="text-base font-bold text-slate-900">{item.title}</h4>
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 mt-1">
-                          {item.category}
+                {filtered.map(item => {
+                  const title = item.notes || item.title || 'Unnamed Expense';
+                  const category = item.categoryName || item.category || 'Uncategorized';
+                  const dateVal = item.createdAt || item.date;
+                  const displayDate = dateVal ? new Date(dateVal).toLocaleDateString() : 'N/A';
+                  
+                  return (
+                    <div key={item.id} className="p-4 sm:p-5 hover:bg-slate-50/80 transition-colors space-y-3">
+                      <div className="flex justify-between items-start gap-3">
+                        <div className="min-w-0">
+                          <h4 className="text-base font-bold text-slate-900 leading-snug truncate">{title}</h4>
+                          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-blue-50 text-blue-700">
+                              <Tag className="h-3 w-3" /> {category}
+                            </span>
+                            {item.paymentMethod && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-slate-100 text-slate-600">
+                                <CreditCard className="h-3 w-3" /> {item.paymentMethod}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <span className="text-base sm:text-lg font-black text-red-600 shrink-0">
+                          KES {(Number(item.amount) || 0).toLocaleString()}
                         </span>
                       </div>
-                      <span className="text-xs text-slate-400 font-medium">
-                        {item.date ? new Date(item.date).toLocaleDateString() : 'N/A'}
-                      </span>
+                      <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+                        <span className="inline-flex items-center text-xs font-medium text-slate-400">
+                          <Calendar className="mr-1.5 h-3.5 w-3.5" /> {displayDate}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex justify-between items-center pt-2 border-t border-slate-100">
-                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Amount</span>
-                      <span className="text-base font-black text-red-600">KES {(Number(item.amount) || 0).toLocaleString()}</span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
-              {/* DESKTOP VIEW: Table Layout for larger screens */}
+              {/* DESKTOP VIEW */}
               <table className="hidden md:table min-w-full divide-y divide-slate-200">
                 <thead className="bg-slate-50/80">
                   <tr>
-                    <th className="py-4 pl-6 lg:pl-8 pr-3 text-left text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider">
-                      Title
+                    <th className="py-4 pl-6 lg:pl-8 pr-3 text-left text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider w-1/3">
+                      Description
                     </th>
                     <th className="px-3 py-4 text-left text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider">
                       Category
@@ -178,30 +216,43 @@ export default function ExpensesClient() {
                     <th className="px-3 py-4 text-left text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider">
                       Date
                     </th>
+                    <th className="px-3 py-4 text-left text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider">
+                      Method
+                    </th>
                     <th className="px-3 py-4 text-right text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider pr-6 lg:pr-8">
                       Amount
                     </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
-                  {filtered.map(item => (
-                    <tr key={item.id} className="hover:bg-slate-50/80 transition-colors group">
-                      <td className="py-4 pl-6 lg:pl-8 pr-3 text-sm lg:text-base font-bold text-slate-900 align-middle">
-                        {item.title}
-                      </td>
-                      <td className="px-3 py-4 text-sm align-middle">
-                        <span className="inline-flex items-center px-3 py-1 rounded-lg text-xs lg:text-sm font-bold bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20">
-                          {item.category}
-                        </span>
-                      </td>
-                      <td className="px-3 py-4 text-sm lg:text-base text-slate-500 align-middle">
-                        {item.date ? new Date(item.date).toLocaleDateString() : 'N/A'}
-                      </td>
-                      <td className="px-3 py-4 text-sm lg:text-base font-black text-red-600 text-right pr-6 lg:pr-8 align-middle">
-                        KES {(Number(item.amount) || 0).toLocaleString()}
-                      </td>
-                    </tr>
-                  ))}
+                  {filtered.map(item => {
+                    const title = item.notes || item.title || 'Unnamed Expense';
+                    const category = item.categoryName || item.category || 'Uncategorized';
+                    const dateVal = item.createdAt || item.date;
+                    const displayDate = dateVal ? new Date(dateVal).toLocaleDateString() : 'N/A';
+
+                    return (
+                      <tr key={item.id} className="hover:bg-slate-50/80 transition-colors group">
+                        <td className="py-4 pl-6 lg:pl-8 pr-3 text-sm lg:text-base font-bold text-slate-900 align-middle">
+                          {title}
+                        </td>
+                        <td className="px-3 py-4 text-sm align-middle">
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs lg:text-sm font-bold bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20">
+                            <Tag className="h-3.5 w-3.5 lg:h-4 lg:w-4" /> {category}
+                          </span>
+                        </td>
+                        <td className="px-3 py-4 text-sm lg:text-base text-slate-500 align-middle whitespace-nowrap">
+                          {displayDate}
+                        </td>
+                        <td className="px-3 py-4 text-sm lg:text-base text-slate-500 align-middle">
+                          {item.paymentMethod || '-'}
+                        </td>
+                        <td className="px-3 py-4 text-sm lg:text-base font-black text-red-600 text-right pr-6 lg:pr-8 align-middle whitespace-nowrap">
+                          KES {(Number(item.amount) || 0).toLocaleString()}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -219,7 +270,8 @@ export default function ExpensesClient() {
                 </h3>
                 <button 
                   onClick={() => setIsModalOpen(false)} 
-                  className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-2 rounded-full transition-colors"
+                  disabled={isSubmitting}
+                  className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-2 rounded-full transition-colors disabled:opacity-50"
                 >
                   <X className="h-6 w-6" />
                 </button>
@@ -227,40 +279,64 @@ export default function ExpensesClient() {
               
               <form onSubmit={handleAddExpense} className="p-5 sm:p-6 lg:p-8 space-y-5 sm:space-y-6">
                 <div>
-                  <label className="block text-sm sm:text-base font-bold text-slate-700 mb-2">Expense Title</label>
+                  <label className="block text-sm sm:text-base font-bold text-slate-700 mb-2">Description / Title</label>
                   <input 
                     required 
                     type="text" 
-                    value={newExpense.title} 
-                    onChange={e => setNewExpense({...newExpense, title: e.target.value})} 
-                    className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all text-sm sm:text-base shadow-sm placeholder:text-slate-400" 
+                    value={newExpense.notes} 
+                    onChange={e => setNewExpense({...newExpense, notes: e.target.value})} 
+                    disabled={isSubmitting}
+                    className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all text-sm sm:text-base shadow-sm placeholder:text-slate-400 disabled:opacity-50 disabled:bg-slate-50" 
                     placeholder="e.g., Monthly Electricity Bill" 
                   />
                 </div>
-                <div>
-                  <label className="block text-sm sm:text-base font-bold text-slate-700 mb-2">Amount (KES)</label>
-                  <input 
-                    required 
-                    type="number" 
-                    step="0.01" 
-                    value={newExpense.amount} 
-                    onChange={e => setNewExpense({...newExpense, amount: e.target.value})} 
-                    className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all text-sm sm:text-base shadow-sm placeholder:text-slate-400" 
-                    placeholder="5000" 
-                  />
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
+                  <div>
+                    <label className="block text-sm sm:text-base font-bold text-slate-700 mb-2">Amount (KES)</label>
+                    <input 
+                      required 
+                      type="number" 
+                      step="0.01" 
+                      min="0"
+                      value={newExpense.amount} 
+                      onChange={e => setNewExpense({...newExpense, amount: e.target.value})} 
+                      disabled={isSubmitting}
+                      className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all text-sm sm:text-base shadow-sm placeholder:text-slate-400 disabled:opacity-50 disabled:bg-slate-50" 
+                      placeholder="0.00" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm sm:text-base font-bold text-slate-700 mb-2">Payment Method</label>
+                    <select 
+                      value={newExpense.paymentMethod} 
+                      onChange={e => setNewExpense({...newExpense, paymentMethod: e.target.value})} 
+                      disabled={isSubmitting}
+                      className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all text-sm sm:text-base shadow-sm appearance-none bg-white disabled:opacity-50 disabled:bg-slate-50"
+                    >
+                      <option value="Cash">Cash</option>
+                      <option value="M-Pesa">M-Pesa</option>
+                      <option value="Card">Card</option>
+                      <option value="Bank Transfer">Bank Transfer</option>
+                    </select>
+                  </div>
                 </div>
+
                 <div>
                   <label className="block text-sm sm:text-base font-bold text-slate-700 mb-2">Category</label>
                   <select 
-                    value={newExpense.category} 
-                    onChange={e => setNewExpense({...newExpense, category: e.target.value})} 
-                    className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all text-sm sm:text-base shadow-sm appearance-none bg-white"
+                    value={newExpense.categoryName} 
+                    onChange={e => setNewExpense({...newExpense, categoryName: e.target.value})} 
+                    disabled={isSubmitting}
+                    className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all text-sm sm:text-base shadow-sm appearance-none bg-white disabled:opacity-50 disabled:bg-slate-50"
                   >
                     <option value="Utilities">Utilities</option>
+                    <option value="Operations">Operations</option>
                     <option value="Inventory Restock">Inventory Restock</option>
                     <option value="Salaries">Salaries</option>
                     <option value="Rent">Rent</option>
                     <option value="Maintenance">Maintenance</option>
+                    <option value="Marketing">Marketing</option>
                   </select>
                 </div>
                 
@@ -268,15 +344,18 @@ export default function ExpensesClient() {
                   <button 
                     type="button" 
                     onClick={() => setIsModalOpen(false)} 
-                    className="w-full sm:w-auto px-6 py-3.5 sm:py-3 text-sm sm:text-base font-bold text-slate-700 hover:bg-slate-100 rounded-xl sm:rounded-2xl transition-colors"
+                    disabled={isSubmitting}
+                    className="w-full sm:w-auto px-6 py-3.5 sm:py-3 text-sm sm:text-base font-bold text-slate-700 hover:bg-slate-100 rounded-xl sm:rounded-2xl transition-colors disabled:opacity-50"
                   >
                     Cancel
                   </button>
                   <button 
                     type="submit" 
-                    className="w-full sm:w-auto px-6 py-3.5 sm:py-3 text-sm sm:text-base font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl sm:rounded-2xl flex items-center justify-center transition-colors shadow-md shadow-blue-600/20"
+                    disabled={isSubmitting}
+                    className="w-full sm:w-auto px-6 py-3.5 sm:py-3 text-sm sm:text-base font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl sm:rounded-2xl flex items-center justify-center transition-colors shadow-md shadow-blue-600/20 disabled:opacity-50"
                   >
-                    <CheckCircle2 className="mr-2 h-5 w-5" /> Save Expense
+                    {isSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <CheckCircle2 className="mr-2 h-5 w-5" />} 
+                    Save Expense
                   </button>
                 </div>
               </form>
