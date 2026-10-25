@@ -1,13 +1,18 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { BarChart3, TrendingUp, DollarSign, Receipt, Loader2 } from 'lucide-react';
+import { BarChart3, TrendingUp, DollarSign, Receipt, Loader2, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import api from '../../../lib/api';
 
 export default function ReportsClient() {
   const [isMounted, setIsMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [metrics, setMetrics] = useState({ totalRevenue: 0, totalExpenses: 0, netProfit: 0, totalOrders: 0 });
+  const [metrics, setMetrics] = useState({ 
+    totalRevenue: 0, 
+    totalExpenses: 0, 
+    netProfit: 0, 
+    totalOrders: 0 
+  });
 
   useEffect(() => { setIsMounted(true); }, []);
 
@@ -15,8 +20,22 @@ export default function ReportsClient() {
     const fetchReports = async () => {
       try {
         setIsLoading(true);
-        const res = await api.get('/reports/summary');
-        setMetrics(res.data.data);
+        
+        // Fetch raw data directly to guarantee perfectly synced real-time metrics
+        const [ordersRes, expensesRes] = await Promise.all([
+          api.get('/orders').catch(() => ({ data: { data: [] } })),
+          api.get('/expenses').catch(() => ({ data: { data: [] } })),
+        ]);
+
+        const orders = ordersRes.data?.data || [];
+        const expenses = expensesRes.data?.data || [];
+
+        const totalRevenue = orders.reduce((sum: number, order: any) => sum + parseFloat(order.total || 0), 0);
+        const totalExpenses = expenses.reduce((sum: number, exp: any) => sum + parseFloat(exp.amount || 0), 0);
+        const netProfit = totalRevenue - totalExpenses;
+        const totalOrders = orders.length;
+
+        setMetrics({ totalRevenue, totalExpenses, netProfit, totalOrders });
       } catch (error) {
         console.error('Failed to load reports', error);
       } finally {
@@ -33,6 +52,8 @@ export default function ReportsClient() {
       </div>
     );
   }
+
+  const isProfitable = metrics.netProfit >= 0;
 
   return (
     <div className="w-full min-h-[100dvh] bg-slate-50 overflow-x-hidden">
@@ -62,55 +83,63 @@ export default function ReportsClient() {
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6 lg:gap-8 w-full">
             
             {/* Total Revenue Card */}
-            <div className="bg-white overflow-hidden rounded-2xl lg:rounded-3xl shadow-sm hover:shadow-md ring-1 ring-slate-200 transition-all p-5 sm:p-6 lg:p-8 flex items-center w-full">
-              <div className="p-3 sm:p-4 rounded-xl lg:rounded-2xl bg-green-50 text-green-600 shrink-0">
-                <DollarSign className="h-6 w-6 sm:h-8 sm:w-8" />
+            <div className="bg-white overflow-hidden rounded-2xl lg:rounded-3xl shadow-sm hover:shadow-md ring-1 ring-slate-200 transition-all p-5 sm:p-6 lg:p-8 flex flex-col justify-between h-40 sm:h-44 w-full">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="p-2.5 sm:p-3 rounded-xl lg:rounded-2xl bg-green-50 text-green-600 shrink-0">
+                  <DollarSign className="h-5 w-5 sm:h-6 sm:w-6" />
+                </div>
+                <p className="text-sm sm:text-base font-bold text-slate-500">Total Revenue</p>
               </div>
-              <div className="ml-4 sm:ml-5 min-w-0 flex-1">
-                <p className="text-sm sm:text-base font-semibold text-slate-500 truncate">Total Revenue</p>
-                <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 truncate">
-                  KES {metrics.totalRevenue.toLocaleString()}
-                </p>
-              </div>
+              <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight whitespace-nowrap overflow-visible mt-auto">
+                KES {metrics.totalRevenue.toLocaleString()}
+              </p>
             </div>
 
             {/* Total Expenses Card */}
-            <div className="bg-white overflow-hidden rounded-2xl lg:rounded-3xl shadow-sm hover:shadow-md ring-1 ring-slate-200 transition-all p-5 sm:p-6 lg:p-8 flex items-center w-full">
-              <div className="p-3 sm:p-4 rounded-xl lg:rounded-2xl bg-red-50 text-red-600 shrink-0">
-                <Receipt className="h-6 w-6 sm:h-8 sm:w-8" />
+            <div className="bg-white overflow-hidden rounded-2xl lg:rounded-3xl shadow-sm hover:shadow-md ring-1 ring-slate-200 transition-all p-5 sm:p-6 lg:p-8 flex flex-col justify-between h-40 sm:h-44 w-full">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="p-2.5 sm:p-3 rounded-xl lg:rounded-2xl bg-red-50 text-red-600 shrink-0">
+                  <Receipt className="h-5 w-5 sm:h-6 sm:w-6" />
+                </div>
+                <p className="text-sm sm:text-base font-bold text-slate-500">Total Expenses</p>
               </div>
-              <div className="ml-4 sm:ml-5 min-w-0 flex-1">
-                <p className="text-sm sm:text-base font-semibold text-slate-500 truncate">Total Expenses</p>
-                <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 truncate">
-                  KES {metrics.totalExpenses.toLocaleString()}
-                </p>
-              </div>
+              <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight whitespace-nowrap overflow-visible mt-auto">
+                KES {metrics.totalExpenses.toLocaleString()}
+              </p>
             </div>
 
             {/* Net Profit Card */}
-            <div className="bg-white overflow-hidden rounded-2xl lg:rounded-3xl shadow-sm hover:shadow-md ring-1 ring-slate-200 transition-all p-5 sm:p-6 lg:p-8 flex items-center w-full">
-              <div className="p-3 sm:p-4 rounded-xl lg:rounded-2xl bg-blue-50 text-blue-600 shrink-0">
-                <TrendingUp className="h-6 w-6 sm:h-8 sm:w-8" />
+            <div className="bg-white overflow-hidden rounded-2xl lg:rounded-3xl shadow-sm hover:shadow-md ring-1 ring-slate-200 transition-all p-5 sm:p-6 lg:p-8 flex flex-col justify-between h-40 sm:h-44 w-full relative">
+              <div className="flex items-center gap-3 mb-2 relative z-10">
+                <div className={`p-2.5 sm:p-3 rounded-xl lg:rounded-2xl shrink-0 ${isProfitable ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>
+                  <TrendingUp className="h-5 w-5 sm:h-6 sm:w-6" />
+                </div>
+                <p className="text-sm sm:text-base font-bold text-slate-500">Net Profit</p>
               </div>
-              <div className="ml-4 sm:ml-5 min-w-0 flex-1">
-                <p className="text-sm sm:text-base font-semibold text-slate-500 truncate">Net Profit</p>
-                <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 truncate">
-                  KES {metrics.netProfit.toLocaleString()}
+              <div className="flex items-center gap-3 mt-auto relative z-10">
+                <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight whitespace-nowrap overflow-visible">
+                  KES {Math.abs(metrics.netProfit).toLocaleString()}
                 </p>
+                <span className="shrink-0 flex items-center justify-center">
+                  {isProfitable 
+                    ? <ArrowUpRight className="h-6 w-6 sm:h-8 sm:w-8 text-green-500 stroke-[3]" />
+                    : <ArrowDownRight className="h-6 w-6 sm:h-8 sm:w-8 text-red-500 stroke-[3]" />
+                  }
+                </span>
               </div>
             </div>
 
             {/* Total Orders Card */}
-            <div className="bg-white overflow-hidden rounded-2xl lg:rounded-3xl shadow-sm hover:shadow-md ring-1 ring-slate-200 transition-all p-5 sm:p-6 lg:p-8 flex items-center w-full">
-              <div className="p-3 sm:p-4 rounded-xl lg:rounded-2xl bg-purple-50 text-purple-600 shrink-0">
-                <BarChart3 className="h-6 w-6 sm:h-8 sm:w-8" />
+            <div className="bg-white overflow-hidden rounded-2xl lg:rounded-3xl shadow-sm hover:shadow-md ring-1 ring-slate-200 transition-all p-5 sm:p-6 lg:p-8 flex flex-col justify-between h-40 sm:h-44 w-full">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="p-2.5 sm:p-3 rounded-xl lg:rounded-2xl bg-purple-50 text-purple-600 shrink-0">
+                  <BarChart3 className="h-5 w-5 sm:h-6 sm:w-6" />
+                </div>
+                <p className="text-sm sm:text-base font-bold text-slate-500">Total Orders</p>
               </div>
-              <div className="ml-4 sm:ml-5 min-w-0 flex-1">
-                <p className="text-sm sm:text-base font-semibold text-slate-500 truncate">Total Orders</p>
-                <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 truncate">
-                  {metrics.totalOrders.toLocaleString()}
-                </p>
-              </div>
+              <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight whitespace-nowrap overflow-visible mt-auto">
+                {metrics.totalOrders.toLocaleString()}
+              </p>
             </div>
 
           </div>
