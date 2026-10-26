@@ -129,6 +129,36 @@ export default function ProductsClient() {
     setIsEditModalOpen(true);
   };
 
+  const handleDeleteProduct = async (product: Product) => {
+    if (!confirm(`Are you sure you want to delete "${product.name}"?`)) return;
+    try {
+      // Fetch orders to verify if the product has ever been sold
+      const ordersRes = await api.get('/orders').catch(() => ({ data: { data: [] } }));
+      const orders = ordersRes.data?.data || ordersRes.data || [];
+      
+      // Check if product ID or Name exists anywhere in the sales history
+      const hasBeenSold = orders.some((order: any) => 
+        JSON.stringify(order).includes(product.id) || 
+        JSON.stringify(order).includes(product.name)
+      );
+
+      if (hasBeenSold) {
+        alert(`Action Denied: "${product.name}" cannot be deleted because it has been sold in past transactions. This restriction maintains accurate historical records for the business owner.`);
+        return;
+      }
+
+      await api.delete(`/products/${product.id}`);
+      setProducts(products.filter(p => p.id !== product.id));
+    } catch (error: any) {
+      console.error('Failed to delete product', error);
+      if (error?.response?.status === 400 || error?.response?.status === 409) {
+        alert(`Action Denied: Cannot delete "${product.name}" as it is linked to existing records in the database.`);
+      } else {
+        alert('Failed to delete product. Please try again.');
+      }
+    }
+  };
+
   const handleUpdateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProduct) return;
@@ -165,17 +195,6 @@ export default function ProductsClient() {
       console.error('Failed to update product', error);
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  const handleDeleteProduct = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this product?')) return;
-    try {
-      await api.delete(`/products/${id}`);
-      setProducts(products.filter(p => p.id !== id));
-    } catch (error) {
-      console.error('Failed to delete product', error);
-      setProducts(products.filter(p => p.id !== id));
     }
   };
 
@@ -319,7 +338,7 @@ export default function ProductsClient() {
                           <button onClick={() => openEditModal(item)} className="p-2.5 text-green-600 hover:bg-green-50 rounded-xl transition-colors">
                             <Edit3 className="h-5 w-5" />
                           </button>
-                          <button onClick={() => handleDeleteProduct(item.id)} className="p-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-colors">
+                          <button onClick={() => handleDeleteProduct(item)} className="p-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-colors">
                             <Trash2 className="h-5 w-5" />
                           </button>
                         </div>
@@ -383,7 +402,7 @@ export default function ProductsClient() {
                           <button onClick={() => openEditModal(item)} className="p-2.5 text-green-600 hover:bg-green-50 rounded-xl transition-colors inline-flex items-center">
                             <Edit3 className="h-5 w-5" />
                           </button>
-                          <button onClick={() => handleDeleteProduct(item.id)} className="p-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-colors inline-flex items-center">
+                          <button onClick={() => handleDeleteProduct(item)} className="p-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-colors inline-flex items-center">
                             <Trash2 className="h-5 w-5" />
                           </button>
                         </td>
