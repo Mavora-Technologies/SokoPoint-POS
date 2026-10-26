@@ -5,11 +5,13 @@ import { ShoppingBag, Search, Loader2, Calendar, CreditCard, ArrowUpRight, Check
 import api from '../../../lib/api';
 
 interface Order {
-  id: string;
-  date: string;
+  id?: string;
+  orderNum?: string;
+  date?: string;
+  createdAt?: string;
   customer: string;
   total: number;
-  status: string;
+  status?: string;
   method: string;
 }
 
@@ -27,9 +29,11 @@ export default function OrdersClient() {
     try {
       setIsLoading(true);
       const response = await api.get('/orders');
-      setOrders(response.data.data);
+      const data = response.data?.data || response.data || [];
+      setOrders(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Failed to fetch orders', error);
+      setOrders([]);
     } finally {
       setIsLoading(false);
     }
@@ -44,18 +48,21 @@ export default function OrdersClient() {
   if (!isMounted) {
     return (
       <div className="flex justify-center items-center min-h-[100dvh] w-full bg-slate-50">
-        <Loader2 className="h-10 w-10 animate-spin text-slate-900" />
+        <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
       </div>
     );
   }
 
-  const filteredOrders = orders.filter((o) =>
-    o.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    o.customer.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    o.method.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Safely handle missing fields and Prisma schema mappings
+  const filteredOrders = orders.filter((o) => {
+    const q = searchQuery.toLowerCase();
+    const orderId = (o.orderNum || o.id || '').toLowerCase();
+    const customer = (o.customer || '').toLowerCase();
+    const method = (o.method || '').toLowerCase();
+    return orderId.includes(q) || customer.includes(q) || method.includes(q);
+  });
 
-  const totalRevenue = filteredOrders.reduce((sum, order) => sum + order.total, 0);
+  const totalRevenue = filteredOrders.reduce((sum, order) => sum + (Number(order.total) || 0), 0);
 
   return (
     <div className="w-full min-h-[100dvh] bg-slate-50 overflow-x-hidden">
@@ -64,8 +71,11 @@ export default function OrdersClient() {
         {/* Responsive Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex-1 min-w-0">
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-slate-900 truncate">
-              Orders & Sales
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-slate-900 flex items-center gap-3 truncate">
+              <div className="p-2.5 sm:p-3 bg-blue-100 rounded-xl sm:rounded-2xl text-blue-600 shrink-0">
+                <ShoppingBag className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8" />
+              </div>
+              <span className="truncate">Orders & Sales</span>
             </h2>
             <p className="mt-2 text-sm sm:text-base lg:text-lg text-slate-500 font-medium max-w-3xl">
               View completed POS transactions, walk-in customer orders, and sales history.
@@ -75,25 +85,25 @@ export default function OrdersClient() {
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 lg:gap-8 w-full">
-          <div className="rounded-2xl lg:rounded-3xl bg-white p-5 sm:p-6 lg:p-8 shadow-sm ring-1 ring-slate-200 flex items-center gap-4 sm:gap-6 w-full">
+          <div className="rounded-2xl lg:rounded-3xl bg-white p-5 sm:p-6 lg:p-8 shadow-sm ring-1 ring-slate-200 flex items-center gap-4 sm:gap-6 w-full overflow-hidden">
             <div className="p-3 sm:p-4 bg-green-50 rounded-xl lg:rounded-2xl text-green-600 shrink-0">
               <ArrowUpRight className="h-6 w-6 sm:h-8 sm:w-8" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm sm:text-base font-semibold text-slate-500 truncate">Displayed Revenue</p>
-              <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 truncate">
+              <p className="text-sm sm:text-base font-semibold text-slate-500 truncate mb-1">Displayed Revenue</p>
+              <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight whitespace-nowrap">
                 KES {totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
               </p>
             </div>
           </div>
           
-          <div className="rounded-2xl lg:rounded-3xl bg-white p-5 sm:p-6 lg:p-8 shadow-sm ring-1 ring-slate-200 flex items-center gap-4 sm:gap-6 w-full">
+          <div className="rounded-2xl lg:rounded-3xl bg-white p-5 sm:p-6 lg:p-8 shadow-sm ring-1 ring-slate-200 flex items-center gap-4 sm:gap-6 w-full overflow-hidden">
             <div className="p-3 sm:p-4 bg-blue-50 rounded-xl lg:rounded-2xl text-blue-600 shrink-0">
               <ShoppingBag className="h-6 w-6 sm:h-8 sm:w-8" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm sm:text-base font-semibold text-slate-500 truncate">Total Transactions</p>
-              <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 truncate">
+              <p className="text-sm sm:text-base font-semibold text-slate-500 truncate mb-1">Total Transactions</p>
+              <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight whitespace-nowrap">
                 {filteredOrders.length.toLocaleString()}
               </p>
             </div>
@@ -120,7 +130,7 @@ export default function OrdersClient() {
           {/* Data State */}
           {isLoading ? (
             <div className="flex justify-center items-center h-[40vh] w-full">
-              <Loader2 className="h-10 w-10 lg:h-12 lg:w-12 animate-spin text-slate-900" />
+              <Loader2 className="h-10 w-10 lg:h-12 lg:w-12 animate-spin text-blue-600" />
             </div>
           ) : filteredOrders.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-[40vh] text-slate-500 p-6 text-center">
@@ -134,45 +144,51 @@ export default function OrdersClient() {
             </div>
           ) : (
             <div className="w-full">
-              {/* MOBILE/TABLET VIEW: Card Layout to completely eliminate horizontal scrolling */}
+              {/* MOBILE/TABLET VIEW */}
               <div className="block md:hidden divide-y divide-slate-100">
-                {filteredOrders.map((order) => (
-                  <div key={order.id} className="p-4 sm:p-5 hover:bg-slate-50/80 transition-colors space-y-3">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h4 className="text-base font-bold text-slate-900">{order.id}</h4>
-                        <p className="text-sm font-semibold text-slate-600 mt-0.5">{order.customer}</p>
+                {filteredOrders.map((order) => {
+                  const displayId = order.orderNum || order.id || 'Unknown';
+                  const displayDate = order.createdAt || order.date;
+                  const displayStatus = order.status || 'Completed';
+                  
+                  return (
+                    <div key={order.id || displayId} className="p-4 sm:p-5 hover:bg-slate-50/80 transition-colors space-y-3">
+                      <div className="flex justify-between items-start gap-3">
+                        <div className="min-w-0">
+                          <h4 className="text-base font-bold text-slate-900 truncate">{displayId}</h4>
+                          <p className="text-sm font-semibold text-slate-600 mt-0.5 truncate">{order.customer || 'Walk-in Customer'}</p>
+                        </div>
+                        <span className={`inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-bold ring-1 ring-inset shrink-0 ${
+                          displayStatus === 'Completed' ? 'bg-green-50 text-green-700 ring-green-600/20' : 'bg-yellow-50 text-yellow-800 ring-yellow-600/20'
+                        }`}>
+                          {displayStatus === 'Completed' && <CheckCircle2 className="mr-1.5 h-3 w-3" />}
+                          {displayStatus}
+                        </span>
                       </div>
-                      <span className={`inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-bold ring-1 ring-inset ${
-                        order.status === 'Completed' ? 'bg-green-50 text-green-700 ring-green-600/20' : 'bg-yellow-50 text-yellow-800 ring-yellow-600/20'
-                      }`}>
-                        {order.status === 'Completed' && <CheckCircle2 className="mr-1 h-3 w-3" />}
-                        {order.status}
-                      </span>
-                    </div>
 
-                    <div className="flex flex-col sm:flex-row sm:justify-between text-xs sm:text-sm text-slate-500 gap-1 sm:gap-0 pt-1">
-                      <span className="flex items-center gap-1.5">
-                        <Calendar className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                        {new Date(order.date).toLocaleString()}
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <CreditCard className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                        {order.method}
-                      </span>
-                    </div>
+                      <div className="flex flex-col sm:flex-row sm:justify-between text-xs sm:text-sm text-slate-500 gap-1.5 sm:gap-0 pt-1">
+                        <span className="flex items-center gap-1.5 truncate">
+                          <Calendar className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                          {displayDate ? new Date(displayDate).toLocaleString() : 'N/A'}
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <CreditCard className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                          <span className="uppercase tracking-wider font-semibold text-slate-600">{order.method || 'CASH'}</span>
+                        </span>
+                      </div>
 
-                    <div className="flex justify-between items-center pt-2 border-t border-slate-100">
-                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total</span>
-                      <span className="text-base font-black text-slate-900">
-                        KES {order.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </span>
+                      <div className="flex justify-between items-center pt-3 border-t border-slate-100">
+                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total</span>
+                        <span className="text-base font-black text-slate-900">
+                          KES {(Number(order.total) || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
-              {/* DESKTOP VIEW: Table Layout for larger screens */}
+              {/* DESKTOP VIEW */}
               <table className="hidden md:table min-w-full divide-y divide-slate-200">
                 <thead className="bg-slate-50/80">
                   <tr>
@@ -194,37 +210,43 @@ export default function OrdersClient() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
-                  {filteredOrders.map((order) => (
-                    <tr key={order.id} className="hover:bg-slate-50/80 transition-colors group">
-                      <td className="py-4 pl-6 lg:pl-8 pr-3 text-sm lg:text-base align-middle">
-                        <div className="font-bold text-slate-900">{order.id}</div>
-                        <div className="flex items-center text-slate-400 mt-1 text-xs sm:text-sm font-medium">
-                          <Calendar className="mr-1.5 h-4 w-4 text-slate-400 shrink-0" />
-                          {new Date(order.date).toLocaleString()}
-                        </div>
-                      </td>
-                      <td className="px-3 py-4 text-sm lg:text-base font-medium text-slate-700 align-middle">
-                        {order.customer}
-                      </td>
-                      <td className="px-3 py-4 text-sm lg:text-base text-slate-500 align-middle">
-                        <div className="flex items-center gap-2">
-                          <CreditCard className="h-4 w-4 text-slate-400 shrink-0" />
-                          {order.method}
-                        </div>
-                      </td>
-                      <td className="px-3 py-4 text-sm align-middle">
-                        <span className={`inline-flex items-center rounded-lg px-3 py-1 text-xs lg:text-sm font-bold ring-1 ring-inset ${
-                          order.status === 'Completed' ? 'bg-green-50 text-green-700 ring-green-600/20' : 'bg-yellow-50 text-yellow-800 ring-yellow-600/20'
-                        }`}>
-                          {order.status === 'Completed' && <CheckCircle2 className="mr-1.5 h-4 w-4" />}
-                          {order.status}
-                        </span>
-                      </td>
-                      <td className="px-3 py-4 text-sm lg:text-base font-black text-slate-900 text-right pr-6 lg:pr-8 align-middle">
-                        {order.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </td>
-                    </tr>
-                  ))}
+                  {filteredOrders.map((order) => {
+                    const displayId = order.orderNum || order.id || 'Unknown';
+                    const displayDate = order.createdAt || order.date;
+                    const displayStatus = order.status || 'Completed';
+
+                    return (
+                      <tr key={order.id || displayId} className="hover:bg-slate-50/80 transition-colors group">
+                        <td className="py-4 pl-6 lg:pl-8 pr-3 text-sm lg:text-base align-middle">
+                          <div className="font-bold text-slate-900">{displayId}</div>
+                          <div className="flex items-center text-slate-400 mt-1 text-xs sm:text-sm font-medium">
+                            <Calendar className="mr-1.5 h-4 w-4 text-slate-400 shrink-0" />
+                            {displayDate ? new Date(displayDate).toLocaleString() : 'N/A'}
+                          </div>
+                        </td>
+                        <td className="px-3 py-4 text-sm lg:text-base font-medium text-slate-700 align-middle">
+                          {order.customer || 'Walk-in Customer'}
+                        </td>
+                        <td className="px-3 py-4 text-sm lg:text-base text-slate-500 align-middle">
+                          <div className="flex items-center gap-2 uppercase tracking-wider font-semibold">
+                            <CreditCard className="h-4 w-4 text-slate-400 shrink-0" />
+                            {order.method || 'CASH'}
+                          </div>
+                        </td>
+                        <td className="px-3 py-4 text-sm align-middle">
+                          <span className={`inline-flex items-center rounded-lg px-3 py-1 text-xs lg:text-sm font-bold ring-1 ring-inset whitespace-nowrap ${
+                            displayStatus === 'Completed' ? 'bg-green-50 text-green-700 ring-green-600/20' : 'bg-yellow-50 text-yellow-800 ring-yellow-600/20'
+                          }`}>
+                            {displayStatus === 'Completed' && <CheckCircle2 className="mr-1.5 h-4 w-4" />}
+                            {displayStatus}
+                          </span>
+                        </td>
+                        <td className="px-3 py-4 text-sm lg:text-base font-black text-slate-900 text-right pr-6 lg:pr-8 align-middle whitespace-nowrap">
+                          {(Number(order.total) || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
