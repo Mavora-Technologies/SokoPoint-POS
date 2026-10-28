@@ -214,7 +214,7 @@ export default function ProductsClient() {
 
   const getDisplayImage = (item: Product) => {
     const CLOUD_NAME = 'YOUR_CLOUD_NAME'; 
-    const FOLDER_NAME = 'sokopoint-products/'; // Leave as '' if uploaded to root folder
+    const FOLDER_NAME = 'sokopoint-products/'; 
     
     const hasRealImageInDB = item.imageUrl && !item.imageUrl.includes('placehold.co');
     if (hasRealImageInDB) {
