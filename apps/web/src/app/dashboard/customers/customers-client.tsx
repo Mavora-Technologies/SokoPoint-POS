@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Users, Plus, Loader2, Search, CheckCircle2, X, Mail, Phone, Award } from 'lucide-react';
+import { Users, Plus, Loader2, Search, CheckCircle2, X, Mail, Phone, Award, Trash2 } from 'lucide-react';
 import api from '../../../lib/api';
 
 interface Customer {
@@ -20,6 +20,7 @@ export default function CustomersClient() {
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [processingId, setProcessingId] = useState<string | null>(null);
   const [newCustomer, setNewCustomer] = useState({ name: '', email: '', phone: '' });
 
   useEffect(() => { setIsMounted(true); }, []);
@@ -65,6 +66,27 @@ export default function CustomersClient() {
     }
   };
 
+  const handleDeleteCustomer = async (customer: Customer) => {
+    const confirmed = window.confirm(`Are you sure you want to delete ${customer.name}?`);
+    if (!confirmed) return;
+
+    setProcessingId(customer.id);
+    try {
+      await api.delete(`/customers/${customer.id}`);
+      setCustomers(customers.filter(c => c.id !== customer.id));
+    } catch (error: any) {
+      console.error('Failed to delete customer:', error);
+      const status = error.response?.status;
+      if (status === 409) {
+        alert(`Action Denied: Cannot delete "${customer.name}" because they have linked records.`);
+      } else {
+        alert('Error: Could not delete customer.');
+      }
+    } finally {
+      if (processingId === customer.id) setProcessingId(null);
+    }
+  };
+
   if (!isMounted) {
     return (
       <div className="flex justify-center items-center min-h-[100dvh] w-full bg-slate-50">
@@ -73,7 +95,6 @@ export default function CustomersClient() {
     );
   }
 
-  // Safe checks prevent toLowerCase crashes if any item field is null/undefined
   const filtered = customers.filter(c => {
     const name = c?.name || '';
     const phone = c?.phone || '';
@@ -152,13 +173,22 @@ export default function CustomersClient() {
                         <Award className="h-3.5 w-3.5" /> {(Number(c.points) || 0).toLocaleString()} pts
                       </span>
                     </div>
-                    <div className="space-y-2 pt-1 text-sm text-slate-500">
-                      <p className="flex items-center gap-2 truncate">
-                        <Mail className="h-4 w-4 text-slate-400 shrink-0" /> {c.email || '—'}
-                      </p>
-                      <p className="flex items-center gap-2 truncate">
-                        <Phone className="h-4 w-4 text-slate-400 shrink-0" /> {c.phone || '—'}
-                      </p>
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                      <div className="space-y-1.5 text-sm text-slate-500 flex-1 min-w-0 pr-3">
+                        <p className="flex items-center gap-2 truncate">
+                          <Mail className="h-4 w-4 text-slate-400 shrink-0" /> {c.email || '—'}
+                        </p>
+                        <p className="flex items-center gap-2 truncate">
+                          <Phone className="h-4 w-4 text-slate-400 shrink-0" /> {c.phone || '—'}
+                        </p>
+                      </div>
+                      <button 
+                        onClick={() => handleDeleteCustomer(c)}
+                        disabled={processingId === c.id}
+                        className="p-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-colors disabled:opacity-50 shrink-0"
+                      >
+                        {processingId === c.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -168,17 +198,20 @@ export default function CustomersClient() {
               <table className="hidden md:table min-w-full divide-y divide-slate-200">
                 <thead className="bg-slate-50/80">
                   <tr>
-                    <th className="py-4 pl-6 lg:pl-8 pr-3 text-left text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider w-1/3">
+                    <th className="py-4 pl-6 lg:pl-8 pr-3 text-left text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider">
                       Name
                     </th>
-                    <th className="px-3 py-4 text-left text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider w-1/3">
+                    <th className="px-3 py-4 text-left text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider">
                       Email
                     </th>
                     <th className="px-3 py-4 text-left text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider">
                       Phone
                     </th>
-                    <th className="px-3 py-4 text-right text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider pr-6 lg:pr-8">
+                    <th className="px-3 py-4 text-left text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider">
                       Loyalty Points
+                    </th>
+                    <th className="px-3 py-4 text-right text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider pr-6 lg:pr-8">
+                      Action
                     </th>
                   </tr>
                 </thead>
@@ -202,10 +235,20 @@ export default function CustomersClient() {
                           </span>
                         ) : '—'}
                       </td>
-                      <td className="px-3 py-4 text-sm lg:text-base font-black text-blue-600 text-right pr-6 lg:pr-8 align-middle">
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20 whitespace-nowrap">
+                      <td className="px-3 py-4 text-sm align-middle">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs lg:text-sm font-bold bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20 whitespace-nowrap">
                           <Award className="h-4 w-4" /> {(Number(c.points) || 0).toLocaleString()} pts
                         </span>
+                      </td>
+                      <td className="px-3 py-4 text-sm text-right pr-6 lg:pr-8 align-middle">
+                        <button 
+                          onClick={() => handleDeleteCustomer(c)}
+                          disabled={processingId === c.id}
+                          className="p-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-colors inline-flex items-center disabled:opacity-50"
+                          title="Delete Customer"
+                        >
+                          {processingId === c.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
+                        </button>
                       </td>
                     </tr>
                   ))}

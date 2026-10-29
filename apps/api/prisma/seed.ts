@@ -10,6 +10,9 @@ async function main() {
   await prisma.expense.deleteMany();
   await prisma.purchaseOrder.deleteMany();
   await prisma.category.deleteMany();
+  await prisma.supplier.deleteMany();
+  await (prisma as any).creditAccount.deleteMany();
+  await (prisma as any).customer?.deleteMany?.().catch(() => {}); 
   await prisma.user.deleteMany(); 
 
   console.log('Seeding categories...');
@@ -31,33 +34,60 @@ async function main() {
     ],
   });
 
-  console.log('Seeding products based on Cloudinary catalog...');
-  
-  const getImg = (name: string) => `https://placehold.co/400x400/f1f5f9/0f172a?text=${encodeURIComponent(name)}`;
+  console.log('Seeding suppliers...');
+  await prisma.supplier.createMany({
+    data: [
+      { name: 'Highland Dairies Ltd', contactPerson: 'John Kamau', email: 'info@highlanddairies.co.ke', phone: '+254711223344', category: 'Dairy & Eggs' },
+      { name: 'Nairobi Coffee Roasters', contactPerson: 'Amina Mohamed', email: 'sales@nairobicoffee.co.ke', phone: '+254722334455', category: 'Beverages' },
+      { name: 'Jogoo Millers Ltd', contactPerson: 'Peter Otieno', email: 'support@jogoomillers.co.ke', phone: '+254733445566', category: 'Grains & Flour' },
+    ],
+  });
+
+  console.log('Seeding customer credit accounts...');
+  await (prisma as any).creditAccount.createMany({
+    data: [
+      { customerName: 'Valary Mwangi', phone: '+254700112233', balance: 3500.00, status: 'Active' },
+      { customerName: 'Brian Kiprop', phone: '+254711998877', balance: 0.00, status: 'Settled' },
+      { customerName: 'Grace Achieng', phone: '+254722554433', balance: 1200.50, status: 'Active' },
+    ],
+  });
+
+  console.log('Seeding customers...');
+  await (prisma as any).customer.createMany({
+    data: [
+      { name: 'Valary Mwangi', email: 'valary@mavora.ac.ke', phone: '+254700112233', points: 150 },
+      { name: 'Brian Kiprop', email: 'brian@mavora.ac.ke', phone: '+254711998877', points: 320 },
+      { name: 'Grace Achieng', email: 'grace@mavora.ac.ke', phone: '+254722554433', points: 50 },
+    ],
+  }).catch(() => {
+    console.log('Customer model might not be migrated yet; skipping customer seed.');
+  });
+
+  console.log('Seeding products with exact local public .jpg filenames...');
+  const getImg = (filename: string) => `/products/${filename}`;
   
   await prisma.product.createMany({
     data: [
-      { name: 'Crocodile Heavy Duty Jembe (Hoe)', sku: 'FRM-001', sellingPrice: 850, stock: 25, minimumStock: 10, category: 'Farm Tools', imageUrl: getImg('Jembe') },
-      { name: 'Heavy Duty Ceramic Dinner Plates (6pcs)', sku: 'UTN-001', sellingPrice: 1500, stock: 40, minimumStock: 15, category: 'Utensils', imageUrl: getImg('Ceramic Plates') },
-      { name: 'Honda Petrol Water Pump Machine', sku: 'MCH-001', sellingPrice: 28000, stock: 5, minimumStock: 2, category: 'Machines', imageUrl: getImg('Water Pump') },
-      { name: 'Jogoo Premium Maize Flour 2kg', sku: 'GRN-001', sellingPrice: 220, stock: 100, minimumStock: 50, category: 'Grains & Flour', imageUrl: getImg('Jogoo 2kg') },
-      { name: 'Kabras White Sugar 1kg', sku: 'PNT-001', sellingPrice: 165, stock: 80, minimumStock: 30, category: 'Pantry & Oils', imageUrl: getImg('Kabras Sugar') },
-      { name: 'Men\'s Classic Denim Jacket', sku: 'CLM-001', sellingPrice: 1800, stock: 15, minimumStock: 5, category: 'Clothes (Male)', imageUrl: getImg('Denim Jacket') },
-      { name: 'Men\'s Cotton Polo Shirt', sku: 'CLM-002', sellingPrice: 850, stock: 35, minimumStock: 10, category: 'Clothes (Male)', imageUrl: getImg('Polo Shirt') },
-      { name: 'Mwea Pishori Rice 5kg', sku: 'GRN-002', sellingPrice: 1400, stock: 45, minimumStock: 20, category: 'Grains & Flour', imageUrl: getImg('Pishori 5kg') },
-      { name: 'Omo Fast Action Laundry Detergent', sku: 'HSH-001', sellingPrice: 250, stock: 60, minimumStock: 20, category: 'Household & Essentials', imageUrl: getImg('Omo Detergent') },
-      { name: 'Philips Energy Saving LED Bulb 9W', sku: 'HSH-002', sellingPrice: 350, stock: 120, minimumStock: 40, category: 'Household & Essentials', imageUrl: getImg('LED Bulb') },
-      { name: 'Stainless Steel Cooking Pot Set (6pcs)', sku: 'UTN-002', sellingPrice: 4500, stock: 12, minimumStock: 5, category: 'Utensils', imageUrl: getImg('Pot Set 6pcs') },
-      { name: 'Stainless Steel Cooking Pot Set', sku: 'UTN-003', sellingPrice: 3200, stock: 18, minimumStock: 5, category: 'Utensils', imageUrl: getImg('Pot Set') },
-      { name: 'Toilet Tissue (10 Pack)', sku: 'HSH-003', sellingPrice: 450, stock: 85, minimumStock: 30, category: 'Household & Essentials', imageUrl: getImg('Toilet Tissue') },
-      { name: 'Whole Wheat Bread 400g', sku: 'BAK-001', sellingPrice: 65, stock: 30, minimumStock: 10, category: 'Bakery', imageUrl: getImg('Wheat Bread') },
-      { name: 'Women\'s Athletic Running Shoes', sku: 'SHO-001', sellingPrice: 2500, stock: 20, minimumStock: 5, category: 'Shoes', imageUrl: getImg('Running Shoes') },
-      { name: 'Women\'s Floral Summer Dress', sku: 'CLF-001', sellingPrice: 1500, stock: 25, minimumStock: 8, category: 'Clothes (Female)', imageUrl: getImg('Summer Dress') },
+      { name: 'Crocodile Heavy Duty Jembe (Hoe)', sku: 'FRM-001', sellingPrice: 850, stock: 25, minimumStock: 10, category: 'Farm Tools', imageUrl: getImg('Crocodile Heavy Duty Jembe (Hoe).jpg') },
+      { name: 'Heavy Duty Ceramic Dinner Plates (6pcs)', sku: 'UTN-001', sellingPrice: 1500, stock: 40, minimumStock: 15, category: 'Utensils', imageUrl: getImg('Heavy Duty Ceramic Dinner Plates (6pcs).jpg') },
+      { name: 'Honda Petrol Water Pump Machine', sku: 'MCH-001', sellingPrice: 28000, stock: 5, minimumStock: 2, category: 'Machines', imageUrl: getImg('Honda Petrol Water Pump Machine.jpg') },
+      { name: 'Jogoo Premium Maize Flour 2kg', sku: 'GRN-001', sellingPrice: 220, stock: 100, minimumStock: 50, category: 'Grains & Flour', imageUrl: getImg('Jogoo Premium Maize Flour 2kg.jpg') },
+      { name: 'Kabras White Sugar 1kg', sku: 'PNT-001', sellingPrice: 165, stock: 80, minimumStock: 30, category: 'Pantry & Oils', imageUrl: getImg('Kabras White Sugar 1kg.jpg') },
+      { name: "Men's Classic Denim Jacket", sku: 'CLM-001', sellingPrice: 1800, stock: 15, minimumStock: 5, category: 'Clothes (Male)', imageUrl: getImg("Men's Classic Denim Jacket.jpg") },
+      { name: "Men's Cotton Polo Shirt", sku: 'CLM-002', sellingPrice: 850, stock: 35, minimumStock: 10, category: 'Clothes (Male)', imageUrl: getImg("Men's Cotton Polo Shirt.jpg") },
+      { name: 'Mwea Pishori Rice 5kg', sku: 'GRN-002', sellingPrice: 1400, stock: 45, minimumStock: 20, category: 'Grains & Flour', imageUrl: getImg('Mwea Pishori Rice 5kg.jpg') },
+      { name: 'Omo Fast Action Laundry Detergent', sku: 'HSH-001', sellingPrice: 250, stock: 60, minimumStock: 20, category: 'Household & Essentials', imageUrl: getImg('Omo Fast Action Laundry Detergent.jpg') },
+      { name: 'Philips Energy Saving LED Bulb 9W', sku: 'HSH-002', sellingPrice: 350, stock: 120, minimumStock: 40, category: 'Household & Essentials', imageUrl: getImg('Philips Energy Saving LED Bulb 9W.jpg') },
+      { name: 'Stainless Steel Cooking Pot Set (6pcs)', sku: 'UTN-002', sellingPrice: 4500, stock: 12, minimumStock: 5, category: 'Utensils', imageUrl: getImg('Stainless Steel Cooking Pot Set (6pcs).jpg') },
+      { name: 'Stainless Steel Cooking Pot Set', sku: 'UTN-003', sellingPrice: 3200, stock: 18, minimumStock: 5, category: 'Utensils', imageUrl: getImg('Stainless Steel Cooking Pot Set.jpg') },
+      { name: 'Toilet Tissue (10 Pack)', sku: 'HSH-003', sellingPrice: 450, stock: 85, minimumStock: 30, category: 'Household & Essentials', imageUrl: getImg('Toilet Tissue (10 Pack).jpg') },
+      { name: 'Whole Wheat Bread 400g', sku: 'BAK-001', sellingPrice: 65, stock: 30, minimumStock: 10, category: 'Bakery', imageUrl: getImg('Whole Wheat Bread 400g.jpg') },
+      { name: "Women's Athletic Running Shoes", sku: 'SHO-001', sellingPrice: 2500, stock: 20, minimumStock: 5, category: 'Shoes', imageUrl: getImg("Women's Athletic Running Shoes.jpg") },
+      { name: "Women's Floral Summer Dress", sku: 'CLF-001', sellingPrice: 1500, stock: 25, minimumStock: 8, category: 'Clothes (Female)', imageUrl: getImg("Women's Floral Summer Dress.jpg") },
     ],
   });
 
   console.log('Seeding orders, expenses, and POs...');
-
   await prisma.order.createMany({
     data: [
       { orderNum: 'VORA-847291', customer: 'Valary', total: 2450.00, method: 'mpesa' },
