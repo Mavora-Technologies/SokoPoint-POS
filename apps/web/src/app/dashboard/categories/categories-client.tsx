@@ -19,6 +19,7 @@ export default function CategoriesClient() {
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [processingId, setProcessingId] = useState<string | null>(null);
   const [newCategory, setNewCategory] = useState({ name: '', description: '' });
 
   useEffect(() => { setIsMounted(true); }, []);
@@ -67,28 +68,24 @@ export default function CategoriesClient() {
   const handleDeleteCategory = async (category: CategoryItem) => {
     if (!confirm(`Are you sure you want to delete the category "${category.name}"?`)) return;
 
+    setProcessingId(category.id);
     try {
-      // 1. Fetch products to verify if any product is using this category
-      const productsRes = await api.get('/products').catch(() => ({ data: { data: [] } }));
-      const products = productsRes.data?.data || productsRes.data || [];
-
-      // 2. Check if the category name is linked to any active product
-      const isUsed = products.some((p: any) => 
-        (p.category || '').toLowerCase() === category.name.toLowerCase()
-      );
-
-      // 3. Block deletion if products depend on it
-      if (isUsed) {
-        alert(`Action Denied: The category "${category.name}" cannot be deleted because it is currently assigned to one or more active products. Please reassign those products first.`);
-        return;
-      }
-
-      // 4. Safe to delete
+      // Direct backend deletion request
       await api.delete(`/categories/${category.id}`);
       setCategories(categories.filter(c => c.id !== category.id));
     } catch (error: any) {
       console.error('Failed to delete category', error);
-      alert('Failed to delete category. It may be locked by database constraints.');
+      const status = error.response?.status;
+      const message = error.response?.data?.message;
+
+      // Catch the backend block and show the explicit reason
+      if (status === 409) {
+        alert(`Action Denied: ${message}`);
+      } else {
+        alert('Failed to delete category. It may be locked by database constraints.');
+      }
+    } finally {
+      setProcessingId(null);
     }
   };
 
@@ -178,9 +175,10 @@ export default function CategoriesClient() {
                       </div>
                       <button 
                         onClick={() => handleDeleteCategory(cat)}
-                        className="p-2 sm:p-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-colors shrink-0"
+                        disabled={processingId === cat.id}
+                        className="p-2 sm:p-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-colors shrink-0 disabled:opacity-50"
                       >
-                        <Trash2 className="h-5 w-5" />
+                        {processingId === cat.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
                       </button>
                     </div>
                     <div className="flex items-center text-[11px] sm:text-xs text-slate-400 font-medium tracking-wide pt-2 border-t border-slate-100">
@@ -225,10 +223,11 @@ export default function CategoriesClient() {
                       <td className="px-3 py-4 text-sm text-right pr-6 lg:pr-8 align-middle">
                         <button 
                           onClick={() => handleDeleteCategory(cat)}
-                          className="p-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-colors inline-flex items-center"
+                          disabled={processingId === cat.id}
+                          className="p-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-colors inline-flex items-center disabled:opacity-50"
                           title="Delete Category"
                         >
-                          <Trash2 className="h-5 w-5" />
+                          {processingId === cat.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
                         </button>
                       </td>
                     </tr>
