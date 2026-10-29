@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Truck, Plus, Loader2, Search, CheckCircle2, X, Phone, Mail, User } from 'lucide-react';
+import { Truck, Plus, Loader2, Search, CheckCircle2, X, Phone, Mail, User, Trash2 } from 'lucide-react';
 import api from '../../../lib/api';
 
 interface Supplier {
@@ -18,7 +18,11 @@ export default function SuppliersClient() {
   const [isLoading, setIsLoading] = useState(true);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [processingId, setProcessingId] = useState<string | null>(null);
+  
   const [newSupplier, setNewSupplier] = useState({ name: '', contactPerson: '', email: '', phone: '', category: 'Beverages' });
 
   useEffect(() => { setIsMounted(true); }, []);
@@ -28,9 +32,11 @@ export default function SuppliersClient() {
       try {
         setIsLoading(true);
         const res = await api.get('/suppliers');
-        setSuppliers(res.data.data);
+        const data = res.data?.data || res.data || [];
+        setSuppliers(Array.isArray(data) ? data : []);
       } catch (error) {
         console.error('Failed to load suppliers', error);
+        setSuppliers([]);
       } finally {
         setIsLoading(false);
       }
@@ -41,12 +47,46 @@ export default function SuppliersClient() {
   const handleAddSupplier = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      setIsSubmitting(true);
       const res = await api.post('/suppliers', newSupplier);
-      setSuppliers([res.data.data, ...suppliers]);
+      const created = res.data?.data || res.data;
+      
+      if (created) {
+        setSuppliers([created, ...suppliers]);
+      } else {
+        const refresh = await api.get('/suppliers');
+        setSuppliers(refresh.data?.data || refresh.data || []);
+      }
+      
       setIsModalOpen(false);
       setNewSupplier({ name: '', contactPerson: '', email: '', phone: '', category: 'Beverages' });
     } catch (error) {
       console.error('Failed to add supplier', error);
+      alert('Failed to add supplier. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteSupplier = async (supplier: Supplier) => {
+    const confirmed = window.confirm(`Are you sure you want to delete ${supplier.name}?`);
+    if (!confirmed) return;
+
+    setProcessingId(supplier.id);
+    try {
+      await api.delete(`/suppliers/${supplier.id}`);
+      setSuppliers(suppliers.filter(s => s.id !== supplier.id));
+    } catch (error: any) {
+      console.error('Failed to delete supplier:', error);
+      const status = error.response?.status;
+      
+      if (status === 409) {
+        alert(`Action Denied: Cannot delete "${supplier.name}" because they are linked to existing inventory or purchase orders.`);
+      } else {
+        alert('Error: Could not delete supplier. They may be locked by database constraints.');
+      }
+    } finally {
+      if (processingId === supplier.id) setProcessingId(null);
     }
   };
 
@@ -58,7 +98,10 @@ export default function SuppliersClient() {
     );
   }
 
-  const filtered = suppliers.filter(s => s.name.toLowerCase().includes(searchQuery.toLowerCase()) || s.contactPerson.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filtered = suppliers.filter(s => 
+    (s?.name || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
+    (s?.contactPerson || '').toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <div className="w-full min-h-[100dvh] bg-slate-50 overflow-x-hidden">
@@ -82,7 +125,7 @@ export default function SuppliersClient() {
               onClick={() => setIsModalOpen(true)} 
               className="flex items-center justify-center w-full sm:w-auto rounded-xl sm:rounded-2xl bg-blue-600 px-5 sm:px-6 py-3.5 sm:py-4 text-sm sm:text-base font-bold text-white shadow-sm hover:bg-blue-500 hover:shadow-md transition-all active:scale-[0.98] touch-manipulation"
             >
-              <Plus className="mr-2 h-5 w-5" /> Add Supplier
+              <Plus className="mr-2 h-5 w-5 shrink-0" /> Add Supplier
             </button>
           </div>
         </div>
@@ -96,7 +139,7 @@ export default function SuppliersClient() {
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
               <input
                 type="text"
-                placeholder="Search suppliers by name or contact..."
+                placeholder="Search suppliers by company name or contact..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 className="w-full pl-12 pr-4 py-3 sm:py-3.5 bg-white border border-slate-200 rounded-xl sm:rounded-2xl focus:ring-2 focus:ring-blue-600 focus:border-blue-600 text-sm sm:text-base outline-none transition-all shadow-sm placeholder:text-slate-400"
@@ -118,35 +161,44 @@ export default function SuppliersClient() {
             </div>
           ) : (
             <div className="w-full">
-              {/* MOBILE/TABLET VIEW: Card Layout to completely eliminate horizontal scrolling */}
+              {/* MOBILE/TABLET VIEW */}
               <div className="block md:hidden divide-y divide-slate-100">
                 {filtered.map(sup => (
                   <div key={sup.id} className="p-4 sm:p-5 hover:bg-slate-50/80 transition-colors space-y-3">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h4 className="text-base font-bold text-slate-900">{sup.name}</h4>
-                        <p className="text-sm text-slate-600 flex items-center gap-1.5 mt-1 font-medium">
+                    <div className="flex justify-between items-start gap-3">
+                      <div className="min-w-0 flex-1">
+                        <h4 className="text-base font-bold text-slate-900 truncate">{sup.name}</h4>
+                        <p className="text-sm text-slate-600 flex items-center gap-1.5 mt-1 font-medium truncate">
                           <User className="h-3.5 w-3.5 text-slate-400 shrink-0" /> {sup.contactPerson}
                         </p>
                       </div>
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20">
-                        {sup.category}
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20 shrink-0">
+                        {sup.category || 'General'}
                       </span>
                     </div>
 
-                    <div className="space-y-1.5 pt-2 border-t border-slate-100 text-sm text-slate-500">
-                      <p className="flex items-center gap-2 truncate">
-                        <Phone className="h-4 w-4 text-slate-400 shrink-0" /> {sup.phone}
-                      </p>
-                      <p className="flex items-center gap-2 truncate">
-                        <Mail className="h-4 w-4 text-slate-400 shrink-0" /> {sup.email || '—'}
-                      </p>
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                      <div className="space-y-1.5 text-sm text-slate-500 flex-1 min-w-0 pr-3">
+                        <p className="flex items-center gap-2 truncate">
+                          <Phone className="h-4 w-4 text-slate-400 shrink-0" /> {sup.phone}
+                        </p>
+                        <p className="flex items-center gap-2 truncate">
+                          <Mail className="h-4 w-4 text-slate-400 shrink-0" /> {sup.email || '—'}
+                        </p>
+                      </div>
+                      <button 
+                        onClick={() => handleDeleteSupplier(sup)}
+                        disabled={processingId === sup.id}
+                        className="p-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-colors disabled:opacity-50 shrink-0"
+                      >
+                        {processingId === sup.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
+                      </button>
                     </div>
                   </div>
                 ))}
               </div>
 
-              {/* DESKTOP VIEW: Table Layout for larger screens */}
+              {/* DESKTOP VIEW */}
               <table className="hidden md:table min-w-full divide-y divide-slate-200">
                 <thead className="bg-slate-50/80">
                   <tr>
@@ -160,10 +212,10 @@ export default function SuppliersClient() {
                       Category
                     </th>
                     <th className="px-3 py-4 text-left text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider">
-                      Phone
+                      Phone & Email
                     </th>
-                    <th className="px-3 py-4 text-left text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider pr-6 lg:pr-8">
-                      Email
+                    <th className="px-3 py-4 text-right text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider pr-6 lg:pr-8">
+                      Action
                     </th>
                   </tr>
                 </thead>
@@ -174,24 +226,36 @@ export default function SuppliersClient() {
                         {sup.name}
                       </td>
                       <td className="px-3 py-4 text-sm lg:text-base text-slate-600 font-medium align-middle">
-                        {sup.contactPerson}
+                        <span className="inline-flex items-center gap-2">
+                          <User className="h-4 w-4 text-slate-400 shrink-0" /> {sup.contactPerson}
+                        </span>
                       </td>
                       <td className="px-3 py-4 text-sm align-middle">
                         <span className="inline-flex items-center px-3 py-1 rounded-lg text-xs lg:text-sm font-bold bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20">
-                          {sup.category}
+                          {sup.category || 'General'}
                         </span>
                       </td>
                       <td className="px-3 py-4 text-sm lg:text-base text-slate-500 align-middle">
-                        <span className="inline-flex items-center gap-2">
-                          <Phone className="h-4 w-4 text-slate-400 shrink-0" /> {sup.phone}
-                        </span>
-                      </td>
-                      <td className="px-3 py-4 text-sm lg:text-base text-slate-500 pr-6 lg:pr-8 align-middle">
-                        {sup.email ? (
+                        <div className="flex flex-col gap-1">
                           <span className="inline-flex items-center gap-2">
-                            <Mail className="h-4 w-4 text-slate-400 shrink-0" /> {sup.email}
+                            <Phone className="h-4 w-4 text-slate-400 shrink-0" /> {sup.phone}
                           </span>
-                        ) : '—'}
+                          {sup.email && (
+                            <span className="inline-flex items-center gap-2">
+                              <Mail className="h-4 w-4 text-slate-400 shrink-0" /> {sup.email}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-3 py-4 text-sm text-right pr-6 lg:pr-8 align-middle">
+                        <button 
+                          onClick={() => handleDeleteSupplier(sup)}
+                          disabled={processingId === sup.id}
+                          className="p-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-colors inline-flex items-center disabled:opacity-50"
+                          title="Delete Supplier"
+                        >
+                          {processingId === sup.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -212,7 +276,8 @@ export default function SuppliersClient() {
                 </h3>
                 <button 
                   onClick={() => setIsModalOpen(false)} 
-                  className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-2 rounded-full transition-colors"
+                  disabled={isSubmitting}
+                  className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-2 rounded-full transition-colors disabled:opacity-50"
                 >
                   <X className="h-6 w-6" />
                 </button>
@@ -226,7 +291,8 @@ export default function SuppliersClient() {
                     type="text" 
                     value={newSupplier.name} 
                     onChange={e => setNewSupplier({...newSupplier, name: e.target.value})} 
-                    className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all text-sm sm:text-base shadow-sm placeholder:text-slate-400" 
+                    disabled={isSubmitting}
+                    className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all text-sm sm:text-base shadow-sm placeholder:text-slate-400 disabled:opacity-50 disabled:bg-slate-50" 
                     placeholder="e.g., Coca-Cola Beverages" 
                   />
                 </div>
@@ -237,7 +303,8 @@ export default function SuppliersClient() {
                     type="text" 
                     value={newSupplier.contactPerson} 
                     onChange={e => setNewSupplier({...newSupplier, contactPerson: e.target.value})} 
-                    className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all text-sm sm:text-base shadow-sm placeholder:text-slate-400" 
+                    disabled={isSubmitting}
+                    className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all text-sm sm:text-base shadow-sm placeholder:text-slate-400 disabled:opacity-50 disabled:bg-slate-50" 
                     placeholder="e.g., James Mwangi" 
                   />
                 </div>
@@ -249,7 +316,8 @@ export default function SuppliersClient() {
                       type="text" 
                       value={newSupplier.phone} 
                       onChange={e => setNewSupplier({...newSupplier, phone: e.target.value})} 
-                      className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all text-sm sm:text-base shadow-sm placeholder:text-slate-400" 
+                      disabled={isSubmitting}
+                      className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all text-sm sm:text-base shadow-sm placeholder:text-slate-400 disabled:opacity-50 disabled:bg-slate-50" 
                       placeholder="+254 700..." 
                     />
                   </div>
@@ -259,7 +327,8 @@ export default function SuppliersClient() {
                       type="text" 
                       value={newSupplier.category} 
                       onChange={e => setNewSupplier({...newSupplier, category: e.target.value})} 
-                      className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all text-sm sm:text-base shadow-sm placeholder:text-slate-400" 
+                      disabled={isSubmitting}
+                      className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all text-sm sm:text-base shadow-sm placeholder:text-slate-400 disabled:opacity-50 disabled:bg-slate-50" 
                       placeholder="Beverages" 
                     />
                   </div>
@@ -270,7 +339,8 @@ export default function SuppliersClient() {
                     type="email" 
                     value={newSupplier.email} 
                     onChange={e => setNewSupplier({...newSupplier, email: e.target.value})} 
-                    className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all text-sm sm:text-base shadow-sm placeholder:text-slate-400" 
+                    disabled={isSubmitting}
+                    className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all text-sm sm:text-base shadow-sm placeholder:text-slate-400 disabled:opacity-50 disabled:bg-slate-50" 
                     placeholder="supplier@example.com" 
                   />
                 </div>
@@ -279,15 +349,17 @@ export default function SuppliersClient() {
                   <button 
                     type="button" 
                     onClick={() => setIsModalOpen(false)} 
-                    className="w-full sm:w-auto px-6 py-3.5 sm:py-3 text-sm sm:text-base font-bold text-slate-700 hover:bg-slate-100 rounded-xl sm:rounded-2xl transition-colors"
+                    disabled={isSubmitting}
+                    className="w-full sm:w-auto px-6 py-3.5 sm:py-3 text-sm sm:text-base font-bold text-slate-700 hover:bg-slate-100 rounded-xl sm:rounded-2xl transition-colors disabled:opacity-50"
                   >
                     Cancel
                   </button>
                   <button 
                     type="submit" 
-                    className="w-full sm:w-auto px-6 py-3.5 sm:py-3 text-sm sm:text-base font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl sm:rounded-2xl flex items-center justify-center transition-colors shadow-md shadow-blue-600/20"
+                    disabled={isSubmitting}
+                    className="w-full sm:w-auto px-6 py-3.5 sm:py-3 text-sm sm:text-base font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl sm:rounded-2xl flex items-center justify-center transition-colors shadow-md shadow-blue-600/20 disabled:opacity-50"
                   >
-                    <CheckCircle2 className="mr-2 h-5 w-5" /> Save Supplier
+                    {isSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <CheckCircle2 className="mr-2 h-5 w-5" />} Save Supplier
                   </button>
                 </div>
               </form>
