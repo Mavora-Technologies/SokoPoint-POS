@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Package, Plus, Loader2, Search, Trash2, Edit3, X, CheckCircle2, Image as ImageIcon, ImagePlus } from 'lucide-react';
+import { Package, Plus, Loader2, Search, Trash2, Edit3, X, CheckCircle2, Image as ImageIcon, ImagePlus, AlertCircle } from 'lucide-react';
 import api from '../../../lib/api';
 
 interface Product {
@@ -13,22 +13,13 @@ interface Product {
   stock: number;
   sku?: string;
   imageUrl?: string;
+  status?: string;
 }
 
 const PRODUCT_CATEGORIES = [
-  'General',
-  'Bakery',
-  'Beverages',
-  'Dairy & Eggs',
-  'Grains & Flour',
-  'Household & Essentials',
-  'Pantry & Oils',
-  'Clothes (Male)',
-  'Clothes (Female)',
-  'Shoes',
-  'Utensils',
-  'Farm Tools',
-  'Machines'
+  'General', 'Bakery', 'Beverages', 'Dairy & Eggs', 'Grains & Flour', 
+  'Household & Essentials', 'Pantry & Oils', 'Clothes (Male)', 
+  'Clothes (Female)', 'Shoes', 'Utensils', 'Farm Tools', 'Machines'
 ];
 
 export default function ProductsClient() {
@@ -58,7 +49,8 @@ export default function ProductsClient() {
       const data = res.data?.data || res.data || [];
       
       if (Array.isArray(data)) {
-        setProducts(data);
+        // Filter out deactivated products from the main view
+        setProducts(data.filter(p => p.status !== 'INACTIVE'));
       }
     } catch (error) {
       console.error('Failed to load products', error);
@@ -87,6 +79,7 @@ export default function ProductsClient() {
       data.append('category', formData.category);
       data.append('sellingPrice', formData.price);
       data.append('stock', formData.stock);
+      data.append('status', 'ACTIVE');
       if (formData.sku) data.append('sku', formData.sku);
       if (selectedFile) {
         data.append('file', selectedFile);
@@ -130,29 +123,55 @@ export default function ProductsClient() {
     setIsEditModalOpen(true);
   };
 
-  // Robust deletion logic mapped to database constraints
+  const handleDeactivateProduct = async (product: Product) => {
+    try {
+      setProcessingId(product.id);
+      const data = new FormData();
+      data.append('name', product.name);
+      data.append('category', product.category || 'General');
+      data.append('sellingPrice', (product.sellingPrice || product.price || 0).toString());
+      data.append('stock', product.stock.toString());
+      data.append('status', 'INACTIVE'); 
+      if (product.sku) data.append('sku', product.sku);
+      if (product.imageUrl) data.append('imageUrl', product.imageUrl);
+
+      await api.put(`/products/${product.id}`, data, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      // Remove the deactivated product from the active inventory view
+      setProducts(products.filter(p => p.id !== product.id));
+      alert(`Success: "${product.name}" has been deactivated. Its historical sales records remain intact.`);
+    } catch (error) {
+      console.error('Failed to deactivate product', error);
+      alert('Failed to deactivate product. Please try again.');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
   const handleDeleteProduct = async (product: Product) => {
-    const confirmed = window.confirm(`Are you sure you want to delete "${product.name}"?\n\nNote: Products with existing sales history cannot be deleted for security and audit transparency.`);
+    const confirmed = window.confirm(`Are you sure you want to delete "${product.name}"?`);
     if (!confirmed) return;
 
     setProcessingId(product.id);
     try {
       await api.delete(`/products/${product.id}`);
       setProducts(products.filter(p => p.id !== product.id));
-      // Optional: Add a success toast here if desired
     } catch (error: any) {
       console.error('Delete error:', error);
       const status = error.response?.status;
-      const errorText = JSON.stringify(error.response?.data || error.message || '').toLowerCase();
-
-      // Catch the PostgreSQL 'onDelete: Restrict' constraint violation
-      if (status === 409 || errorText.includes('foreign key') || errorText.includes('constraint')) {
-        alert(`Action Denied: "${product.name}" cannot be deleted because it is linked to past sales records. Deleting it would compromise financial data.`);
+      
+      if (status === 409) {
+        const archive = window.confirm(`Action Denied: Cannot delete "${product.name}" because it has existing sales records.\n\nTo preserve sales history and financial transparency, would you like to DEACTIVATE this product instead? It will be removed from active inventory but its historical data will remain safe.`);
+        if (archive) {
+          await handleDeactivateProduct(product);
+        }
       } else {
         alert(`Error: Could not delete product. It may be locked by database constraints.`);
       }
     } finally {
-      setProcessingId(null);
+      if (processingId === product.id) setProcessingId(null);
     }
   };
 
@@ -263,7 +282,7 @@ export default function ProductsClient() {
         {/* Main Content Area */}
         <div className="bg-white rounded-2xl lg:rounded-3xl shadow-sm ring-1 ring-slate-200 overflow-hidden flex flex-col w-full">
           
-          <div className="p-4 sm:p-5 lg:p-6 border-b border-slate-100 bg-slate-50/50 w-full">
+          <div className="p-4 sm:p-5 lg:p-6 border-b border-slate-100 bg-slate-50/50 w-full flex items-center justify-between">
             <div className="relative w-full max-w-2xl">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
               <input
@@ -285,7 +304,7 @@ export default function ProductsClient() {
               <div className="h-20 w-20 lg:h-24 lg:w-24 bg-slate-50 rounded-full flex items-center justify-center mb-4 lg:mb-6 shadow-inner border border-slate-100">
                 <Package className="h-10 w-10 lg:h-12 lg:w-12 text-slate-300" />
               </div>
-              <p className="text-lg lg:text-xl font-bold text-slate-700">No products found</p>
+              <p className="text-lg lg:text-xl font-bold text-slate-700">No active products found</p>
               <p className="mt-2 text-sm lg:text-base text-slate-400">Try adjusting your search or add a new product.</p>
             </div>
           ) : (
