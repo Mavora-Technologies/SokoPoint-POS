@@ -20,28 +20,43 @@ model User {
 }
 
 model Product {
-  id           String   @id @default(cuid())
-  tenantId     String   @default("demo-tenant")
+  id           String      @id @default(cuid())
+  tenantId     String      @default("demo-tenant")
   name         String
-  sku          String?  @unique
+  sku          String?     @unique
   sellingPrice Float
-  stock        Int      @default(0)
-  minimumStock Int      @default(5)
+  stock        Int         @default(0)
+  minimumStock Int         @default(5)
   category     String?
   imageUrl     String?  
-  status       String   @default("ACTIVE")
-  createdAt    DateTime @default(now())
+  status       String      @default("ACTIVE")
+  createdAt    DateTime    @default(now())
+  
+  orderItems   OrderItem[]
 }
 
 model Order {
-  id        String   @id @default(cuid())
-  tenantId  String   @default("demo-tenant")
-  orderNum  String   @unique
-  customer  String   @default("Walk-in Customer")
+  id        String      @id @default(cuid())
+  tenantId  String      @default("demo-tenant")
+  orderNum  String      @unique
+  customer  String      @default("Walk-in Customer")
   total     Float
-  status    String   @default("Completed")
+  status    String      @default("Completed")
   method    String   
-  createdAt DateTime @default(now())
+  createdAt DateTime    @default(now())
+  
+  items     OrderItem[]
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  productId String
+  quantity  Int
+  price     Float
+  
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
 }
 
 model Expense {
