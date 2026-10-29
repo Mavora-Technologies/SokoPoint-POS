@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { CreditCard, Plus, Loader2, Search, CheckCircle2, X, Phone } from 'lucide-react';
+import { CreditCard, Plus, Loader2, Search, CheckCircle2, X, Phone, AlertCircle } from 'lucide-react';
 import api from '../../../lib/api';
 
 interface CreditAccount {
@@ -10,7 +10,8 @@ interface CreditAccount {
   phone: string;
   balance: number;
   status: string;
-  lastTxDate: string;
+  lastTxDate?: string;
+  createdAt?: string;
 }
 
 export default function CreditClient() {
@@ -18,7 +19,9 @@ export default function CreditClient() {
   const [isLoading, setIsLoading] = useState(true);
   const [accounts, setAccounts] = useState<CreditAccount[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [newAccount, setNewAccount] = useState({ customerName: '', phone: '', balance: '' });
 
   useEffect(() => { setIsMounted(true); }, []);
@@ -28,9 +31,11 @@ export default function CreditClient() {
       try {
         setIsLoading(true);
         const res = await api.get('/credit');
-        setAccounts(res.data.data);
+        const data = res.data?.data || res.data || [];
+        setAccounts(Array.isArray(data) ? data : []);
       } catch (error) {
         console.error('Failed to load credit accounts', error);
+        setAccounts([]);
       } finally {
         setIsLoading(false);
       }
@@ -41,12 +46,32 @@ export default function CreditClient() {
   const handleAddAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await api.post('/credit', newAccount);
-      setAccounts([res.data.data, ...accounts]);
+      setIsSubmitting(true);
+      
+      const payload = {
+        customerName: newAccount.customerName,
+        phone: newAccount.phone,
+        balance: Number(newAccount.balance) || 0,
+        status: Number(newAccount.balance) > 0 ? 'Active' : 'Settled'
+      };
+
+      const res = await api.post('/credit', payload);
+      const created = res.data?.data || res.data;
+      
+      if (created) {
+        setAccounts([created, ...accounts]);
+      } else {
+        const refresh = await api.get('/credit');
+        setAccounts(refresh.data?.data || refresh.data || []);
+      }
+      
       setIsModalOpen(false);
       setNewAccount({ customerName: '', phone: '', balance: '' });
     } catch (error) {
       console.error('Failed to add credit tab', error);
+      alert('Failed to add credit account. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -85,7 +110,7 @@ export default function CreditClient() {
               onClick={() => setIsModalOpen(true)} 
               className="flex items-center justify-center w-full sm:w-auto rounded-xl sm:rounded-2xl bg-blue-600 px-5 sm:px-6 py-3.5 sm:py-4 text-sm sm:text-base font-bold text-white shadow-sm hover:bg-blue-500 hover:shadow-md transition-all active:scale-[0.98] touch-manipulation"
             >
-              <Plus className="mr-2 h-5 w-5" /> Open Tab / Credit
+              <Plus className="mr-2 h-5 w-5 shrink-0" /> Open Tab / Credit
             </button>
           </div>
         </div>
@@ -125,22 +150,34 @@ export default function CreditClient() {
               <div className="block md:hidden divide-y divide-slate-100">
                 {filtered.map(acc => {
                   const balanceVal = Number(acc.balance || 0);
+                  const displayDate = acc.lastTxDate || acc.createdAt;
+                  
                   return (
                     <div key={acc.id} className="p-4 sm:p-5 hover:bg-slate-50/80 transition-colors space-y-3">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h4 className="text-base font-bold text-slate-900">{acc.customerName}</h4>
-                          <p className="text-xs sm:text-sm text-slate-500 flex items-center gap-1.5 mt-1">
+                      <div className="flex justify-between items-start gap-3">
+                        <div className="min-w-0 flex-1">
+                          <h4 className="text-base font-bold text-slate-900 truncate">{acc.customerName}</h4>
+                          <p className="text-xs sm:text-sm text-slate-500 flex items-center gap-1.5 mt-1 truncate">
                             <Phone className="h-3.5 w-3.5 text-slate-400 shrink-0" /> {acc.phone}
                           </p>
                         </div>
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold ${balanceVal > 0 ? 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20' : 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20'}`}>
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold shrink-0 ${balanceVal > 0 ? 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20' : 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20'}`}>
+                          {balanceVal > 0 ? <AlertCircle className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
                           {balanceVal > 0 ? 'Active Tab' : 'Settled'}
                         </span>
                       </div>
-                      <div className="flex justify-between items-center pt-2 border-t border-slate-100">
-                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Outstanding Balance</span>
-                        <span className="text-base font-black text-slate-900">KES {balanceVal.toLocaleString()}</span>
+                      
+                      <div className="flex justify-between items-center pt-3 border-t border-slate-100">
+                        <div>
+                          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Outstanding Balance</span>
+                          <span className="text-base font-black text-slate-900">KES {balanceVal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                        </div>
+                        {displayDate && (
+                          <div className="text-right">
+                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Last Updated</span>
+                            <span className="text-xs font-medium text-slate-500">{new Date(displayDate).toLocaleDateString()}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
@@ -160,6 +197,9 @@ export default function CreditClient() {
                     <th className="px-3 py-4 text-left text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider">
                       Status
                     </th>
+                    <th className="px-3 py-4 text-left text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider">
+                      Last Updated
+                    </th>
                     <th className="px-3 py-4 text-right text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider pr-6 lg:pr-8">
                       Outstanding Balance
                     </th>
@@ -168,6 +208,8 @@ export default function CreditClient() {
                 <tbody className="divide-y divide-slate-100 bg-white">
                   {filtered.map(acc => {
                     const balanceVal = Number(acc.balance || 0);
+                    const displayDate = acc.lastTxDate || acc.createdAt;
+
                     return (
                       <tr key={acc.id} className="hover:bg-slate-50/80 transition-colors group">
                         <td className="py-4 pl-6 lg:pl-8 pr-3 text-sm lg:text-base font-bold text-slate-900 align-middle">
@@ -179,12 +221,16 @@ export default function CreditClient() {
                           </span>
                         </td>
                         <td className="px-3 py-4 text-sm align-middle">
-                          <span className={`inline-flex items-center px-3 py-1 rounded-lg text-xs lg:text-sm font-bold ${balanceVal > 0 ? 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20' : 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20'}`}>
+                          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs lg:text-sm font-bold whitespace-nowrap ${balanceVal > 0 ? 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20' : 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20'}`}>
+                            {balanceVal > 0 ? <AlertCircle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
                             {balanceVal > 0 ? 'Active Tab' : 'Settled'}
                           </span>
                         </td>
-                        <td className="px-3 py-4 text-sm lg:text-base font-black text-slate-900 text-right pr-6 lg:pr-8 align-middle">
-                          KES {balanceVal.toLocaleString()}
+                        <td className="px-3 py-4 text-sm lg:text-base text-slate-500 font-medium align-middle whitespace-nowrap">
+                          {displayDate ? new Date(displayDate).toLocaleDateString() : 'N/A'}
+                        </td>
+                        <td className="px-3 py-4 text-sm lg:text-base font-black text-slate-900 text-right pr-6 lg:pr-8 align-middle whitespace-nowrap">
+                          KES {balanceVal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </td>
                       </tr>
                     );
@@ -202,11 +248,12 @@ export default function CreditClient() {
               
               <div className="flex items-center justify-between p-5 sm:p-6 lg:p-8 border-b border-slate-100 bg-white sticky top-0 z-10">
                 <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900 flex items-center gap-3">
-                  <CreditCard className="h-6 w-6 text-blue-600" /> Open Customer Tab / Credit
+                  <CreditCard className="h-6 w-6 text-blue-600" /> Open Customer Tab
                 </h3>
                 <button 
-                  onClick={() => setIsModalOpen(false)} 
-                  className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-2 rounded-full transition-colors"
+                  onClick={() => setIsModalOpen(false)}
+                  disabled={isSubmitting} 
+                  className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-2 rounded-full transition-colors disabled:opacity-50"
                 >
                   <X className="h-6 w-6" />
                 </button>
@@ -219,8 +266,9 @@ export default function CreditClient() {
                     required 
                     type="text" 
                     value={newAccount.customerName} 
-                    onChange={e => setNewAccount({...newAccount, customerName: e.target.value})} 
-                    className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all text-sm sm:text-base shadow-sm placeholder:text-slate-400" 
+                    onChange={e => setNewAccount({...newAccount, customerName: e.target.value})}
+                    disabled={isSubmitting} 
+                    className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all text-sm sm:text-base shadow-sm placeholder:text-slate-400 disabled:opacity-50 disabled:bg-slate-50" 
                     placeholder="e.g., John Doe" 
                   />
                 </div>
@@ -231,7 +279,8 @@ export default function CreditClient() {
                     type="text" 
                     value={newAccount.phone} 
                     onChange={e => setNewAccount({...newAccount, phone: e.target.value})} 
-                    className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all text-sm sm:text-base shadow-sm placeholder:text-slate-400" 
+                    disabled={isSubmitting}
+                    className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all text-sm sm:text-base shadow-sm placeholder:text-slate-400 disabled:opacity-50 disabled:bg-slate-50" 
                     placeholder="+254 700..." 
                   />
                 </div>
@@ -240,9 +289,11 @@ export default function CreditClient() {
                   <input 
                     type="number" 
                     step="0.01" 
+                    min="0"
                     value={newAccount.balance} 
                     onChange={e => setNewAccount({...newAccount, balance: e.target.value})} 
-                    className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all text-sm sm:text-base shadow-sm placeholder:text-slate-400" 
+                    disabled={isSubmitting}
+                    className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all text-sm sm:text-base shadow-sm placeholder:text-slate-400 disabled:opacity-50 disabled:bg-slate-50" 
                     placeholder="0.00" 
                   />
                 </div>
@@ -251,15 +302,18 @@ export default function CreditClient() {
                   <button 
                     type="button" 
                     onClick={() => setIsModalOpen(false)} 
-                    className="w-full sm:w-auto px-6 py-3.5 sm:py-3 text-sm sm:text-base font-bold text-slate-700 hover:bg-slate-100 rounded-xl sm:rounded-2xl transition-colors"
+                    disabled={isSubmitting}
+                    className="w-full sm:w-auto px-6 py-3.5 sm:py-3 text-sm sm:text-base font-bold text-slate-700 hover:bg-slate-100 rounded-xl sm:rounded-2xl transition-colors disabled:opacity-50"
                   >
                     Cancel
                   </button>
                   <button 
                     type="submit" 
-                    className="w-full sm:w-auto px-6 py-3.5 sm:py-3 text-sm sm:text-base font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl sm:rounded-2xl flex items-center justify-center transition-colors shadow-md shadow-blue-600/20"
+                    disabled={isSubmitting}
+                    className="w-full sm:w-auto px-6 py-3.5 sm:py-3 text-sm sm:text-base font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl sm:rounded-2xl flex items-center justify-center transition-colors shadow-md shadow-blue-600/20 disabled:opacity-50"
                   >
-                    <CheckCircle2 className="mr-2 h-5 w-5" /> Save Account
+                    {isSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <CheckCircle2 className="mr-2 h-5 w-5" />} 
+                    Save Account
                   </button>
                 </div>
               </form>
