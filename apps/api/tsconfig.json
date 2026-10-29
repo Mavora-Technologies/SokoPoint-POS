@@ -1,17 +1,14 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "CommonJS",
+    "target": "es2022",
+    "module": "commonjs",
     "rootDir": "./src",
-    "moduleResolution": "bundler",
-    "noImplicitAny": false,
+    "lib": ["es2022"],
     "strict": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "verbatimModuleSyntax": false, 
     "outDir": "./dist"
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules"]
+  "include": ["src/**/*"]
 }
