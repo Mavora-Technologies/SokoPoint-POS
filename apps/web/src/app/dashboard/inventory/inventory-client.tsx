@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Package, Search, Loader2, AlertTriangle, CheckCircle2, SlidersHorizontal, X, Tag } from 'lucide-react';
+import { Package, Search, Loader2, AlertTriangle, CheckCircle2, SlidersHorizontal, X, Tag, Trash2 } from 'lucide-react';
 import api from '../../../lib/api';
 
 interface InventoryItem {
@@ -12,6 +12,8 @@ interface InventoryItem {
   stock: number;
   minimumStock: number;
   category?: string;
+  status?: string;
+  imageUrl?: string;
 }
 
 export default function InventoryClient() {
@@ -25,6 +27,7 @@ export default function InventoryClient() {
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [newStockVal, setNewStockVal] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
+  const [processingId, setProcessingId] = useState<string | null>(null);
 
   useEffect(() => { setIsMounted(true); }, []);
 
@@ -32,10 +35,10 @@ export default function InventoryClient() {
     const fetchInventory = async () => {
       try {
         setIsLoading(true);
-        // Changed from /inventory to /products to fetch the real seeded database!
         const res = await api.get('/products');
         const data = res.data?.data || res.data || [];
-        setInventory(Array.isArray(data) ? data : []);
+        // Filter out deactivated items to keep the inventory view clean
+        setInventory(Array.isArray(data) ? data.filter((p: any) => p.status !== 'INACTIVE') : []);
       } catch (error) {
         console.error('Failed to load inventory', error);
       } finally {
@@ -51,7 +54,6 @@ export default function InventoryClient() {
     
     try {
       setIsUpdating(true);
-      // Pushing the stock update directly to the product database
       await api.put(`/products/${selectedItem.id}`, { stock: Number(newStockVal) });
       
       setInventory(inventory.map(item => 
@@ -68,6 +70,57 @@ export default function InventoryClient() {
     }
   };
 
+  const handleDeactivateProduct = async (product: InventoryItem) => {
+    try {
+      setProcessingId(product.id);
+      const data = new FormData();
+      data.append('name', product.name);
+      data.append('category', product.category || 'General');
+      data.append('sellingPrice', product.sellingPrice.toString());
+      data.append('stock', product.stock.toString());
+      data.append('status', 'INACTIVE'); 
+      if (product.sku) data.append('sku', product.sku);
+      if (product.imageUrl) data.append('imageUrl', product.imageUrl);
+
+      await api.put(`/products/${product.id}`, data, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      setInventory(inventory.filter(p => p.id !== product.id));
+      alert(`Success: "${product.name}" has been deactivated. Its historical sales records remain intact.`);
+    } catch (error) {
+      console.error('Failed to deactivate product', error);
+      alert('Failed to deactivate product. Please try again.');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleDeleteItem = async (product: InventoryItem) => {
+    const confirmed = window.confirm(`Are you sure you want to delete "${product.name}"?`);
+    if (!confirmed) return;
+
+    setProcessingId(product.id);
+    try {
+      await api.delete(`/products/${product.id}`);
+      setInventory(inventory.filter(p => p.id !== product.id));
+    } catch (error: any) {
+      console.error('Delete error:', error);
+      const status = error.response?.status;
+      
+      if (status === 409) {
+        const archive = window.confirm(`Action Denied: Cannot delete "${product.name}" because it has existing sales records.\n\nWould you like to DEACTIVATE this product instead? It will be removed from active inventory but its historical data will remain safe.`);
+        if (archive) {
+          await handleDeactivateProduct(product);
+        }
+      } else {
+        alert(`Error: Could not delete product. It may be locked by database constraints.`);
+      }
+    } finally {
+      if (processingId === product.id) setProcessingId(null);
+    }
+  };
+
   if (!isMounted) {
     return (
       <div className="flex justify-center items-center min-h-[100dvh] w-full bg-slate-50">
@@ -76,7 +129,6 @@ export default function InventoryClient() {
     );
   }
 
-  // Extract unique categories dynamically based on actual database products
   const categories = ['All', ...Array.from(new Set(inventory.map(i => i.category || 'Uncategorized'))).filter(c => c !== 'Uncategorized')];
 
   const filtered = inventory.filter(item => {
@@ -188,12 +240,21 @@ export default function InventoryClient() {
                             )}
                           </div>
                         </div>
-                        <button 
-                          onClick={() => { setSelectedItem(item); setNewStockVal(stockCount.toString()); }}
-                          className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-blue-50 text-blue-600 hover:bg-blue-100 font-bold rounded-xl text-xs transition-colors shadow-sm active:scale-95"
-                        >
-                          <SlidersHorizontal className="h-4 w-4" /> Adjust Stock
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={() => handleDeleteItem(item)}
+                            disabled={processingId === item.id}
+                            className="p-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-colors disabled:opacity-50"
+                          >
+                            {processingId === item.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
+                          </button>
+                          <button 
+                            onClick={() => { setSelectedItem(item); setNewStockVal(stockCount.toString()); }}
+                            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-blue-50 text-blue-600 hover:bg-blue-100 font-bold rounded-xl text-xs transition-colors shadow-sm active:scale-95"
+                          >
+                            <SlidersHorizontal className="h-4 w-4" /> Adjust
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -257,7 +318,14 @@ export default function InventoryClient() {
                             </span>
                           )}
                         </td>
-                        <td className="px-3 py-4 text-sm text-right pr-6 lg:pr-8 align-middle">
+                        <td className="px-3 py-4 text-sm text-right pr-6 lg:pr-8 align-middle flex items-center justify-end gap-2">
+                          <button 
+                            onClick={() => handleDeleteItem(item)}
+                            disabled={processingId === item.id}
+                            className="p-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-colors disabled:opacity-50"
+                          >
+                            {processingId === item.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
+                          </button>
                           <button 
                             onClick={() => { setSelectedItem(item); setNewStockVal(stockCount.toString()); }}
                             className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 font-bold rounded-xl text-xs lg:text-sm transition-colors shadow-sm active:scale-95"
