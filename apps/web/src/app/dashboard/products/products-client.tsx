@@ -41,6 +41,7 @@ export default function ProductsClient() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [processingId, setProcessingId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     name: '', category: 'General', price: '', stock: '', sku: '', imageUrl: '',
@@ -129,33 +130,29 @@ export default function ProductsClient() {
     setIsEditModalOpen(true);
   };
 
+  // Robust deletion logic mapped to database constraints
   const handleDeleteProduct = async (product: Product) => {
-    if (!confirm(`Are you sure you want to delete "${product.name}"?`)) return;
+    const confirmed = window.confirm(`Are you sure you want to delete "${product.name}"?\n\nNote: Products with existing sales history cannot be deleted for security and audit transparency.`);
+    if (!confirmed) return;
+
+    setProcessingId(product.id);
     try {
-      // Fetch orders to verify if the product has ever been sold
-      const ordersRes = await api.get('/orders').catch(() => ({ data: { data: [] } }));
-      const orders = ordersRes.data?.data || ordersRes.data || [];
-      
-      // Check if product ID or Name exists anywhere in the sales history
-      const hasBeenSold = orders.some((order: any) => 
-        JSON.stringify(order).includes(product.id) || 
-        JSON.stringify(order).includes(product.name)
-      );
-
-      if (hasBeenSold) {
-        alert(`Action Denied: "${product.name}" cannot be deleted because it has been sold in past transactions. This restriction maintains accurate historical records for the business owner.`);
-        return;
-      }
-
       await api.delete(`/products/${product.id}`);
       setProducts(products.filter(p => p.id !== product.id));
+      // Optional: Add a success toast here if desired
     } catch (error: any) {
-      console.error('Failed to delete product', error);
-      if (error?.response?.status === 400 || error?.response?.status === 409) {
-        alert(`Action Denied: Cannot delete "${product.name}" as it is linked to existing records in the database.`);
+      console.error('Delete error:', error);
+      const status = error.response?.status;
+      const errorText = JSON.stringify(error.response?.data || error.message || '').toLowerCase();
+
+      // Catch the PostgreSQL 'onDelete: Restrict' constraint violation
+      if (status === 409 || errorText.includes('foreign key') || errorText.includes('constraint')) {
+        alert(`Action Denied: "${product.name}" cannot be deleted because it is linked to past sales records. Deleting it would compromise financial data.`);
       } else {
-        alert('Failed to delete product. Please try again.');
+        alert(`Error: Could not delete product. It may be locked by database constraints.`);
       }
+    } finally {
+      setProcessingId(null);
     }
   };
 
@@ -338,8 +335,12 @@ export default function ProductsClient() {
                           <button onClick={() => openEditModal(item)} className="p-2.5 text-green-600 hover:bg-green-50 rounded-xl transition-colors">
                             <Edit3 className="h-5 w-5" />
                           </button>
-                          <button onClick={() => handleDeleteProduct(item)} className="p-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-colors">
-                            <Trash2 className="h-5 w-5" />
+                          <button 
+                            onClick={() => handleDeleteProduct(item)} 
+                            disabled={processingId === item.id}
+                            className="p-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-colors disabled:opacity-50"
+                          >
+                            {processingId === item.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
                           </button>
                         </div>
                       </div>
@@ -402,8 +403,12 @@ export default function ProductsClient() {
                           <button onClick={() => openEditModal(item)} className="p-2.5 text-green-600 hover:bg-green-50 rounded-xl transition-colors inline-flex items-center">
                             <Edit3 className="h-5 w-5" />
                           </button>
-                          <button onClick={() => handleDeleteProduct(item)} className="p-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-colors inline-flex items-center">
-                            <Trash2 className="h-5 w-5" />
+                          <button 
+                            onClick={() => handleDeleteProduct(item)} 
+                            disabled={processingId === item.id}
+                            className="p-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-colors inline-flex items-center disabled:opacity-50"
+                          >
+                            {processingId === item.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
                           </button>
                         </td>
                       </tr>
