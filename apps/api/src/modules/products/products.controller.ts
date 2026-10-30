@@ -23,10 +23,15 @@ const uploadToCloudinary = (fileBuffer: Buffer): Promise<any> => {
   });
 };
 
-export const getProducts = async (_req: Request, res: Response): Promise<void> => {
+export const getProducts = async (req: Request, res: Response): Promise<void> => {
   try {
+    const { status } = req.query;
+    
+    // Serve ARCHIVED products if explicitly requested, otherwise serve ACTIVE ones
+    const statusFilter = status === 'ARCHIVED' ? 'ARCHIVED' : { not: 'ARCHIVED' };
+
     const products = await prisma.product.findMany({ 
-      where: { status: { not: 'ARCHIVED' } },
+      where: { status: statusFilter },
       orderBy: { createdAt: 'desc' } 
     });
     res.status(200).json({ success: true, data: products });
@@ -75,15 +80,20 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
     if (orderCount > 0) {
       const currentProd = await prisma.product.findUnique({ where: { id: productId } });
       if (currentProd) {
-        const isNameChanged = name !== undefined && String(name) !== currentProd.name;
-        const isSkuChanged = sku !== undefined && sku !== currentProd.sku && sku !== null;
+        // Skip edit locks if the ONLY thing changing is the status (e.g., restoring from archive)
+        const isOnlyStatusChange = (status !== undefined) && (name === undefined || String(name) === currentProd.name) && (sku === undefined || sku === currentProd.sku);
         
-        if (isNameChanged || isSkuChanged) {
-          res.status(403).json({ 
-            success: false, 
-            message: 'Cannot edit the name or SKU of a product with historical sales. Please archive this product and create a new one.' 
-          });
-          return;
+        if (!isOnlyStatusChange) {
+          const isNameChanged = name !== undefined && String(name) !== currentProd.name;
+          const isSkuChanged = sku !== undefined && sku !== currentProd.sku && sku !== null;
+          
+          if (isNameChanged || isSkuChanged) {
+            res.status(403).json({ 
+              success: false, 
+              message: 'Cannot edit the name or SKU of a product with historical sales. Please archive this product and create a new one.' 
+            });
+            return;
+          }
         }
       }
     }
@@ -119,7 +129,6 @@ export const deleteProduct = async (req: Request, res: Response): Promise<void> 
     const rawId = req.params.id || req.query.id;
     const productId = Array.isArray(rawId) ? String(rawId[0]) : String(rawId);
     
-    // ENFORCEMENT: Never delete a product that has been sold
     const orderCount = await prisma.orderItem.count({ where: { productId } });
 
     if (orderCount > 0) {

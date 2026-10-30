@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Package, Plus, Loader2, Search, Trash2, Edit3, X, CheckCircle2, Image as ImageIcon, ImagePlus } from 'lucide-react';
+import { Package, Plus, Loader2, Search, Trash2, Edit3, X, CheckCircle2, Image as ImageIcon, ImagePlus, RefreshCw, Archive } from 'lucide-react';
 import api from '../../../lib/api';
 
 interface Product {
@@ -27,6 +27,7 @@ export default function ProductsClient() {
   const [isLoading, setIsLoading] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE'); // New Tab State
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -45,12 +46,10 @@ export default function ProductsClient() {
   const fetchProducts = async () => {
     try {
       setIsLoading(true);
-      const res = await api.get('/products');
+      const res = await api.get(`/products?status=${viewMode}`);
       const data = res.data?.data || res.data || [];
-      
       if (Array.isArray(data)) {
-        // Backend now excludes ARCHIVED products automatically, but we ensure INACTIVE are filtered too just in case
-        setProducts(data.filter(p => p.status !== 'INACTIVE' && p.status !== 'ARCHIVED'));
+        setProducts(data);
       }
     } catch (error) {
       console.error('Failed to load products', error);
@@ -59,9 +58,10 @@ export default function ProductsClient() {
     }
   };
 
+  // Refetch when viewMode changes
   useEffect(() => {
     if (isMounted) fetchProducts();
-  }, [isMounted]);
+  }, [isMounted, viewMode]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -92,7 +92,7 @@ export default function ProductsClient() {
       });
       
       const created = res.data?.data || res.data;
-      if (created) {
+      if (created && viewMode === 'ACTIVE') {
         setProducts([created, ...products]);
       } else {
         await fetchProducts();
@@ -129,13 +129,8 @@ export default function ProductsClient() {
 
     setProcessingId(product.id);
     try {
-      // The backend now intelligently decides whether to hard delete or soft archive
       const res = await api.delete(`/products/${product.id}`);
-      
-      // Remove from active UI array regardless of whether backend hard-deleted or soft-archived it
       setProducts(products.filter(p => p.id !== product.id));
-      
-      // Alert the user with the backend's message so they know if it was archived
       if (res.data?.message) {
         alert(res.data.message);
       }
@@ -144,6 +139,28 @@ export default function ProductsClient() {
       alert(`Error: Could not process deletion.`);
     } finally {
       if (processingId === product.id) setProcessingId(null);
+    }
+  };
+
+  // Restore an archived product back to ACTIVE
+  const handleRestoreProduct = async (product: Product) => {
+    setProcessingId(product.id);
+    try {
+      const data = new FormData();
+      data.append('status', 'ACTIVE'); // Only update the status back to ACTIVE
+
+      await api.put(`/products/${product.id}`, data, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      
+      // Remove from the archived view instantly
+      setProducts(products.filter(p => p.id !== product.id));
+      alert(`Success: "${product.name}" has been restored to active inventory.`);
+    } catch (error: any) {
+      console.error('Failed to restore product', error);
+      alert('Failed to restore product');
+    } finally {
+      setProcessingId(null);
     }
   };
 
@@ -181,7 +198,6 @@ export default function ProductsClient() {
       setImagePreview('');
     } catch (error: any) {
       console.error('Failed to update product', error);
-      // Surface the specific 403 error message if the user tries to rename a sold product
       if (error.response?.status === 403) {
         alert(`Action Denied:\n\n${error.response.data.message}`);
       } else {
@@ -257,18 +273,34 @@ export default function ProductsClient() {
           </div>
         </div>
 
-        {/* Main Content Area */}
+        {/* View Toggles & Search */}
         <div className="bg-white rounded-2xl lg:rounded-3xl shadow-sm ring-1 ring-slate-200 overflow-hidden flex flex-col w-full">
-          
-          <div className="p-4 sm:p-5 lg:p-6 border-b border-slate-100 bg-slate-50/50 w-full flex items-center justify-between">
-            <div className="relative w-full max-w-2xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-5 lg:p-6 border-b border-slate-100 bg-slate-50/50 w-full gap-4">
+            
+            {/* Toggles */}
+            <div className="flex bg-slate-200/50 p-1 rounded-xl w-full sm:w-fit shrink-0">
+              <button 
+                onClick={() => setViewMode('ACTIVE')}
+                className={`flex-1 sm:flex-none px-4 py-2.5 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${viewMode === 'ACTIVE' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                <Package className="h-4 w-4" /> Active
+              </button>
+              <button 
+                onClick={() => setViewMode('ARCHIVED')}
+                className={`flex-1 sm:flex-none px-4 py-2.5 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${viewMode === 'ARCHIVED' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                <Archive className="h-4 w-4" /> Archived
+              </button>
+            </div>
+
+            <div className="relative w-full sm:max-w-md lg:max-w-lg shrink-1">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
               <input
                 type="text"
-                placeholder="Search products by name, category, or SKU..."
+                placeholder="Search by name, category, or SKU..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="w-full pl-12 pr-4 py-3 sm:py-3.5 bg-white border border-slate-200 rounded-xl sm:rounded-2xl focus:ring-2 focus:ring-green-600 focus:border-green-600 text-sm sm:text-base outline-none transition-all shadow-sm placeholder:text-slate-400"
+                className="w-full pl-12 pr-4 py-3 sm:py-3.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 text-sm sm:text-base outline-none transition-all shadow-sm placeholder:text-slate-400"
               />
             </div>
           </div>
@@ -280,10 +312,14 @@ export default function ProductsClient() {
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-[40vh] text-slate-500 p-6 text-center">
               <div className="h-20 w-20 lg:h-24 lg:w-24 bg-slate-50 rounded-full flex items-center justify-center mb-4 lg:mb-6 shadow-inner border border-slate-100">
-                <Package className="h-10 w-10 lg:h-12 lg:w-12 text-slate-300" />
+                {viewMode === 'ARCHIVED' ? <Archive className="h-10 w-10 lg:h-12 lg:w-12 text-slate-300" /> : <Package className="h-10 w-10 lg:h-12 lg:w-12 text-slate-300" />}
               </div>
-              <p className="text-lg lg:text-xl font-bold text-slate-700">No active products found</p>
-              <p className="mt-2 text-sm lg:text-base text-slate-400">Try adjusting your search or add a new product.</p>
+              <p className="text-lg lg:text-xl font-bold text-slate-700">
+                No {viewMode === 'ARCHIVED' ? 'archived' : 'active'} products found
+              </p>
+              <p className="mt-2 text-sm lg:text-base text-slate-400">
+                {viewMode === 'ARCHIVED' ? 'Deleted products with sales history will appear here.' : 'Try adjusting your search or add a new product.'}
+              </p>
             </div>
           ) : (
             <div className="w-full">
@@ -292,7 +328,7 @@ export default function ProductsClient() {
                 {filtered.map(item => {
                   const displayImage = getDisplayImage(item);
                   return (
-                    <div key={item.id} className="p-4 sm:p-5 hover:bg-slate-50/80 transition-colors space-y-3">
+                    <div key={item.id} className={`p-4 sm:p-5 hover:bg-slate-50/80 transition-colors space-y-3 ${viewMode === 'ARCHIVED' ? 'opacity-75 grayscale-[50%]' : ''}`}>
                       <div className="flex items-start gap-3.5">
                         {displayImage ? (
                           <img 
@@ -329,16 +365,28 @@ export default function ProductsClient() {
                           <span className="text-xs font-medium text-slate-500 ml-2">({item.stock} units)</span>
                         </div>
                         <div className="flex items-center gap-1">
-                          <button onClick={() => openEditModal(item)} className="p-2.5 text-green-600 hover:bg-green-50 rounded-xl transition-colors">
-                            <Edit3 className="h-5 w-5" />
-                          </button>
-                          <button 
-                            onClick={() => handleDeleteProduct(item)} 
-                            disabled={processingId === item.id}
-                            className="p-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-colors disabled:opacity-50"
-                          >
-                            {processingId === item.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
-                          </button>
+                          {viewMode === 'ACTIVE' ? (
+                            <>
+                              <button onClick={() => openEditModal(item)} className="p-2.5 text-green-600 hover:bg-green-50 rounded-xl transition-colors">
+                                <Edit3 className="h-5 w-5" />
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteProduct(item)} 
+                                disabled={processingId === item.id}
+                                className="p-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-colors disabled:opacity-50"
+                              >
+                                {processingId === item.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
+                              </button>
+                            </>
+                          ) : (
+                            <button 
+                                onClick={() => handleRestoreProduct(item)} 
+                                disabled={processingId === item.id}
+                                className="px-4 py-2 text-sm font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors disabled:opacity-50 flex items-center gap-2"
+                              >
+                                {processingId === item.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Restore
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -361,7 +409,7 @@ export default function ProductsClient() {
                   {filtered.map(item => {
                     const displayImage = getDisplayImage(item);
                     return (
-                      <tr key={item.id} className="hover:bg-slate-50/80 transition-colors group">
+                      <tr key={item.id} className={`hover:bg-slate-50/80 transition-colors group ${viewMode === 'ARCHIVED' ? 'opacity-75 grayscale-[50%]' : ''}`}>
                         <td className="py-4 pl-6 lg:pl-8 pr-3 text-sm lg:text-base font-bold text-slate-900 align-middle">
                           <div className="flex items-center gap-4">
                             {displayImage ? (
@@ -397,16 +445,28 @@ export default function ProductsClient() {
                           {item.stock} units
                         </td>
                         <td className="px-3 py-4 text-sm text-right pr-6 lg:pr-8 align-middle space-x-1">
-                          <button onClick={() => openEditModal(item)} className="p-2.5 text-green-600 hover:bg-green-50 rounded-xl transition-colors inline-flex items-center">
-                            <Edit3 className="h-5 w-5" />
-                          </button>
-                          <button 
-                            onClick={() => handleDeleteProduct(item)} 
-                            disabled={processingId === item.id}
-                            className="p-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-colors inline-flex items-center disabled:opacity-50"
-                          >
-                            {processingId === item.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
-                          </button>
+                          {viewMode === 'ACTIVE' ? (
+                            <>
+                              <button onClick={() => openEditModal(item)} className="p-2.5 text-green-600 hover:bg-green-50 rounded-xl transition-colors inline-flex items-center">
+                                <Edit3 className="h-5 w-5" />
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteProduct(item)} 
+                                disabled={processingId === item.id}
+                                className="p-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-colors inline-flex items-center disabled:opacity-50"
+                              >
+                                {processingId === item.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
+                              </button>
+                            </>
+                          ) : (
+                            <button 
+                                onClick={() => handleRestoreProduct(item)} 
+                                disabled={processingId === item.id}
+                                className="px-4 py-2 text-sm font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors disabled:opacity-50 inline-flex items-center gap-2"
+                              >
+                                {processingId === item.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Restore
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );
