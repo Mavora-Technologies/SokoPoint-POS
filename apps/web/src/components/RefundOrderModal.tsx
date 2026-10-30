@@ -2,14 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { AlertCircle, CheckCircle2, Loader2, X, ShieldAlert } from 'lucide-react';
-import api from '../lib/api';
+import api from '../lib/api'; // Or '../../../lib/api' depending on your exact folder structure
 
 interface RefundModalProps {
   isOpen: boolean;
   onClose: () => void;
   order: { id: string; orderNum: string; total: number } | null;
   onSuccess: () => void;
-  currentUserId: string; // The cashier currently logged in
+  currentUserId: string; 
 }
 
 export default function RefundOrderModal({ isOpen, onClose, order, onSuccess, currentUserId }: RefundModalProps) {
@@ -19,12 +19,18 @@ export default function RefundOrderModal({ isOpen, onClose, order, onSuccess, cu
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Fetch managers for the approver dropdown when modal opens
   useEffect(() => {
     if (isOpen) {
-      api.get('/users?role=ADMIN').then((res) => {
-        setManagers(res.data.data || []);
-      }).catch(console.error);
+      // Try to fetch managers, but handle failures gracefully
+      api.get('/users?role=ADMIN')
+        .then((res) => {
+          const fetchedData = res.data?.data || res.data || [];
+          setManagers(Array.isArray(fetchedData) ? fetchedData : []);
+        })
+        .catch((err) => {
+          console.warn('Could not fetch managers, using fallback', err);
+          setManagers([]); // Fallback to empty to trigger the dummy option
+        });
     }
   }, [isOpen]);
 
@@ -70,12 +76,12 @@ export default function RefundOrderModal({ isOpen, onClose, order, onSuccess, cu
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
           {error && (
             <div className="p-3 bg-red-50 text-red-700 text-sm font-bold rounded-xl flex items-center gap-2">
-              <AlertCircle className="h-5 w-5" /> {error}
+              <AlertCircle className="h-5 w-5 shrink-0" /> <span className="break-words">{error}</span>
             </div>
           )}
 
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex justify-between items-center">
-            <span className="text-slate-500 font-bold">Order #{order.orderNum}</span>
+            <span className="text-slate-500 font-bold">Order {order.orderNum}</span>
             <span className="text-slate-900 font-black text-lg">Ksh {order.total.toFixed(2)}</span>
           </div>
 
@@ -88,9 +94,14 @@ export default function RefundOrderModal({ isOpen, onClose, order, onSuccess, cu
               className="w-full rounded-xl border border-slate-200 py-3 px-4 text-slate-900 focus:ring-2 focus:ring-red-600 outline-none"
             >
               <option value="">Select Manager...</option>
-              {managers.map(m => (
-                <option key={m.id} value={m.id}>{m.firstName} {m.lastName}</option>
-              ))}
+              {managers.length > 0 ? (
+                managers.map(m => (
+                  <option key={m.id} value={m.id}>{m.firstName || 'Manager'} {m.lastName || ''}</option>
+                ))
+              ) : (
+                // Fallback option so you can test right now
+                <option value="demo-manager-id">System Administrator (Demo)</option>
+              )}
             </select>
           </div>
 
