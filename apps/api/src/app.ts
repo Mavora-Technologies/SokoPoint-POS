@@ -50,7 +50,8 @@ export const createApp = () => {
     })
   );
 
-  app.options('*', cors());
+  // FIXED: Use valid path-to-regexp expression instead of bare '*'
+  app.options(/(.*)/, cors());
 
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
