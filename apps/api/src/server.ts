@@ -9,7 +9,7 @@ const startServer = async () => {
   try {
     // Test the Prisma SQLite database connection
     await prisma.$connect();
-    console.log('Connected to SQLite database via Prisma successfully.');
+    console.log('Connected to database via Prisma successfully.');
 
     app.listen(PORT, () => {
       console.log(`Vora-POS API server running on port ${PORT} in ${env.NODE_ENV} mode`);

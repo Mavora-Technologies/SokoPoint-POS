@@ -67,6 +67,7 @@ export const createApp = () => {
   app.use('/api/v1/shifts', shiftRoutes);
   app.use('/api/v1/reports', reportRoutes);
   app.use('/api/v1/credit', creditRoutes);
+  app.use('/api/v1/refunds', refundRoutes); // <-- ADDED HERE
 
   // Root-level and generic /api aliases to handle all requests missing /api/v1 prefix
   app.use('/auth', authRoutes);
@@ -84,6 +85,7 @@ export const createApp = () => {
   app.use('/shifts', shiftRoutes);
   app.use('/reports', reportRoutes);
   app.use('/credit', creditRoutes);
+  app.use('/refunds', refundRoutes); // <-- ADDED HERE
   app.use('/api/refunds', refundRoutes);
 
   app.get('/api/v1', (_req: Request, res: Response) => {
