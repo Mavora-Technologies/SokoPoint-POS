@@ -34,6 +34,7 @@ export default function POSClient() {
 
   useEffect(() => {
     setIsMounted(true);
+    // Grab cashier/user name from local storage or session if available
     const storedUser = localStorage.getItem('userName') || localStorage.getItem('email') || 'Cashier';
     setCashierName(storedUser);
   }, []);
@@ -296,8 +297,7 @@ export default function POSClient() {
           </div>
         </div>
 
-        {/* RIGHT SIDE CART & CHECKOUT PANEL FIXED H-FULL WITH FLEXIBLE SCROLLING */}
-        <div className="flex flex-col w-full lg:w-[400px] xl:w-[440px] 2xl:w-[480px] h-full bg-white lg:shadow-2xl z-20 shrink-0 overflow-hidden">
+        <div className="flex flex-col w-full lg:w-[400px] xl:w-[440px] 2xl:w-[480px] h-auto lg:h-full bg-white lg:shadow-2xl z-20 shrink-0">
           
           <div className="p-4 lg:p-5 xl:p-6 bg-green-950 text-white flex justify-between items-center shrink-0">
             <h2 className="font-bold text-base sm:text-lg lg:text-xl flex items-center gap-3">
@@ -308,10 +308,9 @@ export default function POSClient() {
             </span>
           </div>
 
-          {/* SCROLLABLE CART ITEMS LIST */}
-          <div className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-5 xl:p-6 custom-scrollbar bg-slate-50/50 min-h-0">
+          <div className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-5 xl:p-6 custom-scrollbar bg-slate-50/50">
             {cart.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-slate-400 py-10">
+              <div className="h-full flex flex-col items-center justify-center text-slate-400 py-10 lg:py-0">
                 <div className="h-20 w-20 lg:h-24 lg:w-24 bg-white rounded-full flex items-center justify-center mb-4 shadow-sm border border-slate-100">
                   <ShoppingCart className="h-10 w-10 lg:h-12 lg:w-12 text-slate-300" />
                 </div>
@@ -351,35 +350,35 @@ export default function POSClient() {
             )}
           </div>
 
-          <div className="p-4 sm:p-5 lg:p-6 bg-white border-t border-slate-200 shrink-0 shadow-[0_-4px_20px_rgba(0,0,0,0.03)] z-10">
-            <div className="mb-4">
-              <p className="text-[11px] lg:text-xs font-bold text-slate-400 uppercase tracking-widest mb-2.5">Payment Method</p>
-              <div className="grid grid-cols-3 gap-2">
+          <div className="p-4 sm:p-5 lg:p-6 xl:p-8 bg-white border-t border-slate-200 shrink-0 shadow-[0_-4px_20px_rgba(0,0,0,0.03)] z-10 pb-8 lg:pb-6">
+            <div className="mb-5 lg:mb-6">
+              <p className="text-[11px] lg:text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Payment Method</p>
+              <div className="grid grid-cols-3 gap-2 lg:gap-3">
                 <button 
                   onClick={() => setPaymentMethod('cash')} 
-                  className={`flex flex-col items-center justify-center py-2 px-2 rounded-xl border-2 transition-all ${paymentMethod === 'cash' ? 'border-green-600 bg-green-50 text-green-700' : 'border-slate-100 text-slate-500 hover:bg-slate-50'}`}
+                  className={`flex flex-col items-center justify-center py-2.5 lg:py-3 px-2 rounded-xl border-2 transition-all ${paymentMethod === 'cash' ? 'border-green-600 bg-green-50 text-green-700' : 'border-slate-100 text-slate-500 hover:bg-slate-50 hover:border-slate-200'}`}
                 >
-                  <Banknote className="h-5 w-5 mb-1" />
-                  <span className="text-xs font-bold">Cash</span>
+                  <Banknote className="h-5 w-5 lg:h-6 lg:w-6 mb-1.5" />
+                  <span className="text-xs lg:text-sm font-bold">Cash</span>
                 </button>
                 <button 
                   onClick={() => setPaymentMethod('mpesa')} 
-                  className={`flex flex-col items-center justify-center py-2 px-2 rounded-xl border-2 transition-all ${paymentMethod === 'mpesa' ? 'border-green-600 bg-green-50 text-green-700' : 'border-slate-100 text-slate-500 hover:bg-slate-50'}`}
+                  className={`flex flex-col items-center justify-center py-2.5 lg:py-3 px-2 rounded-xl border-2 transition-all ${paymentMethod === 'mpesa' ? 'border-green-600 bg-green-50 text-green-700' : 'border-slate-100 text-slate-500 hover:bg-slate-50 hover:border-slate-200'}`}
                 >
-                  <Smartphone className="h-5 w-5 mb-1" />
-                  <span className="text-xs font-bold">M-Pesa</span>
+                  <Smartphone className="h-5 w-5 lg:h-6 lg:w-6 mb-1.5" />
+                  <span className="text-xs lg:text-sm font-bold">M-Pesa</span>
                 </button>
                 <button 
                   onClick={() => setPaymentMethod('card')} 
-                  className={`flex flex-col items-center justify-center py-2 px-2 rounded-xl border-2 transition-all ${paymentMethod === 'card' ? 'border-green-600 bg-green-50 text-green-700' : 'border-slate-100 text-slate-500 hover:bg-slate-50'}`}
+                  className={`flex flex-col items-center justify-center py-2.5 lg:py-3 px-2 rounded-xl border-2 transition-all ${paymentMethod === 'card' ? 'border-green-600 bg-green-50 text-green-700' : 'border-slate-100 text-slate-500 hover:bg-slate-50 hover:border-slate-200'}`}
                 >
-                  <CreditCard className="h-5 w-5 mb-1" />
-                  <span className="text-xs font-bold">Card</span>
+                  <CreditCard className="h-5 w-5 lg:h-6 lg:w-6 mb-1.5" />
+                  <span className="text-xs lg:text-sm font-bold">Card</span>
                 </button>
               </div>
             </div>
 
-            <div className="space-y-2 mb-4 text-sm">
+            <div className="space-y-2.5 lg:space-y-3 mb-5 lg:mb-6 text-sm lg:text-base">
               <div className="flex justify-between text-slate-500 font-medium">
                 <span>Subtotal</span>
                 <span className="text-slate-900 font-semibold">KES {subtotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
@@ -388,7 +387,7 @@ export default function POSClient() {
                 <span>Tax (16%)</span>
                 <span className="text-slate-900 font-semibold">KES {tax.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
               </div>
-              <div className="flex justify-between text-lg lg:text-xl font-black text-slate-900 pt-2 border-t border-slate-200 mt-2">
+              <div className="flex justify-between text-xl lg:text-2xl font-black text-slate-900 pt-4 border-t border-slate-200 mt-4">
                 <span>Total</span>
                 <span className="text-green-600">
                   KES {total.toLocaleString('en-US', { minimumFractionDigits: 2 })}
@@ -399,9 +398,9 @@ export default function POSClient() {
             <button
               onClick={handleCheckout}
               disabled={cart.length === 0 || isProcessing}
-              className="w-full py-3.5 text-white text-base font-bold rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-xl disabled:opacity-50 disabled:cursor-not-allowed bg-green-600 hover:bg-green-700 shadow-green-600/30"
+              className="w-full py-4 lg:py-5 text-white text-base lg:text-lg font-bold rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-[0.98] shadow-xl disabled:opacity-50 disabled:cursor-not-allowed bg-green-600 hover:bg-green-700 shadow-green-600/30 touch-manipulation"
             >
-              {isProcessing ? <Loader2 className="h-5 w-5 animate-spin" /> : <CheckCircle2 className="h-5 w-5" />}
+              {isProcessing ? <Loader2 className="h-5 w-5 lg:h-6 lg:w-6 animate-spin" /> : <CheckCircle2 className="h-5 w-5 lg:h-6 lg:w-6" />}
               {isProcessing ? 'Processing Transaction...' : 'Complete Checkout'}
             </button>
           </div>
@@ -410,7 +409,7 @@ export default function POSClient() {
 
       {receiptData && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm overflow-y-auto custom-scrollbar print:static print:bg-transparent print:overflow-visible">
-          <div className="min-h-full flex items-center justify-center p-4 text-center print:p-0 print:block">
+          <div className="min-h-full flex items-center justify-center p-4 sm:p-6 lg:p-8 text-center print:p-0 print:block">
             <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl text-left overflow-hidden my-auto relative print:shadow-none print:w-full print:max-w-full print:rounded-none" id="print-receipt-container">
               
               <div className="flex justify-end p-4 print:hidden border-b border-slate-100 bg-slate-50 sticky top-0 z-10">
@@ -419,12 +418,12 @@ export default function POSClient() {
                 </button>
               </div>
 
-              <div className="p-8 text-slate-900 bg-white print:p-2">
-                <div className="text-center mb-6 print:mb-4">
-                  <h2 className="font-extrabold text-2xl uppercase tracking-widest text-black print:text-xl">SOKOPOINT</h2>
-                  <p className="text-sm font-medium mt-2 text-slate-600 print:text-xs">123 Business Avenue, Nairobi</p>
-                  <p className="text-sm font-medium text-slate-600 print:text-xs">Tel: +254 700 000 000</p>
-                  <div className="mt-4 text-xs font-semibold border-y border-dashed border-slate-300 py-2 flex flex-col gap-1 text-slate-500">
+              <div className="p-8 lg:p-10 text-slate-900 bg-white print:p-2">
+                <div className="text-center mb-6 lg:mb-8 print:mb-4">
+                  <h2 className="font-extrabold text-2xl lg:text-3xl uppercase tracking-widest text-black print:text-xl">SOKOPOINT</h2>
+                  <p className="text-sm lg:text-base font-medium mt-2 text-slate-600 print:text-xs print:mt-1">123 Business Avenue, Nairobi</p>
+                  <p className="text-sm lg:text-base font-medium text-slate-600 print:text-xs">Tel: +254 700 000 000</p>
+                  <div className="mt-6 text-xs lg:text-sm font-semibold border-y border-dashed border-slate-300 py-3 flex flex-col gap-1 text-slate-500 print:mt-3 print:py-2">
                     <div className="flex justify-between">
                       <span>Order: {receiptData.orderNumber}</span>
                       <span>{receiptData.date}</span>
@@ -435,55 +434,55 @@ export default function POSClient() {
                   </div>
                 </div>
 
-                <div className="space-y-3 mb-6 print:mb-3">
-                  <div className="flex justify-between text-xs font-bold uppercase tracking-widest border-b border-slate-200 pb-2 text-slate-400">
+                <div className="space-y-4 mb-8 print:mb-4 print:space-y-2">
+                  <div className="flex justify-between text-xs lg:text-sm font-bold uppercase tracking-widest border-b border-slate-200 pb-3 text-slate-400 print:pb-2">
                     <span>Item</span>
                     <span>Amount</span>
                   </div>
                   {receiptData.items.map((item: CartItem) => (
-                    <div key={item.cartId} className="flex justify-between text-sm font-medium print:text-xs">
+                    <div key={item.cartId} className="flex justify-between text-sm lg:text-base font-medium print:text-xs">
                       <div className="flex flex-col pr-4">
                         <span className="font-bold">{item.name}</span>
-                        <span className="text-xs text-slate-500">{item.quantity} x KES {Number(item.sellingPrice || item.price || 0).toLocaleString()}</span>
+                        <span className="text-xs lg:text-sm text-slate-500 mt-0.5 print:text-[10px]">{item.quantity} x KES {Number(item.sellingPrice || item.price || 0).toLocaleString()}</span>
                       </div>
                       <span className="font-bold text-slate-700">{(Number(item.sellingPrice || item.price || 0) * item.quantity).toLocaleString()}</span>
                     </div>
                   ))}
                 </div>
 
-                <div className="border-t border-dashed border-slate-300 pt-4 space-y-2 mb-6 print:mb-3">
-                  <div className="flex justify-between text-sm font-medium text-slate-600 print:text-xs">
+                <div className="border-t border-dashed border-slate-300 pt-5 space-y-3 mb-8 print:pt-3 print:mb-4 print:space-y-1">
+                  <div className="flex justify-between text-sm lg:text-base font-medium text-slate-600 print:text-xs">
                     <span>Subtotal</span>
                     <span>{receiptData.subtotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                   </div>
-                  <div className="flex justify-between text-sm font-medium text-slate-600 print:text-xs">
+                  <div className="flex justify-between text-sm lg:text-base font-medium text-slate-600 print:text-xs">
                     <span>Tax (16%)</span>
                     <span>{receiptData.tax.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                   </div>
-                  <div className="flex justify-between text-lg font-black border-t border-slate-200 pt-3 mt-3 text-black">
+                  <div className="flex justify-between text-xl lg:text-2xl font-black border-t border-slate-200 pt-4 mt-4 text-black print:text-base print:pt-2 print:mt-2">
                     <span>TOTAL</span>
                     <span>KES {receiptData.total.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                   </div>
-                  <div className="flex justify-between text-xs font-bold pt-2 text-slate-400 uppercase tracking-wider">
+                  <div className="flex justify-between text-xs lg:text-sm font-bold pt-4 text-slate-400 uppercase tracking-wider print:pt-2">
                     <span>Paid via:</span>
                     <span>{receiptData.method}</span>
                   </div>
                 </div>
 
-                <div className="text-center mt-6">
-                  <p className="font-bold text-sm text-slate-800 print:text-xs">Thank you for your business!</p>
+                <div className="text-center mt-10 print:mt-6">
+                  <p className="font-bold text-sm lg:text-base text-slate-800 print:text-xs">Thank you for your business!</p>
                 </div>
 
-                <div className="flex gap-3 mt-6 pt-4 border-t border-slate-100 print:hidden">
+                <div className="flex gap-3 mt-10 pt-6 border-t border-slate-100 print:hidden">
                   <button 
                     onClick={() => window.print()}
-                    className="flex-1 py-3 bg-slate-900 text-white font-bold rounded-2xl flex items-center justify-center gap-2 hover:bg-slate-800 transition-colors shadow-lg"
+                    className="flex-1 py-3.5 lg:py-4 bg-slate-900 text-white font-bold rounded-2xl flex items-center justify-center gap-2 hover:bg-slate-800 transition-colors shadow-lg shadow-slate-900/20"
                   >
                     <Printer className="h-5 w-5" /> Print Receipt
                   </button>
                   <button 
                     onClick={() => setReceiptData(null)}
-                    className="flex-1 py-3 bg-green-50 text-green-700 font-bold rounded-2xl hover:bg-green-100 transition-colors border border-green-100"
+                    className="flex-1 py-3.5 lg:py-4 bg-green-50 text-green-700 font-bold rounded-2xl hover:bg-green-100 transition-colors border border-green-100"
                   >
                     New Sale
                   </button>
