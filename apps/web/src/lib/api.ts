@@ -1,19 +1,19 @@
 import axios from 'axios';
 
 const api = axios.create({
-  // Fallback points directly to your production Vercel backend if env var is missing
+  // Points to your live Vercel backend API v1
   baseURL: process.env.NEXT_PUBLIC_API_URL || 'https://sokopoint.vercel.app/api/v1',
 });
 
 api.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
-    // Attach auth token
+    // Attach auth token if available
     const token = localStorage.getItem('vora_token'); 
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
 
-    // Attach tenant header so your backend database queries match 'demo-tenant'
+    // CRITICAL: Attach tenant header so the backend returns 'demo-tenant' products
     const tenantId = localStorage.getItem('tenantId') || 'demo-tenant';
     config.headers['x-tenant-id'] = tenantId;
   }
