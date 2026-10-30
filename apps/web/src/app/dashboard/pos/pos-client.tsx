@@ -30,27 +30,15 @@ export default function POSClient() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'mpesa' | 'card' | 'cash'>('mpesa');
   const [receiptData, setReceiptData] = useState<any>(null);
-  
-  // New state to hold the logged-in cashier's name
   const [cashierName, setCashierName] = useState('Cashier');
 
   useEffect(() => {
     setIsMounted(true);
-    
-    // Attempt to grab the logged-in user's name from local storage
-    try {
-      const userStr = localStorage.getItem('user');
-      if (userStr) {
-        const user = JSON.parse(userStr);
-        // Fallback chain: name -> username -> email prefix -> 'Cashier'
-        setCashierName(user.name || user.username || user.email?.split('@')[0] || 'Cashier');
-      }
-    } catch (e) {
-      console.error('Could not parse user from local storage');
-    }
+    // Grab cashier/user name from local storage or session if available
+    const storedUser = localStorage.getItem('userName') || localStorage.getItem('email') || 'Cashier';
+    setCashierName(storedUser);
   }, []);
 
-  // Automatically trigger print when receipt data is loaded into the DOM
   useEffect(() => {
     if (receiptData) {
       const timer = setTimeout(() => {
@@ -153,9 +141,9 @@ export default function POSClient() {
         price: Number(item.sellingPrice || item.price || 0)
       }));
 
-      // Send order to backend
       const response = await api.post('/orders', {
         customer: 'Walk-in Customer',
+        cashier: cashierName,
         total: total,
         tax: tax,
         subtotal: subtotal,
@@ -163,18 +151,17 @@ export default function POSClient() {
         items: orderItems
       });
 
-      // Retrieve actual database order number or fallback safely
-      const actualOrderNumber = response.data?.orderNum || response.data?.id || `SOKO-${Date.now().toString().slice(-6)}`;
+      const actualOrderNumber = response.data?.orderNum || response.data?.data?.orderNum || `SOKO-${Date.now().toString().slice(-6)}`;
 
       setReceiptData({
         orderNumber: actualOrderNumber,
         date: new Date().toLocaleString(),
+        cashier: cashierName,
         items: [...cart],
         subtotal,
         tax,
         total,
-        method: paymentMethod,
-        cashier: cashierName // Injecting the cashier name here
+        method: paymentMethod
       });
 
       setCart([]);
@@ -436,13 +423,14 @@ export default function POSClient() {
                   <h2 className="font-extrabold text-2xl lg:text-3xl uppercase tracking-widest text-black print:text-xl">SOKOPOINT</h2>
                   <p className="text-sm lg:text-base font-medium mt-2 text-slate-600 print:text-xs print:mt-1">123 Business Avenue, Nairobi</p>
                   <p className="text-sm lg:text-base font-medium text-slate-600 print:text-xs">Tel: +254 700 000 000</p>
-                  <div className="mt-6 text-xs lg:text-sm font-semibold border-y border-dashed border-slate-300 py-3 flex justify-between text-slate-500 print:mt-3 print:py-2">
-                    <span>Order: {receiptData.orderNumber}</span>
-                    <span>{receiptData.date}</span>
-                  </div>
-                  {/* NEW: Display the Cashier's Name */}
-                  <div className="mt-2 text-xs lg:text-sm font-semibold flex justify-center text-slate-500 print:mt-1">
-                    <span>Served by: {receiptData.cashier}</span>
+                  <div className="mt-6 text-xs lg:text-sm font-semibold border-y border-dashed border-slate-300 py-3 flex flex-col gap-1 text-slate-500 print:mt-3 print:py-2">
+                    <div className="flex justify-between">
+                      <span>Order: {receiptData.orderNumber}</span>
+                      <span>{receiptData.date}</span>
+                    </div>
+                    <div className="flex justify-between text-xs text-slate-600">
+                      <span>Served by: <strong className="text-black">{receiptData.cashier}</strong></span>
+                    </div>
                   </div>
                 </div>
 
