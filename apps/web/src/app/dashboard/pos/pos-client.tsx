@@ -35,6 +35,16 @@ export default function POSClient() {
     setIsMounted(true);
   }, []);
 
+  // Automatically trigger print when receipt data is loaded into the DOM
+  useEffect(() => {
+    if (receiptData) {
+      const timer = setTimeout(() => {
+        window.print();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [receiptData]);
+
   const loadProducts = useCallback(async () => {
     try {
       const response = await api.get('/products');
@@ -128,17 +138,21 @@ export default function POSClient() {
         price: Number(item.sellingPrice || item.price || 0)
       }));
 
-      const mockOrderNumber = `SOKO-${Math.floor(Math.random() * 1000000000)}`;
-      await api.post('/orders', {
-        orderNum: mockOrderNumber,
+      // Send order to backend
+      const response = await api.post('/orders', {
         customer: 'Walk-in Customer',
         total: total,
+        tax: tax,
+        subtotal: subtotal,
         method: paymentMethod,
         items: orderItems
       });
 
+      // Retrieve actual database order number or fallback safely
+      const actualOrderNumber = response.data?.orderNum || response.data?.id || `SOKO-${Date.now().toString().slice(-6)}`;
+
       setReceiptData({
-        orderNumber: mockOrderNumber,
+        orderNumber: actualOrderNumber,
         date: new Date().toLocaleString(),
         items: [...cart],
         subtotal,
@@ -166,7 +180,7 @@ export default function POSClient() {
             html, body { background: white; height: auto !important; overflow: visible !important; }
             header { display: none !important; }
             #pos-layout { display: none !important; }
-            #print-receipt-container { display: block !important; padding-top: 1cm; padding-bottom: 1cm; margin: 0 auto !important; width: 100% !important; max-width: 100% !important; box-shadow: none !important; }
+            #print-receipt-container { display: block !important; padding-top: 5mm; padding-bottom: 5mm; margin: 0 auto !important; width: 80mm !important; max-width: 80mm !important; box-shadow: none !important; font-family: monospace !important; }
           }
           .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
           .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
@@ -401,54 +415,54 @@ export default function POSClient() {
                 </button>
               </div>
 
-              <div className="p-8 lg:p-10 text-slate-900 bg-white">
-                <div className="text-center mb-6 lg:mb-8">
-                  <h2 className="font-extrabold text-2xl lg:text-3xl uppercase tracking-widest text-black">SOKOPOINT</h2>
-                  <p className="text-sm lg:text-base font-medium mt-2 text-slate-600">123 Business Avenue, Nairobi</p>
-                  <p className="text-sm lg:text-base font-medium text-slate-600">Tel: +254 700 000 000</p>
-                  <div className="mt-6 text-xs lg:text-sm font-semibold border-y border-dashed border-slate-300 py-3 flex justify-between text-slate-500">
+              <div className="p-8 lg:p-10 text-slate-900 bg-white print:p-2">
+                <div className="text-center mb-6 lg:mb-8 print:mb-4">
+                  <h2 className="font-extrabold text-2xl lg:text-3xl uppercase tracking-widest text-black print:text-xl">SOKOPOINT</h2>
+                  <p className="text-sm lg:text-base font-medium mt-2 text-slate-600 print:text-xs print:mt-1">123 Business Avenue, Nairobi</p>
+                  <p className="text-sm lg:text-base font-medium text-slate-600 print:text-xs">Tel: +254 700 000 000</p>
+                  <div className="mt-6 text-xs lg:text-sm font-semibold border-y border-dashed border-slate-300 py-3 flex justify-between text-slate-500 print:mt-3 print:py-2">
                     <span>Order: {receiptData.orderNumber}</span>
                     <span>{receiptData.date}</span>
                   </div>
                 </div>
 
-                <div className="space-y-4 mb-8">
-                  <div className="flex justify-between text-xs lg:text-sm font-bold uppercase tracking-widest border-b border-slate-200 pb-3 text-slate-400">
+                <div className="space-y-4 mb-8 print:mb-4 print:space-y-2">
+                  <div className="flex justify-between text-xs lg:text-sm font-bold uppercase tracking-widest border-b border-slate-200 pb-3 text-slate-400 print:pb-2">
                     <span>Item</span>
                     <span>Amount</span>
                   </div>
                   {receiptData.items.map((item: CartItem) => (
-                    <div key={item.cartId} className="flex justify-between text-sm lg:text-base font-medium">
+                    <div key={item.cartId} className="flex justify-between text-sm lg:text-base font-medium print:text-xs">
                       <div className="flex flex-col pr-4">
                         <span className="font-bold">{item.name}</span>
-                        <span className="text-xs lg:text-sm text-slate-500 mt-0.5">{item.quantity} x KES {Number(item.sellingPrice || item.price || 0).toLocaleString()}</span>
+                        <span className="text-xs lg:text-sm text-slate-500 mt-0.5 print:text-[10px]">{item.quantity} x KES {Number(item.sellingPrice || item.price || 0).toLocaleString()}</span>
                       </div>
                       <span className="font-bold text-slate-700">{(Number(item.sellingPrice || item.price || 0) * item.quantity).toLocaleString()}</span>
                     </div>
                   ))}
                 </div>
 
-                <div className="border-t border-dashed border-slate-300 pt-5 space-y-3 mb-8">
-                  <div className="flex justify-between text-sm lg:text-base font-medium text-slate-600">
+                <div className="border-t border-dashed border-slate-300 pt-5 space-y-3 mb-8 print:pt-3 print:mb-4 print:space-y-1">
+                  <div className="flex justify-between text-sm lg:text-base font-medium text-slate-600 print:text-xs">
                     <span>Subtotal</span>
                     <span>{receiptData.subtotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                   </div>
-                  <div className="flex justify-between text-sm lg:text-base font-medium text-slate-600">
+                  <div className="flex justify-between text-sm lg:text-base font-medium text-slate-600 print:text-xs">
                     <span>Tax (16%)</span>
                     <span>{receiptData.tax.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                   </div>
-                  <div className="flex justify-between text-xl lg:text-2xl font-black border-t border-slate-200 pt-4 mt-4 text-black">
+                  <div className="flex justify-between text-xl lg:text-2xl font-black border-t border-slate-200 pt-4 mt-4 text-black print:text-base print:pt-2 print:mt-2">
                     <span>TOTAL</span>
                     <span>KES {receiptData.total.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                   </div>
-                  <div className="flex justify-between text-xs lg:text-sm font-bold pt-4 text-slate-400 uppercase tracking-wider">
+                  <div className="flex justify-between text-xs lg:text-sm font-bold pt-4 text-slate-400 uppercase tracking-wider print:pt-2">
                     <span>Paid via:</span>
                     <span>{receiptData.method}</span>
                   </div>
                 </div>
 
-                <div className="text-center mt-10">
-                  <p className="font-bold text-sm lg:text-base text-slate-800">Thank you for your business!</p>
+                <div className="text-center mt-10 print:mt-6">
+                  <p className="font-bold text-sm lg:text-base text-slate-800 print:text-xs">Thank you for your business!</p>
                 </div>
 
                 <div className="flex gap-3 mt-10 pt-6 border-t border-slate-100 print:hidden">
