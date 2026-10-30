@@ -8,15 +8,18 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  tenantId     String   @default("demo-tenant")
-  email        String   @unique
-  password     String
-  firstName    String?
-  lastName     String?
-  businessName String?
-  role         String   @default("ADMIN")
-  createdAt    DateTime @default(now())
+  id               String    @id @default(cuid())
+  tenantId         String    @default("demo-tenant")
+  email            String    @unique
+  password         String
+  firstName        String?
+  lastName         String?
+  businessName     String?
+  role             String    @default("ADMIN")
+  createdAt        DateTime  @default(now())
+  
+  initiatedRefunds Refund[]  @relation("InitiatedRefunds")
+  approvedRefunds  Refund[]  @relation("ApprovedRefunds")
 }
 
 model Product {
@@ -46,6 +49,7 @@ model Order {
   createdAt DateTime    @default(now())
   
   items     OrderItem[]
+  refunds   Refund[]
 }
 
 model OrderItem {
@@ -57,6 +61,22 @@ model OrderItem {
   
   order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+}
+
+model Refund {
+  id          String   @id @default(cuid())
+  tenantId    String   @default("demo-tenant")
+  orderId     String
+  initiatorId String
+  approverId  String
+  amount      Float
+  reason      String
+  status      String   @default("Approved")
+  createdAt   DateTime @default(now())
+
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  initiator   User     @relation("InitiatedRefunds", fields: [initiatorId], references: [id], onDelete: Restrict)
+  approver    User     @relation("ApprovedRefunds", fields: [approverId], references: [id], onDelete: Restrict)
 }
 
 model Expense {
