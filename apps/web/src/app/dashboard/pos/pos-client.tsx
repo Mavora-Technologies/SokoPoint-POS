@@ -30,9 +30,24 @@ export default function POSClient() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'mpesa' | 'card' | 'cash'>('mpesa');
   const [receiptData, setReceiptData] = useState<any>(null);
+  
+  // New state to hold the logged-in cashier's name
+  const [cashierName, setCashierName] = useState('Cashier');
 
   useEffect(() => {
     setIsMounted(true);
+    
+    // Attempt to grab the logged-in user's name from local storage
+    try {
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        // Fallback chain: name -> username -> email prefix -> 'Cashier'
+        setCashierName(user.name || user.username || user.email?.split('@')[0] || 'Cashier');
+      }
+    } catch (e) {
+      console.error('Could not parse user from local storage');
+    }
   }, []);
 
   // Automatically trigger print when receipt data is loaded into the DOM
@@ -158,7 +173,8 @@ export default function POSClient() {
         subtotal,
         tax,
         total,
-        method: paymentMethod
+        method: paymentMethod,
+        cashier: cashierName // Injecting the cashier name here
       });
 
       setCart([]);
@@ -423,6 +439,10 @@ export default function POSClient() {
                   <div className="mt-6 text-xs lg:text-sm font-semibold border-y border-dashed border-slate-300 py-3 flex justify-between text-slate-500 print:mt-3 print:py-2">
                     <span>Order: {receiptData.orderNumber}</span>
                     <span>{receiptData.date}</span>
+                  </div>
+                  {/* NEW: Display the Cashier's Name */}
+                  <div className="mt-2 text-xs lg:text-sm font-semibold flex justify-center text-slate-500 print:mt-1">
+                    <span>Served by: {receiptData.cashier}</span>
                   </div>
                 </div>
 
