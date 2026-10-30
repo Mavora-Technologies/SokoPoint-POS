@@ -11,9 +11,20 @@ api.interceptors.request.use((config) => {
       config.headers.Authorization = `Bearer ${token}`;
     }
 
-    // CRITICAL: Attach tenant header so the backend matches 'demo-tenant' in Postgres
     const tenantId = localStorage.getItem('tenantId') || 'demo-tenant';
+    
+    // 1. Send via Header (Primary)
     config.headers['x-tenant-id'] = tenantId;
+
+    // 2. BACKUP SAFETY for GET requests: Attach as query param if CORS strips headers
+    if (config.method === 'get') {
+      config.params = { tenantId, ...(config.params || {}) };
+    }
+
+    // 3. BACKUP SAFETY for POST/PUT requests: Attach to JSON body payloads
+    if (['post', 'put', 'patch'].includes(config.method || '') && config.data && typeof config.data === 'object' && !(config.data instanceof FormData)) {
+      config.data = { tenantId, ...config.data };
+    }
   }
   return config;
 });
