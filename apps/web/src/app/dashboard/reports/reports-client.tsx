@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { BarChart3, TrendingUp, DollarSign, Receipt, Loader2, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { BarChart3, TrendingUp, DollarSign, Receipt, Loader2, ArrowUpRight, ArrowDownRight, Download, Calendar } from 'lucide-react';
 import api from '../../../lib/api';
 
 export default function ReportsClient() {
@@ -13,6 +13,12 @@ export default function ReportsClient() {
     netProfit: 0, 
     totalOrders: 0 
   });
+
+  // Export States
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [exportType, setExportType] = useState('sales');
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => { setIsMounted(true); }, []);
 
@@ -44,6 +50,46 @@ export default function ReportsClient() {
     };
     if (isMounted) fetchReports();
   }, [isMounted]);
+
+  const handleExport = async () => {
+    if (!startDate || !endDate) {
+      alert('Please select both a start and end date for the report.');
+      return;
+    }
+    
+    if (new Date(startDate) > new Date(endDate)) {
+      alert('Start date cannot be after end date.');
+      return;
+    }
+
+    try {
+      setIsExporting(true);
+      
+      const response = await api.get(`/reports/export`, {
+        params: { startDate, endDate, type: exportType },
+        responseType: 'blob', // Crucial for handling raw file data (CSV)
+      });
+
+      // Create a temporary link to force the browser to download the file
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${exportType}_report_${startDate}_to_${endDate}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      
+    } catch (error: any) {
+      console.error('Export failed:', error);
+      if (error.response?.status === 403) {
+        alert('Action Denied: You do not have Administrator permissions to export raw financial data.');
+      } else {
+        alert('Failed to generate the report. Please try again.');
+      }
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   if (!isMounted) {
     return (
@@ -80,66 +126,134 @@ export default function ReportsClient() {
             <Loader2 className="h-10 w-10 lg:h-12 lg:w-12 animate-spin text-blue-600" />
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6 lg:gap-8 w-full">
+          <div className="space-y-6 lg:space-y-8">
             
-            {/* Total Revenue Card */}
-            <div className="bg-white overflow-hidden rounded-2xl lg:rounded-3xl shadow-sm hover:shadow-md ring-1 ring-slate-200 transition-all p-5 sm:p-6 lg:p-8 flex flex-col justify-between h-40 sm:h-44 w-full">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="p-2.5 sm:p-3 rounded-xl lg:rounded-2xl bg-green-50 text-green-600 shrink-0">
-                  <DollarSign className="h-5 w-5 sm:h-6 sm:w-6" />
+            {/* Metric Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6 lg:gap-8 w-full">
+              
+              {/* Total Revenue Card */}
+              <div className="bg-white overflow-hidden rounded-2xl lg:rounded-3xl shadow-sm hover:shadow-md ring-1 ring-slate-200 transition-all p-5 sm:p-6 lg:p-8 flex flex-col justify-between h-40 sm:h-44 w-full">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2.5 sm:p-3 rounded-xl lg:rounded-2xl bg-green-50 text-green-600 shrink-0">
+                    <DollarSign className="h-5 w-5 sm:h-6 sm:w-6" />
+                  </div>
+                  <p className="text-sm sm:text-base font-bold text-slate-500">Total Revenue</p>
                 </div>
-                <p className="text-sm sm:text-base font-bold text-slate-500">Total Revenue</p>
-              </div>
-              <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight whitespace-nowrap overflow-visible mt-auto">
-                KES {metrics.totalRevenue.toLocaleString()}
-              </p>
-            </div>
-
-            {/* Total Expenses Card */}
-            <div className="bg-white overflow-hidden rounded-2xl lg:rounded-3xl shadow-sm hover:shadow-md ring-1 ring-slate-200 transition-all p-5 sm:p-6 lg:p-8 flex flex-col justify-between h-40 sm:h-44 w-full">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="p-2.5 sm:p-3 rounded-xl lg:rounded-2xl bg-red-50 text-red-600 shrink-0">
-                  <Receipt className="h-5 w-5 sm:h-6 sm:w-6" />
-                </div>
-                <p className="text-sm sm:text-base font-bold text-slate-500">Total Expenses</p>
-              </div>
-              <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight whitespace-nowrap overflow-visible mt-auto">
-                KES {metrics.totalExpenses.toLocaleString()}
-              </p>
-            </div>
-
-            {/* Net Profit Card */}
-            <div className="bg-white overflow-hidden rounded-2xl lg:rounded-3xl shadow-sm hover:shadow-md ring-1 ring-slate-200 transition-all p-5 sm:p-6 lg:p-8 flex flex-col justify-between h-40 sm:h-44 w-full relative">
-              <div className="flex items-center gap-3 mb-2 relative z-10">
-                <div className={`p-2.5 sm:p-3 rounded-xl lg:rounded-2xl shrink-0 ${isProfitable ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>
-                  <TrendingUp className="h-5 w-5 sm:h-6 sm:w-6" />
-                </div>
-                <p className="text-sm sm:text-base font-bold text-slate-500">Net Profit</p>
-              </div>
-              <div className="flex items-center gap-3 mt-auto relative z-10">
-                <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight whitespace-nowrap overflow-visible">
-                  KES {Math.abs(metrics.netProfit).toLocaleString()}
+                <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight whitespace-nowrap overflow-visible mt-auto">
+                  KES {metrics.totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </p>
-                <span className="shrink-0 flex items-center justify-center">
-                  {isProfitable 
-                    ? <ArrowUpRight className="h-6 w-6 sm:h-8 sm:w-8 text-green-500 stroke-[3]" />
-                    : <ArrowDownRight className="h-6 w-6 sm:h-8 sm:w-8 text-red-500 stroke-[3]" />
-                  }
-                </span>
               </div>
+
+              {/* Total Expenses Card */}
+              <div className="bg-white overflow-hidden rounded-2xl lg:rounded-3xl shadow-sm hover:shadow-md ring-1 ring-slate-200 transition-all p-5 sm:p-6 lg:p-8 flex flex-col justify-between h-40 sm:h-44 w-full">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2.5 sm:p-3 rounded-xl lg:rounded-2xl bg-red-50 text-red-600 shrink-0">
+                    <Receipt className="h-5 w-5 sm:h-6 sm:w-6" />
+                  </div>
+                  <p className="text-sm sm:text-base font-bold text-slate-500">Total Expenses</p>
+                </div>
+                <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight whitespace-nowrap overflow-visible mt-auto">
+                  KES {metrics.totalExpenses.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+
+              {/* Net Profit Card */}
+              <div className="bg-white overflow-hidden rounded-2xl lg:rounded-3xl shadow-sm hover:shadow-md ring-1 ring-slate-200 transition-all p-5 sm:p-6 lg:p-8 flex flex-col justify-between h-40 sm:h-44 w-full relative">
+                <div className="flex items-center gap-3 mb-2 relative z-10">
+                  <div className={`p-2.5 sm:p-3 rounded-xl lg:rounded-2xl shrink-0 ${isProfitable ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>
+                    <TrendingUp className="h-5 w-5 sm:h-6 sm:w-6" />
+                  </div>
+                  <p className="text-sm sm:text-base font-bold text-slate-500">Net Profit</p>
+                </div>
+                <div className="flex items-center gap-3 mt-auto relative z-10">
+                  <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight whitespace-nowrap overflow-visible">
+                    KES {Math.abs(metrics.netProfit).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </p>
+                  <span className="shrink-0 flex items-center justify-center">
+                    {isProfitable 
+                      ? <ArrowUpRight className="h-6 w-6 sm:h-8 sm:w-8 text-green-500 stroke-[3]" />
+                      : <ArrowDownRight className="h-6 w-6 sm:h-8 sm:w-8 text-red-500 stroke-[3]" />
+                    }
+                  </span>
+                </div>
+              </div>
+
+              {/* Total Orders Card */}
+              <div className="bg-white overflow-hidden rounded-2xl lg:rounded-3xl shadow-sm hover:shadow-md ring-1 ring-slate-200 transition-all p-5 sm:p-6 lg:p-8 flex flex-col justify-between h-40 sm:h-44 w-full">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2.5 sm:p-3 rounded-xl lg:rounded-2xl bg-purple-50 text-purple-600 shrink-0">
+                    <BarChart3 className="h-5 w-5 sm:h-6 sm:w-6" />
+                  </div>
+                  <p className="text-sm sm:text-base font-bold text-slate-500">Total Orders</p>
+                </div>
+                <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight whitespace-nowrap overflow-visible mt-auto">
+                  {metrics.totalOrders.toLocaleString()}
+                </p>
+              </div>
+
             </div>
 
-            {/* Total Orders Card */}
-            <div className="bg-white overflow-hidden rounded-2xl lg:rounded-3xl shadow-sm hover:shadow-md ring-1 ring-slate-200 transition-all p-5 sm:p-6 lg:p-8 flex flex-col justify-between h-40 sm:h-44 w-full">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="p-2.5 sm:p-3 rounded-xl lg:rounded-2xl bg-purple-50 text-purple-600 shrink-0">
-                  <BarChart3 className="h-5 w-5 sm:h-6 sm:w-6" />
+            {/* Export & Filters Section */}
+            <div className="bg-white rounded-2xl lg:rounded-3xl shadow-sm ring-1 ring-slate-200 p-5 sm:p-6 lg:p-8">
+              <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
+                <div className="p-2 bg-slate-100 rounded-lg text-slate-700">
+                  <Download className="h-5 w-5" />
                 </div>
-                <p className="text-sm sm:text-base font-bold text-slate-500">Total Orders</p>
+                <h3 className="text-lg sm:text-xl font-bold text-slate-900">
+                  Export Data & Reconciliation
+                </h3>
               </div>
-              <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight whitespace-nowrap overflow-visible mt-auto">
-                {metrics.totalOrders.toLocaleString()}
-              </p>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 items-end">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Start Date</label>
+                  <div className="relative">
+                    <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 pointer-events-none" />
+                    <input 
+                      type="date" 
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none text-slate-900 font-medium"
+                    />
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">End Date</label>
+                  <div className="relative">
+                    <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 pointer-events-none" />
+                    <input 
+                      type="date" 
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none text-slate-900 font-medium"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Report Type</label>
+                  <select 
+                    value={exportType}
+                    onChange={(e) => setExportType(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none text-slate-900 font-medium appearance-none bg-white"
+                  >
+                    <option value="sales">Sales & Payment Reconciliation</option>
+                    <option value="expenses">Expenses & Outflow</option>
+                  </select>
+                </div>
+
+                <div>
+                  <button 
+                    onClick={handleExport}
+                    disabled={isExporting}
+                    className="w-full py-3 px-4 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-70 disabled:cursor-not-allowed shadow-sm"
+                  >
+                    {isExporting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}
+                    {isExporting ? 'Generating...' : 'Download CSV'}
+                  </button>
+                </div>
+              </div>
             </div>
 
           </div>

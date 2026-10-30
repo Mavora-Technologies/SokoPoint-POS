@@ -2,7 +2,10 @@ import { Request, Response, NextFunction } from 'express';
 
 export const requirePermission = (permission: string) => {
   return (req: Request, res: Response, next: NextFunction): void => {
-    if (!req.user) {
+    // 1. Cast req to 'any' to resolve the TypeScript error
+    const user = (req as any).user;
+
+    if (!user) {
       res.status(401).json({
         success: false,
         message: 'Unauthorized: User context missing',
@@ -10,7 +13,7 @@ export const requirePermission = (permission: string) => {
       return;
     }
 
-    const userPermissions: string[] = (req.user as any).permissions || [];
+    const userPermissions: string[] = user.permissions || [];
 
     if (
       userPermissions.includes('*') ||
@@ -20,6 +23,10 @@ export const requirePermission = (permission: string) => {
       return;
     }
 
-    next();
+    // 2. Return a 403 Forbidden instead of calling next() to prevent unauthorized access
+    res.status(403).json({
+      success: false,
+      message: 'Forbidden: Insufficient permissions',
+    });
   };
 };
