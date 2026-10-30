@@ -275,7 +275,7 @@ export default function OrdersClient() {
                           {displayStatus !== 'Refunded' && (
                             <button
                               onClick={() => setOrderToRefund(order)}
-                              className="text-red-600 hover:text-red-800 font-bold text-sm px-4 py-1.5 bg-red-50 hover:bg-red-100 rounded-xl transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                              className="text-red-600 hover:text-red-800 font-bold text-sm px-4 py-1.5 bg-red-50 hover:bg-red-100 rounded-xl transition-colors"
                             >
                               Refund
                             </button>
