@@ -6,31 +6,39 @@ export const OrderController = {
   getAll: async (_req: Request, res: Response) => {
     try {
       const orders = await prisma.order.findMany({ 
-        include: { items: true },
+        include: { 
+          items: {
+            include: {
+              product: true // Ensures receipt item breakdown names are available
+            }
+          } 
+        },
         orderBy: { createdAt: 'desc' } 
       });
       res.status(200).json({ data: orders });
     } catch (error) {
+      console.error('Failed to fetch orders:', error);
       res.status(500).json({ error: 'Failed to fetch orders' });
     }
   },
 
   create: async (req: Request, res: Response) => {
     try {
-      const { orderNum, total, method, customer, items } = req.body;
+      const { orderNum, total, method, customer, cashier, items } = req.body;
       
       const newOrder = await prisma.$transaction(async (tx) => {
-        // 1. Create the Order envelope matching your exact database schema
         const order = await tx.order.create({
           data: {
             orderNum: orderNum || `SOKO-${Math.floor(Math.random() * 1000000)}`,
             total: Number(total) || 0,
             method: method || 'CASH',
-            customer: customer || 'Walk-in Customer'
+            customer: customer || 'Walk-in Customer',
+            // @ts-ignore
+            cashier: cashier || 'Cashier',
+            status: 'Completed'
           }
         });
 
-        // 2. Process Items & Update Inventory
         if (items && Array.isArray(items)) {
           for (const item of items) {
             await tx.orderItem.create({
