@@ -13,7 +13,7 @@ import { expenseRoutes } from './modules/finance/expenses.routes';
 import { branchRoutes } from './modules/branches/branches.routes';
 import { tillRoutes } from './modules/tills/tills.routes';
 import { shiftRoutes } from './modules/shifts/shifts.routes';
-import { reportRoutes } from './modules/reports/reports.routes';
+import reportRoutes from './modules/reports/reports.routes';
 import creditRoutes from './modules/finance/credit.routes';
 import refundRoutes from './modules/refunds/refunds.routes';
 
@@ -25,14 +25,19 @@ export const createApp = () => {
   const allowedOrigins = [
     process.env.CLIENT_URL || 'http://localhost:3000',
     'http://127.0.0.1:3000',
-    'https://sokopoint.mavioratechnologies.com',
+    'https://sokopoint.mavoratechnologies.com',
     'https://sokopoint.pages.dev',
   ];
 
   app.use(
     cors({
       origin: (origin, callback) => {
-        if (!origin || allowedOrigins.includes(origin)) {
+        if (
+          !origin || 
+          allowedOrigins.includes(origin) || 
+          origin.endsWith('.mavoratechnologies.com') || 
+          origin.endsWith('.pages.dev')
+        ) {
           callback(null, true);
         } else {
           callback(null, true);
@@ -40,7 +45,8 @@ export const createApp = () => {
       },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-tenant-id'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-tenant-id', 'tenantid'],
+      exposedHeaders: ['Content-Range', 'X-Total-Count'],
     })
   );
 

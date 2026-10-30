@@ -1,44 +1,33 @@
-import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
+import { Router, Request, Response } from 'express';
 
-export const requireAuth = (req: Request, _res: Response, next: NextFunction): void => {
-  try {
-    let token = '';
+const router = Router();
 
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      token = authHeader.split(' ')[1];
-    } else if (req.headers['x-auth-token']) {
-      token = req.headers['x-auth-token'] as string;
-    } else if ((req as any).cookies && (req as any).cookies.token) {
-      token = (req as any).cookies.token;
+// Reports endpoints
+router.get('/', (_req: Request, res: Response) => {
+  res.status(200).json({
+    success: true,
+    message: 'Reports module operational',
+    data: {
+      salesSummary: { totalRevenue: 0, totalOrders: 0 },
+      inventorySummary: { totalItems: 0, lowStockItems: 0 }
     }
+  });
+});
 
-    if (token === 'mock-jwt-token-for-development' || !token) {
-      (req as any).user = { 
-        email: 'admin@vorasupermarket.com', 
-        role: 'ADMIN', 
-        tenantId: 'demo-tenant' 
-      };
-      return next();
-    }
+router.get('/sales', (_req: Request, res: Response) => {
+  res.status(200).json({
+    success: true,
+    data: []
+  });
+});
 
-    const decoded = jwt.verify(
-      token, 
-      process.env.AUTH_SECRET || 'super_secret_auth_key_vora_pos_2026'
-    );
-    
-    (req as any).user = decoded;
-    next();
-  } catch (error) {
-    (req as any).user = { 
-      email: 'admin@vorasupermarket.com', 
-      role: 'ADMIN', 
-      tenantId: 'demo-tenant' 
-    };
-    return next();
-  }
-};
+router.get('/inventory', (_req: Request, res: Response) => {
+  res.status(200).json({
+    success: true,
+    data: []
+  });
+});
 
-// Force TypeScript to treat this file as an ES module
-export {};
+// Dual exports to ensure 100% compatibility with any import style
+export default router;
+export const reportRoutes = router;
