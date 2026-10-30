@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { ShoppingBag, Search, Loader2, Calendar, CreditCard, ArrowUpRight, CheckCircle2 } from 'lucide-react';
 import api from '../../../lib/api';
+// Adjust this path if your components folder is located differently
+import RefundOrderModal from '../../../components/RefundOrderModal'; 
 
 interface Order {
   id?: string;
@@ -20,6 +22,9 @@ export default function OrdersClient() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isMounted, setIsMounted] = useState(false);
+  
+  // State to manage the refund modal
+  const [orderToRefund, setOrderToRefund] = useState<Order | null>(null);
 
   useEffect(() => {
     setIsMounted(true);
@@ -62,7 +67,10 @@ export default function OrdersClient() {
     return orderId.includes(q) || customer.includes(q) || method.includes(q);
   });
 
-  const totalRevenue = filteredOrders.reduce((sum, order) => sum + (Number(order.total) || 0), 0);
+  // Calculate revenue (excluding refunded orders)
+  const totalRevenue = filteredOrders
+    .filter(o => o.status !== 'Refunded')
+    .reduce((sum, order) => sum + (Number(order.total) || 0), 0);
 
   return (
     <div className="w-full min-h-[100dvh] bg-slate-50 overflow-x-hidden">
@@ -159,7 +167,9 @@ export default function OrdersClient() {
                           <p className="text-sm font-semibold text-slate-600 mt-0.5 truncate">{order.customer || 'Walk-in Customer'}</p>
                         </div>
                         <span className={`inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-bold ring-1 ring-inset shrink-0 ${
-                          displayStatus === 'Completed' ? 'bg-green-50 text-green-700 ring-green-600/20' : 'bg-yellow-50 text-yellow-800 ring-yellow-600/20'
+                          displayStatus === 'Completed' ? 'bg-green-50 text-green-700 ring-green-600/20' : 
+                          displayStatus === 'Refunded' ? 'bg-red-50 text-red-700 ring-red-600/20' :
+                          'bg-yellow-50 text-yellow-800 ring-yellow-600/20'
                         }`}>
                           {displayStatus === 'Completed' && <CheckCircle2 className="mr-1.5 h-3 w-3" />}
                           {displayStatus}
@@ -179,10 +189,22 @@ export default function OrdersClient() {
 
                       <div className="flex justify-between items-center pt-3 border-t border-slate-100">
                         <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total</span>
-                        <span className="text-base font-black text-slate-900">
+                        <span className={`text-base font-black ${displayStatus === 'Refunded' ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
                           KES {(Number(order.total) || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </span>
                       </div>
+
+                      {/* Mobile Refund Action */}
+                      {displayStatus !== 'Refunded' && (
+                        <div className="pt-2 flex justify-end">
+                          <button 
+                            onClick={() => setOrderToRefund(order)}
+                            className="text-red-600 hover:text-red-800 font-bold text-sm px-4 py-1.5 bg-red-50 hover:bg-red-100 rounded-lg transition-colors w-full sm:w-auto"
+                          >
+                            Refund Order
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -204,8 +226,11 @@ export default function OrdersClient() {
                     <th scope="col" className="px-3 py-4 text-left text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider">
                       Status
                     </th>
-                    <th scope="col" className="px-3 py-4 text-right text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider pr-6 lg:pr-8">
+                    <th scope="col" className="px-3 py-4 text-right text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider">
                       Total (KES)
+                    </th>
+                    <th scope="col" className="px-3 py-4 text-right text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider pr-6 lg:pr-8">
+                      Actions
                     </th>
                   </tr>
                 </thead>
@@ -235,14 +260,26 @@ export default function OrdersClient() {
                         </td>
                         <td className="px-3 py-4 text-sm align-middle">
                           <span className={`inline-flex items-center rounded-lg px-3 py-1 text-xs lg:text-sm font-bold ring-1 ring-inset whitespace-nowrap ${
-                            displayStatus === 'Completed' ? 'bg-green-50 text-green-700 ring-green-600/20' : 'bg-yellow-50 text-yellow-800 ring-yellow-600/20'
+                            displayStatus === 'Completed' ? 'bg-green-50 text-green-700 ring-green-600/20' : 
+                            displayStatus === 'Refunded' ? 'bg-red-50 text-red-700 ring-red-600/20' :
+                            'bg-yellow-50 text-yellow-800 ring-yellow-600/20'
                           }`}>
                             {displayStatus === 'Completed' && <CheckCircle2 className="mr-1.5 h-4 w-4" />}
                             {displayStatus}
                           </span>
                         </td>
-                        <td className="px-3 py-4 text-sm lg:text-base font-black text-slate-900 text-right pr-6 lg:pr-8 align-middle whitespace-nowrap">
+                        <td className={`px-3 py-4 text-sm lg:text-base font-black text-right align-middle whitespace-nowrap ${displayStatus === 'Refunded' ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
                           {(Number(order.total) || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="px-3 py-4 text-right pr-6 lg:pr-8 align-middle">
+                          {displayStatus !== 'Refunded' && (
+                            <button
+                              onClick={() => setOrderToRefund(order)}
+                              className="text-red-600 hover:text-red-800 font-bold text-sm px-4 py-1.5 bg-red-50 hover:bg-red-100 rounded-xl transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                            >
+                              Refund
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );
@@ -254,6 +291,23 @@ export default function OrdersClient() {
         </div>
 
       </div>
+
+      {/* Render the Refund Modal */}
+      <RefundOrderModal 
+        isOpen={!!orderToRefund}
+        onClose={() => setOrderToRefund(null)}
+        order={orderToRefund ? { 
+          id: orderToRefund.id || '', 
+          orderNum: orderToRefund.orderNum || orderToRefund.id || '', 
+          total: Number(orderToRefund.total) || 0 
+        } : null}
+        onSuccess={() => {
+          fetchOrders(); // Refresh table to show the new Refunded status
+        }}
+        // Replace this with the actual logged-in user's ID from your auth context
+        currentUserId="demo-cashier-id" 
+      />
+
     </div>
   );
 }

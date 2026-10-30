@@ -15,6 +15,7 @@ import { tillRoutes } from './modules/tills/tills.routes';
 import { shiftRoutes } from './modules/shifts/shifts.routes';
 import { reportRoutes } from './modules/reports/reports.routes';
 import creditRoutes from './modules/finance/credit.routes';
+import refundRoutes from './modules/refunds/refunds.routes';
 
 export const createApp = () => {
   const app = express();
@@ -83,6 +84,7 @@ export const createApp = () => {
   app.use('/shifts', shiftRoutes);
   app.use('/reports', reportRoutes);
   app.use('/credit', creditRoutes);
+  app.use('/api/refunds', refundRoutes);
 
   app.get('/api/v1', (_req: Request, res: Response) => {
     res.status(200).json({ message: 'Welcome to Vora-POS API v1' });
