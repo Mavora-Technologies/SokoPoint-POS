@@ -1,4 +1,3 @@
-
 import express, { Request, Response, NextFunction } from 'express';
 import cors, { CorsOptions } from 'cors';
 import helmet from 'helmet';
@@ -15,7 +14,7 @@ import { expenseRoutes } from './modules/finance/expenses.routes';
 import { branchRoutes } from './modules/branches/branches.routes';
 import { tillRoutes } from './modules/tills/tills.routes';
 import { shiftRoutes } from './modules/shifts/shifts.routes';
-import reportRoutes from './modules/reports/reports.routes';
+import { reportsRoutes } from './modules/reports/reports.routes'; // <-- Fixed import mapping
 import creditRoutes from './modules/finance/credit.routes';
 import refundRoutes from './modules/refunds/refunds.routes';
 
@@ -136,7 +135,7 @@ export const createApp = () => {
   app.use('/api/v1/branches', branchRoutes);
   app.use('/api/v1/tills', tillRoutes);
   app.use('/api/v1/shifts', shiftRoutes);
-  app.use('/api/v1/reports', reportRoutes);
+  app.use('/api/v1/reports', reportsRoutes); // <-- Updated variable usage
   app.use('/api/v1/credit', creditRoutes);
   app.use('/api/v1/refunds', refundRoutes);
 
@@ -158,7 +157,7 @@ export const createApp = () => {
   app.use('/branches', branchRoutes);
   app.use('/tills', tillRoutes);
   app.use('/shifts', shiftRoutes);
-  app.use('/reports', reportRoutes);
+  app.use('/reports', reportsRoutes); // <-- Updated variable usage
   app.use('/credit', creditRoutes);
   app.use('/refunds', refundRoutes);
   app.use('/api/refunds', refundRoutes);
