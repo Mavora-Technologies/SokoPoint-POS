@@ -9,6 +9,7 @@ interface Product {
   name: string;
   sku: string;
   sellingPrice: string | number;
+  price?: string | number;
   stock: number;
   minimumStock?: number;
   imageUrl?: string;
@@ -112,7 +113,7 @@ export default function POSClient() {
     setCart((prev) => prev.filter((item) => item.cartId !== cartId));
   };
 
-  const subtotal = cart.reduce((sum, item) => sum + (Number(item.sellingPrice) * item.quantity), 0);
+  const subtotal = cart.reduce((sum, item) => sum + (Number(item.sellingPrice || item.price || 0) * item.quantity), 0);
   const tax = subtotal * 0.16;
   const total = subtotal + tax;
 
@@ -121,27 +122,21 @@ export default function POSClient() {
     setIsProcessing(true);
 
     try {
-      // 1. Deduct Stock
-      await Promise.all(
-        cart.map(async (item) => {
-          if (!item.id) return;
-          const freshProduct = products.find((p) => p.id === item.id);
-          const currentStock = freshProduct ? Number(freshProduct.stock) : Number(item.stock);
-          const remainingStock = Math.max(0, currentStock - item.quantity);
+      // 1. Prepare items array for the backend transaction mapping
+      const orderItems = cart.map(item => ({
+        productId: item.id,
+        quantity: item.quantity,
+        price: Number(item.sellingPrice || item.price || 0)
+      }));
 
-          await api.put(`/products/${item.id}`, {
-            stock: remainingStock,
-          });
-        })
-      );
-
-      // 2. Create the actual Order in the database so the Dashboard sees it!
+      // 2. Create Order & Process Inventory in one atomic backend call
       const mockOrderNumber = `SOKO-${Math.floor(Math.random() * 1000000000)}`;
       await api.post('/orders', {
         orderNum: mockOrderNumber,
         customer: 'Walk-in Customer',
         total: total,
-        method: paymentMethod
+        method: paymentMethod,
+        items: orderItems // Required by the new backend controller
       });
 
       // 3. Show Receipt
@@ -156,7 +151,7 @@ export default function POSClient() {
       });
 
       setCart([]);
-      await loadProducts();
+      await loadProducts(); // Refresh products to show updated stock levels
     } catch (error) {
       console.error('Failed to complete sale:', error);
       alert('Failed to complete checkout. Please try again.');
@@ -279,7 +274,7 @@ export default function POSClient() {
                         </div>
                         <div className="w-full flex items-center justify-between mt-auto pt-3 border-t border-slate-100 group-hover:border-slate-200 transition-colors">
                           <span className="font-extrabold text-sm sm:text-base lg:text-lg text-slate-900 truncate">
-                            KES {Number(product.sellingPrice || 0).toLocaleString('en-US')}
+                            KES {Number(product.sellingPrice || product.price || 0).toLocaleString('en-US')}
                           </span>
                           <div className={`h-8 w-8 sm:h-9 sm:w-9 lg:h-10 lg:w-10 shrink-0 rounded-full flex items-center justify-center transition-all ${
                             isOutOfStock ? 'bg-slate-100 text-slate-400' : 'bg-green-50 text-green-600 group-hover:bg-green-600 group-hover:text-white'
@@ -332,7 +327,7 @@ export default function POSClient() {
                     </div>
                     <div className="flex justify-between items-center mt-auto border-t border-slate-50 pt-3">
                       <span className="font-extrabold text-sm sm:text-base lg:text-lg text-slate-900">
-                        KES {Number(item.sellingPrice || 0).toLocaleString('en-US')}
+                        KES {Number(item.sellingPrice || item.price || 0).toLocaleString('en-US')}
                       </span>
                       <div className="flex items-center gap-1.5 bg-slate-50 rounded-xl p-1.5 border border-slate-100">
                         <button onClick={() => updateQuantity(item.cartId, -1)} className="h-8 w-8 lg:h-10 lg:w-10 flex items-center justify-center bg-white shadow-sm rounded-lg text-slate-600 transition-all hover:bg-slate-100 active:scale-95 touch-manipulation">
@@ -438,9 +433,9 @@ export default function POSClient() {
                     <div key={item.cartId} className="flex justify-between text-sm lg:text-base font-medium">
                       <div className="flex flex-col pr-4">
                         <span className="font-bold">{item.name}</span>
-                        <span className="text-xs lg:text-sm text-slate-500 mt-0.5">{item.quantity} x KES {Number(item.sellingPrice || 0).toLocaleString()}</span>
+                        <span className="text-xs lg:text-sm text-slate-500 mt-0.5">{item.quantity} x KES {Number(item.sellingPrice || item.price || 0).toLocaleString()}</span>
                       </div>
-                      <span className="font-bold text-slate-700">{(Number(item.sellingPrice || 0) * item.quantity).toLocaleString()}</span>
+                      <span className="font-bold text-slate-700">{(Number(item.sellingPrice || item.price || 0) * item.quantity).toLocaleString()}</span>
                     </div>
                   ))}
                 </div>

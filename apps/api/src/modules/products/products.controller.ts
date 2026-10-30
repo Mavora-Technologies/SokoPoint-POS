@@ -25,7 +25,11 @@ const uploadToCloudinary = (fileBuffer: Buffer): Promise<any> => {
 
 export const getProducts = async (_req: Request, res: Response): Promise<void> => {
   try {
-    const products = await prisma.product.findMany({ orderBy: { createdAt: 'desc' } });
+    // Only fetch non-archived products for the active catalog
+    const products = await prisma.product.findMany({ 
+      where: { status: { not: 'ARCHIVED' } },
+      orderBy: { createdAt: 'desc' } 
+    });
     res.status(200).json({ success: true, data: products });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server error while fetching products' });
@@ -71,9 +75,29 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const { name, category, sellingPrice, stock, sku }  = req.body;
-    let imageUrl = req.body.imageUrl;
+    const { name, category, sellingPrice, stock, sku, status }  = req.body;
+    
+    // ENFORCEMENT: Check if the product has historical sales
+    const orderCount = await prisma.orderItem.count({ where: { productId: String(productId) } });
+    
+    if (orderCount > 0) {
+      const currentProd = await prisma.product.findUnique({ where: { id: String(productId) } });
+      if (currentProd) {
+        // Prevent editing core identifiers to protect receipt accuracy
+        const isNameChanged = name !== undefined && String(name) !== currentProd.name;
+        const isSkuChanged = sku !== undefined && sku !== currentProd.sku && sku !== null;
+        
+        if (isNameChanged || isSkuChanged) {
+          res.status(403).json({ 
+            success: false, 
+            message: 'Cannot edit the name or SKU of a product with historical sales. Please archive this product and create a new one.' 
+          });
+          return;
+        }
+      }
+    }
 
+    let imageUrl = req.body.imageUrl;
     const file = (req as any).file;
     if (file && file.buffer) {
       const uploadResult = await uploadToCloudinary(file.buffer);
@@ -88,6 +112,7 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
         ...(sellingPrice !== undefined && { sellingPrice: Number(sellingPrice) }),
         ...(stock !== undefined && { stock: Number(stock) }),
         ...(sku !== undefined && { sku: String(sku) }),
+        ...(status !== undefined && { status: String(status) }),
         ...(imageUrl !== undefined && { imageUrl: String(imageUrl) }),
       },
     });
@@ -102,8 +127,26 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
 export const deleteProduct = async (req: Request, res: Response): Promise<void> => {
   try {
     const rawId = req.params.id || req.query.id;
-    const productId = Array.isArray(rawId) ? rawId[0] : rawId;
-    await prisma.product.delete({ where: { id: String(productId) } });
+    const productId = Array.isArray(rawId) ? String(rawId[0]) : String(rawId);
+    
+    // ENFORCEMENT: Never delete a product that has been sold
+    const orderCount = await prisma.orderItem.count({ where: { productId } });
+
+    if (orderCount > 0) {
+      // Soft-delete / Archive instead
+      await prisma.product.update({
+        where: { id: productId },
+        data: { status: 'ARCHIVED' }
+      });
+      res.status(200).json({ 
+        success: true, 
+        message: 'Product archived successfully. It was not deleted to preserve historical sales data.' 
+      });
+      return;
+    }
+
+    // Safe to hard delete if no historical sales exist
+    await prisma.product.delete({ where: { id: productId } });
     res.status(200).json({ success: true, message: 'Product deleted successfully' });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server error while deleting product' });

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Package, Plus, Loader2, Search, Trash2, Edit3, X, CheckCircle2, Image as ImageIcon, ImagePlus, AlertCircle } from 'lucide-react';
+import { Package, Plus, Loader2, Search, Trash2, Edit3, X, CheckCircle2, Image as ImageIcon, ImagePlus } from 'lucide-react';
 import api from '../../../lib/api';
 
 interface Product {
@@ -49,8 +49,8 @@ export default function ProductsClient() {
       const data = res.data?.data || res.data || [];
       
       if (Array.isArray(data)) {
-        // Filter out deactivated products from the main view
-        setProducts(data.filter(p => p.status !== 'INACTIVE'));
+        // Backend now excludes ARCHIVED products automatically, but we ensure INACTIVE are filtered too just in case
+        setProducts(data.filter(p => p.status !== 'INACTIVE' && p.status !== 'ARCHIVED'));
       }
     } catch (error) {
       console.error('Failed to load products', error);
@@ -123,53 +123,25 @@ export default function ProductsClient() {
     setIsEditModalOpen(true);
   };
 
-  const handleDeactivateProduct = async (product: Product) => {
-    try {
-      setProcessingId(product.id);
-      const data = new FormData();
-      data.append('name', product.name);
-      data.append('category', product.category || 'General');
-      data.append('sellingPrice', (product.sellingPrice || product.price || 0).toString());
-      data.append('stock', product.stock.toString());
-      data.append('status', 'INACTIVE'); 
-      if (product.sku) data.append('sku', product.sku);
-      if (product.imageUrl) data.append('imageUrl', product.imageUrl);
-
-      await api.put(`/products/${product.id}`, data, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-
-      // Remove the deactivated product from the active inventory view
-      setProducts(products.filter(p => p.id !== product.id));
-      alert(`Success: "${product.name}" has been deactivated. Its historical sales records remain intact.`);
-    } catch (error) {
-      console.error('Failed to deactivate product', error);
-      alert('Failed to deactivate product. Please try again.');
-    } finally {
-      setProcessingId(null);
-    }
-  };
-
   const handleDeleteProduct = async (product: Product) => {
     const confirmed = window.confirm(`Are you sure you want to delete "${product.name}"?`);
     if (!confirmed) return;
 
     setProcessingId(product.id);
     try {
-      await api.delete(`/products/${product.id}`);
+      // The backend now intelligently decides whether to hard delete or soft archive
+      const res = await api.delete(`/products/${product.id}`);
+      
+      // Remove from active UI array regardless of whether backend hard-deleted or soft-archived it
       setProducts(products.filter(p => p.id !== product.id));
+      
+      // Alert the user with the backend's message so they know if it was archived
+      if (res.data?.message) {
+        alert(res.data.message);
+      }
     } catch (error: any) {
       console.error('Delete error:', error);
-      const status = error.response?.status;
-      
-      if (status === 409) {
-        const archive = window.confirm(`Action Denied: Cannot delete "${product.name}" because it has existing sales records.\n\nTo preserve sales history and financial transparency, would you like to DEACTIVATE this product instead? It will be removed from active inventory but its historical data will remain safe.`);
-        if (archive) {
-          await handleDeactivateProduct(product);
-        }
-      } else {
-        alert(`Error: Could not delete product. It may be locked by database constraints.`);
-      }
+      alert(`Error: Could not process deletion.`);
     } finally {
       if (processingId === product.id) setProcessingId(null);
     }
@@ -207,8 +179,14 @@ export default function ProductsClient() {
       setFormData({ name: '', category: 'General', price: '', stock: '', sku: '', imageUrl: '' });
       setSelectedFile(null);
       setImagePreview('');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to update product', error);
+      // Surface the specific 403 error message if the user tries to rename a sold product
+      if (error.response?.status === 403) {
+        alert(`Action Denied:\n\n${error.response.data.message}`);
+      } else {
+        alert('Failed to update product');
+      }
     } finally {
       setIsSubmitting(false);
     }
