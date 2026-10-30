@@ -17,23 +17,20 @@ export const OrderController = {
 
   create: async (req: Request, res: Response) => {
     try {
-      const { orderNum, total, method, customer, cashier, items } = req.body;
+      const { orderNum, total, method, customer, items } = req.body;
       
       const newOrder = await prisma.$transaction(async (tx) => {
-        // 1. Create the Order envelope with cashier/served-by data
+        // 1. Create the Order envelope matching your exact database schema
         const order = await tx.order.create({
           data: {
             orderNum: orderNum || `SOKO-${Math.floor(Math.random() * 1000000)}`,
             total: Number(total) || 0,
             method: method || 'CASH',
-            customer: customer || 'Walk-in Customer',
-            // Falls back safely if your schema uses a different relation/string field
-            // @ts-ignore
-            cashier: cashier || 'Cashier'
+            customer: customer || 'Walk-in Customer'
           }
         });
 
-        // 2. Process Items
+        // 2. Process Items & Update Inventory
         if (items && Array.isArray(items)) {
           for (const item of items) {
             await tx.orderItem.create({

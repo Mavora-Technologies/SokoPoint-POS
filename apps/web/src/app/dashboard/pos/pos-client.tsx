@@ -34,7 +34,6 @@ export default function POSClient() {
 
   useEffect(() => {
     setIsMounted(true);
-    // Grab cashier/user name from local storage or session if available
     const storedUser = localStorage.getItem('userName') || localStorage.getItem('email') || 'Cashier';
     setCashierName(storedUser);
   }, []);
