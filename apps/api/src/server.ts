@@ -7,7 +7,6 @@ const PORT = parseInt(env.PORT, 10);
 
 const startServer = async () => {
   try {
-    // Test the Prisma SQLite database connection
     await prisma.$connect();
     console.log('Connected to database via Prisma successfully.');
 

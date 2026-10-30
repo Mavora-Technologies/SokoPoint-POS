@@ -25,7 +25,7 @@ export const createApp = () => {
   const allowedOrigins = [
     process.env.CLIENT_URL || 'http://localhost:3000',
     'http://127.0.0.1:3000',
-    'https://sokopoint.mavoratechnologies.com',
+    'https://sokopoint.mavioratechnologies.com',
     'https://sokopoint.pages.dev',
   ];
 
@@ -40,9 +40,11 @@ export const createApp = () => {
       },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-tenant-id'],
     })
   );
+
+  app.options('*', cors());
 
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
@@ -67,9 +69,9 @@ export const createApp = () => {
   app.use('/api/v1/shifts', shiftRoutes);
   app.use('/api/v1/reports', reportRoutes);
   app.use('/api/v1/credit', creditRoutes);
-  app.use('/api/v1/refunds', refundRoutes); // <-- ADDED HERE
+  app.use('/api/v1/refunds', refundRoutes);
 
-  // Root-level and generic /api aliases to handle all requests missing /api/v1 prefix
+  // Root-level and generic /api aliases
   app.use('/auth', authRoutes);
   app.use('/api/auth', authRoutes);
   app.use('/products', productRoutes);
@@ -85,7 +87,7 @@ export const createApp = () => {
   app.use('/shifts', shiftRoutes);
   app.use('/reports', reportRoutes);
   app.use('/credit', creditRoutes);
-  app.use('/refunds', refundRoutes); // <-- ADDED HERE
+  app.use('/refunds', refundRoutes);
   app.use('/api/refunds', refundRoutes);
 
   app.get('/api/v1', (_req: Request, res: Response) => {
