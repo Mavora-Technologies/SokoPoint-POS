@@ -19,9 +19,7 @@ export const OrderController = {
     try {
       const { orderNum, total, method, customer, items } = req.body;
       
-      // ENFORCEMENT: Process the order, create immutable line items, and adjust stock in a single transaction
       const newOrder = await prisma.$transaction(async (tx) => {
-        
         // 1. Create the Order envelope
         const order = await tx.order.create({
           data: {
@@ -32,11 +30,9 @@ export const OrderController = {
           }
         });
 
-        // 2. Process Items if provided
+        // 2. Process Items (This is what locks the product history!)
         if (items && Array.isArray(items)) {
           for (const item of items) {
-            
-            // Generate the OrderItem mapping, freezing the current product price forever
             await tx.orderItem.create({
               data: {
                 orderId: order.id,
@@ -46,23 +42,19 @@ export const OrderController = {
               }
             });
 
-            // Immediately decrement the active inventory stock
             await tx.product.update({
               where: { id: item.productId },
-              data: {
-                stock: { decrement: Number(item.quantity) }
-              }
+              data: { stock: { decrement: Number(item.quantity) } }
             });
           }
         }
-        
         return order;
       });
 
       res.status(201).json({ data: newOrder });
     } catch (error) {
       console.error('Failed to create order:', error);
-      res.status(500).json({ error: 'Failed to create order and process inventory' });
+      res.status(500).json({ error: 'Failed to process order' });
     }
   }
 };
