@@ -27,7 +27,7 @@ export default function ProductsClient() {
   const [isLoading, setIsLoading] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [viewMode, setViewMode] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE'); // New Tab State
+  const [viewMode, setViewMode] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE');
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -58,7 +58,6 @@ export default function ProductsClient() {
     }
   };
 
-  // Refetch when viewMode changes
   useEffect(() => {
     if (isMounted) fetchProducts();
   }, [isMounted, viewMode]);
@@ -142,18 +141,16 @@ export default function ProductsClient() {
     }
   };
 
-  // Restore an archived product back to ACTIVE
   const handleRestoreProduct = async (product: Product) => {
     setProcessingId(product.id);
     try {
       const data = new FormData();
-      data.append('status', 'ACTIVE'); // Only update the status back to ACTIVE
+      data.append('status', 'ACTIVE');
 
       await api.put(`/products/${product.id}`, data, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       
-      // Remove from the archived view instantly
       setProducts(products.filter(p => p.id !== product.id));
       alert(`Success: "${product.name}" has been restored to active inventory.`);
     } catch (error: any) {
@@ -223,20 +220,18 @@ export default function ProductsClient() {
   );
 
   const getDisplayImage = (item: Product) => {
-    const CLOUD_NAME = 'YOUR_CLOUD_NAME'; 
-    const FOLDER_NAME = 'sokopoint-products/'; 
-    
     const hasRealImageInDB = item.imageUrl && !item.imageUrl.includes('placehold.co');
     if (hasRealImageInDB) {
       return item.imageUrl;
     }
-    return `https://res.cloudinary.com/${CLOUD_NAME}/image/upload/${FOLDER_NAME}${encodeURIComponent(item.name)}.jpg`;
+    // Direct local public folder fallback matching exact product name
+    return `/products/${item.name}.png`;
   };
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     const target = e.target as HTMLImageElement;
-    if (target.src.endsWith('.jpg')) {
-      target.src = target.src.replace('.jpg', '.png');
+    if (target.src.endsWith('.png')) {
+      target.src = target.src.replace('.png', '.jpg');
     } else {
       target.style.display = 'none';
       target.nextElementSibling?.classList.remove('hidden');
@@ -247,7 +242,6 @@ export default function ProductsClient() {
     <div className="w-full min-h-[100dvh] bg-slate-50 overflow-x-hidden">
       <div className="max-w-[1920px] mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10 space-y-6 sm:space-y-8 lg:space-y-10">
         
-        {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex-1 min-w-0">
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-slate-900 flex items-center gap-3 truncate">
@@ -273,11 +267,9 @@ export default function ProductsClient() {
           </div>
         </div>
 
-        {/* View Toggles & Search */}
         <div className="bg-white rounded-2xl lg:rounded-3xl shadow-sm ring-1 ring-slate-200 overflow-hidden flex flex-col w-full">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-5 lg:p-6 border-b border-slate-100 bg-slate-50/50 w-full gap-4">
             
-            {/* Toggles */}
             <div className="flex bg-slate-200/50 p-1 rounded-xl w-full sm:w-fit shrink-0">
               <button 
                 onClick={() => setViewMode('ACTIVE')}
@@ -323,22 +315,19 @@ export default function ProductsClient() {
             </div>
           ) : (
             <div className="w-full">
-              {/* Mobile View */}
               <div className="block md:hidden divide-y divide-slate-100">
                 {filtered.map(item => {
                   const displayImage = getDisplayImage(item);
                   return (
                     <div key={item.id} className={`p-4 sm:p-5 hover:bg-slate-50/80 transition-colors space-y-3 ${viewMode === 'ARCHIVED' ? 'opacity-75 grayscale-[50%]' : ''}`}>
                       <div className="flex items-start gap-3.5">
-                        {displayImage ? (
-                          <img 
-                            src={displayImage} 
-                            alt={item.name} 
-                            className="h-12 w-12 sm:h-14 sm:w-14 rounded-2xl object-cover ring-1 ring-slate-200 bg-white shrink-0" 
-                            onError={handleImageError}
-                          />
-                        ) : null}
-                        <div className={`h-12 w-12 sm:h-14 sm:w-14 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 shrink-0 ${displayImage ? 'hidden' : ''}`}>
+                        <img 
+                          src={displayImage} 
+                          alt={item.name} 
+                          className="h-12 w-12 sm:h-14 sm:w-14 rounded-2xl object-cover ring-1 ring-slate-200 bg-white shrink-0" 
+                          onError={handleImageError}
+                        />
+                        <div className="h-12 w-12 sm:h-14 sm:w-14 rounded-2xl bg-slate-100 hidden items-center justify-center text-slate-400 shrink-0">
                           <ImageIcon className="h-6 w-6" />
                         </div>
                         <div className="min-w-0 flex-1">
@@ -380,11 +369,11 @@ export default function ProductsClient() {
                             </>
                           ) : (
                             <button 
-                                onClick={() => handleRestoreProduct(item)} 
-                                disabled={processingId === item.id}
-                                className="px-4 py-2 text-sm font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors disabled:opacity-50 flex items-center gap-2"
-                              >
-                                {processingId === item.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Restore
+                              onClick={() => handleRestoreProduct(item)} 
+                              disabled={processingId === item.id}
+                              className="px-4 py-2 text-sm font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors disabled:opacity-50 flex items-center gap-2"
+                            >
+                              {processingId === item.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Restore
                             </button>
                           )}
                         </div>
@@ -394,7 +383,6 @@ export default function ProductsClient() {
                 })}
               </div>
 
-              {/* Desktop View */}
               <table className="hidden md:table min-w-full divide-y divide-slate-200">
                 <thead className="bg-slate-50/80">
                   <tr>
@@ -412,15 +400,13 @@ export default function ProductsClient() {
                       <tr key={item.id} className={`hover:bg-slate-50/80 transition-colors group ${viewMode === 'ARCHIVED' ? 'opacity-75 grayscale-[50%]' : ''}`}>
                         <td className="py-4 pl-6 lg:pl-8 pr-3 text-sm lg:text-base font-bold text-slate-900 align-middle">
                           <div className="flex items-center gap-4">
-                            {displayImage ? (
-                              <img 
-                                src={displayImage} 
-                                alt={item.name} 
-                                className="h-12 w-12 rounded-2xl object-cover ring-1 ring-slate-200 bg-white shrink-0" 
-                                onError={handleImageError}
-                              />
-                            ) : null}
-                            <div className={`h-12 w-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 shrink-0 ${displayImage ? 'hidden' : ''}`}>
+                            <img 
+                              src={displayImage} 
+                              alt={item.name} 
+                              className="h-12 w-12 rounded-2xl object-cover ring-1 ring-slate-200 bg-white shrink-0" 
+                              onError={handleImageError}
+                            />
+                            <div className="h-12 w-12 rounded-2xl bg-slate-100 hidden items-center justify-center text-slate-400 shrink-0">
                               <ImageIcon className="h-6 w-6" />
                             </div>
                             <div className="min-w-0">
@@ -460,11 +446,11 @@ export default function ProductsClient() {
                             </>
                           ) : (
                             <button 
-                                onClick={() => handleRestoreProduct(item)} 
-                                disabled={processingId === item.id}
-                                className="px-4 py-2 text-sm font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors disabled:opacity-50 inline-flex items-center gap-2"
-                              >
-                                {processingId === item.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Restore
+                              onClick={() => handleRestoreProduct(item)} 
+                              disabled={processingId === item.id}
+                              className="px-4 py-2 text-sm font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors disabled:opacity-50 inline-flex items-center gap-2"
+                            >
+                              {processingId === item.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Restore
                             </button>
                           )}
                         </td>
@@ -477,11 +463,9 @@ export default function ProductsClient() {
           )}
         </div>
 
-        {/* Add Product Modal */}
         {isAddModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-6 overflow-y-auto custom-scrollbar">
             <div className="bg-white w-full max-w-lg lg:max-w-xl rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col my-auto">
-              
               <div className="flex items-center justify-between p-5 sm:p-6 lg:p-8 border-b border-slate-100 bg-white sticky top-0 z-10">
                 <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900 flex items-center gap-3">
                   <Package className="h-6 w-6 text-green-600" /> Add New Product
@@ -543,16 +527,13 @@ export default function ProductsClient() {
                   </button>
                 </div>
               </form>
-
             </div>
           </div>
         )}
 
-        {/* Edit Product Modal */}
         {isEditModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-6 overflow-y-auto custom-scrollbar">
             <div className="bg-white w-full max-w-lg lg:max-w-xl rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col my-auto">
-              
               <div className="flex items-center justify-between p-5 sm:p-6 lg:p-8 border-b border-slate-100 bg-white sticky top-0 z-10">
                 <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900 flex items-center gap-3">
                   <Edit3 className="h-6 w-6 text-green-600" /> Edit Product
@@ -614,7 +595,6 @@ export default function ProductsClient() {
                   </button>
                 </div>
               </form>
-
             </div>
           </div>
         )}

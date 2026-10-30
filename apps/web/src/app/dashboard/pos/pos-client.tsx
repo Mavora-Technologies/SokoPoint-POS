@@ -122,24 +122,21 @@ export default function POSClient() {
     setIsProcessing(true);
 
     try {
-      // 1. Prepare items array for the backend transaction mapping
       const orderItems = cart.map(item => ({
         productId: item.id,
         quantity: item.quantity,
         price: Number(item.sellingPrice || item.price || 0)
       }));
 
-      // 2. Create Order & Process Inventory in one atomic backend call
       const mockOrderNumber = `SOKO-${Math.floor(Math.random() * 1000000000)}`;
       await api.post('/orders', {
         orderNum: mockOrderNumber,
         customer: 'Walk-in Customer',
         total: total,
         method: paymentMethod,
-        items: orderItems // Required by the new backend controller
+        items: orderItems
       });
 
-      // 3. Show Receipt
       setReceiptData({
         orderNumber: mockOrderNumber,
         date: new Date().toLocaleString(),
@@ -151,7 +148,7 @@ export default function POSClient() {
       });
 
       setCart([]);
-      await loadProducts(); // Refresh products to show updated stock levels
+      await loadProducts();
     } catch (error) {
       console.error('Failed to complete sale:', error);
       alert('Failed to complete checkout. Please try again.');
@@ -180,7 +177,6 @@ export default function POSClient() {
 
       <div id="pos-layout" className="flex flex-col lg:flex-row w-full bg-slate-50 relative print:hidden lg:h-[calc(100vh-4rem)]">
         
-        {/* LEFT PANEL: Product Grid */}
         <div className="flex flex-col w-full lg:flex-1 h-[55vh] lg:h-full overflow-hidden bg-white border-b-8 border-slate-100 lg:border-b-0 lg:border-r lg:border-slate-200 shrink-0">
           
           <div className="p-3 sm:p-4 lg:p-5 xl:p-6 border-b border-slate-200 bg-white z-10 shrink-0 shadow-sm">
@@ -210,13 +206,8 @@ export default function POSClient() {
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 min-[1920px]:grid-cols-7 gap-3 sm:gap-4 lg:gap-5 xl:gap-6">
                 {filteredProducts.map((product) => {
-                  
-                  const CLOUD_NAME = 'YOUR_CLOUD_NAME'; 
-                  const FOLDER_NAME = 'sokopoint-products/'; 
-                  
                   const hasRealImageInDB = product.imageUrl && !product.imageUrl.includes('placehold.co');
-                  const fallbackCloudinaryUrl = `https://res.cloudinary.com/${CLOUD_NAME}/image/upload/${FOLDER_NAME}${encodeURIComponent(product.name)}.jpg`;
-                  const displayImage = hasRealImageInDB ? product.imageUrl : fallbackCloudinaryUrl;
+                  const displayImage = hasRealImageInDB ? product.imageUrl : `/products/${product.name}.png`;
                   
                   const isOutOfStock = Number(product.stock) <= 0;
 
@@ -232,23 +223,21 @@ export default function POSClient() {
                       }`}
                     >
                       <div className="aspect-[4/3] w-full bg-slate-100 relative overflow-hidden flex items-center justify-center shrink-0">
-                        {displayImage ? (
-                          <img 
-                            src={displayImage} 
-                            alt={product.name}
-                            className={`object-cover w-full h-full bg-white transition-transform duration-500 ${!isOutOfStock ? 'group-hover:scale-105' : ''}`}
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              if (target.src.endsWith('.jpg')) {
-                                target.src = target.src.replace('.jpg', '.png');
-                              } else {
-                                target.style.display = 'none';
-                                target.nextElementSibling?.classList.remove('hidden');
-                              }
-                            }}
-                          />
-                        ) : null}
-                        <div className={`absolute inset-0 text-slate-300 flex items-center justify-center ${displayImage ? 'hidden' : ''}`}>
+                        <img 
+                          src={displayImage} 
+                          alt={product.name}
+                          className={`object-cover w-full h-full bg-white transition-transform duration-500 ${!isOutOfStock ? 'group-hover:scale-105' : ''}`}
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            if (target.src.endsWith('.png')) {
+                              target.src = target.src.replace('.png', '.jpg');
+                            } else {
+                              target.style.display = 'none';
+                              target.nextElementSibling?.classList.remove('hidden');
+                            }
+                          }}
+                        />
+                        <div className="absolute inset-0 text-slate-300 hidden items-center justify-center">
                           <ImageIcon className="h-10 w-10 lg:h-12 lg:w-12" />
                         </div>
                         {isOutOfStock && (
@@ -291,7 +280,6 @@ export default function POSClient() {
           </div>
         </div>
 
-        {/* RIGHT PANEL: Live Cart */}
         <div className="flex flex-col w-full lg:w-[400px] xl:w-[440px] 2xl:w-[480px] h-auto lg:h-full bg-white lg:shadow-2xl z-20 shrink-0">
           
           <div className="p-4 lg:p-5 xl:p-6 bg-green-950 text-white flex justify-between items-center shrink-0">
