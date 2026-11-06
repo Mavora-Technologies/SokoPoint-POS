@@ -1,373 +1,113 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Truck, Plus, Loader2, Search, CheckCircle2, X, Phone, Mail, User, Trash2 } from 'lucide-react';
-import api from '../../../lib/api';
+import Link from 'next/link';
+import { Search, Plus, Truck, Loader2 } from 'lucide-react';
 
 interface Supplier {
-  id: string;
-  name: string;
+  id: number;
+  code: string;
+  companyName: string;
   contactPerson: string;
-  email?: string;
   phone: string;
-  category: string;
+  email: string;
+  kraPin: string;
+  paymentTerms: string;
+  approvalStatus: 'APPROVED' | 'PENDING' | 'SUSPENDED';
 }
 
-export default function SuppliersClient() {
-  const [isMounted, setIsMounted] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+export default function ApprovedSuppliersPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [processingId, setProcessingId] = useState<string | null>(null);
-  
-  const [newSupplier, setNewSupplier] = useState({ name: '', contactPerson: '', email: '', phone: '', category: 'Beverages' });
-
-  useEffect(() => { setIsMounted(true); }, []);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    const fetchSuppliers = async () => {
-      try {
-        setIsLoading(true);
-        const res = await api.get('/suppliers');
-        const data = res.data?.data || res.data || [];
-        setSuppliers(Array.isArray(data) ? data : []);
-      } catch (error) {
-        console.error('Failed to load suppliers', error);
-        setSuppliers([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    if (isMounted) fetchSuppliers();
-  }, [isMounted]);
+    setTimeout(() => {
+      setSuppliers([
+        { id: 1, code: 'SUP-001', companyName: 'Bidco Africa Ltd', contactPerson: 'David Ochieng', phone: '+254 712 345 678', email: 'sales@bidco.co.ke', kraPin: 'P012345678X', paymentTerms: 'Net 30', approvalStatus: 'APPROVED' },
+        { id: 2, code: 'SUP-002', companyName: 'Brookside Dairies', contactPerson: 'Mary Wanjiku', phone: '+254 722 987 654', email: 'orders@brookside.co.ke', kraPin: 'P098765432Y', paymentTerms: 'Net 15', approvalStatus: 'APPROVED' },
+        { id: 3, code: 'SUP-003', companyName: 'Kapa Oil Refineries', contactPerson: 'Peter Kamau', phone: '+254 733 112 233', email: 'info@kapa.co.ke', kraPin: 'P055555555Z', paymentTerms: 'Cash on Delivery', approvalStatus: 'PENDING' },
+      ]);
+      setLoading(false);
+    }, 600);
+  }, []);
 
-  const handleAddSupplier = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      setIsSubmitting(true);
-      const res = await api.post('/suppliers', newSupplier);
-      const created = res.data?.data || res.data;
-      
-      if (created) {
-        setSuppliers([created, ...suppliers]);
-      } else {
-        const refresh = await api.get('/suppliers');
-        setSuppliers(refresh.data?.data || refresh.data || []);
-      }
-      
-      setIsModalOpen(false);
-      setNewSupplier({ name: '', contactPerson: '', email: '', phone: '', category: 'Beverages' });
-    } catch (error) {
-      console.error('Failed to add supplier', error);
-      alert('Failed to add supplier. Please try again.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleDeleteSupplier = async (supplier: Supplier) => {
-    const confirmed = window.confirm(`Are you sure you want to delete ${supplier.name}?`);
-    if (!confirmed) return;
-
-    setProcessingId(supplier.id);
-    try {
-      await api.delete(`/suppliers/${supplier.id}`);
-      setSuppliers(suppliers.filter(s => s.id !== supplier.id));
-    } catch (error: any) {
-      console.error('Failed to delete supplier:', error);
-      const status = error.response?.status;
-      
-      if (status === 409) {
-        alert(`Action Denied: Cannot delete "${supplier.name}" because they are linked to existing inventory or purchase orders.`);
-      } else {
-        alert('Error: Could not delete supplier. They may be locked by database constraints.');
-      }
-    } finally {
-      if (processingId === supplier.id) setProcessingId(null);
-    }
-  };
-
-  if (!isMounted) {
-    return (
-      <div className="flex justify-center items-center min-h-[100dvh] w-full bg-slate-50">
-        <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
-      </div>
-    );
-  }
-
-  const filtered = suppliers.filter(s => 
-    (s?.name || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
-    (s?.contactPerson || '').toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredSuppliers = suppliers.filter(s => 
+    s.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    s.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    s.contactPerson.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
     <div className="w-full min-h-[100dvh] bg-slate-50 overflow-x-hidden">
-      <div className="max-w-[1920px] mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10 space-y-6 sm:space-y-8 lg:space-y-10">
+      <div className="max-w-[1920px] mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10 space-y-6">
         
-        {/* Responsive Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex-1 min-w-0">
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-slate-900 flex items-center gap-3 truncate">
-              <div className="p-2.5 sm:p-3 bg-blue-100 rounded-xl sm:rounded-2xl text-blue-600 shrink-0">
-                <Truck className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8" />
-              </div>
-              <span className="truncate">Supplier Directory</span>
-            </h2>
-            <p className="mt-2 text-sm sm:text-base lg:text-lg text-slate-500 font-medium max-w-3xl">
-              Manage vendor contact details, categories, and supply chains.
-            </p>
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white p-6 sm:p-8 rounded-2xl lg:rounded-3xl shadow-sm border border-slate-200">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 flex items-center gap-3">
+              <Truck className="h-7 w-7 text-blue-600 hidden sm:block" /> Approved Suppliers
+            </h1>
+            <p className="text-slate-500 text-sm mt-2 font-medium sm:ml-10">Manage wholesale vendors, contact details, and procurement compliance status.</p>
           </div>
-          <div className="shrink-0 mt-2 sm:mt-0 w-full sm:w-auto">
-            <button 
-              onClick={() => setIsModalOpen(true)} 
-              className="flex items-center justify-center w-full sm:w-auto rounded-xl sm:rounded-2xl bg-blue-600 px-5 sm:px-6 py-3.5 sm:py-4 text-sm sm:text-base font-bold text-white shadow-sm hover:bg-blue-500 hover:shadow-md transition-all active:scale-[0.98] touch-manipulation"
-            >
-              <Plus className="mr-2 h-5 w-5 shrink-0" /> Add Supplier
-            </button>
+          <Link 
+            href="/dashboard/suppliers/new"
+            className="w-full lg:w-auto px-6 py-3.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl shadow-md shadow-blue-600/20 transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
+          >
+            <Plus className="h-5 w-5" /> Register New Supplier
+          </Link>
+        </div>
+
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200">
+          <div className="relative w-full sm:max-w-md">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+            <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Search by supplier name, code, or contact..." className="w-full pl-11 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:ring-2 focus:ring-blue-600 outline-none bg-slate-50/50 transition-all" />
           </div>
         </div>
 
-        {/* Main Content Area */}
-        <div className="bg-white rounded-2xl lg:rounded-3xl shadow-sm ring-1 ring-slate-200 overflow-hidden flex flex-col w-full">
-          
-          {/* Edge-to-edge Search Bar */}
-          <div className="p-4 sm:p-5 lg:p-6 border-b border-slate-100 bg-slate-50/50 w-full">
-            <div className="relative w-full max-w-2xl">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search suppliers by company name or contact..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="w-full pl-12 pr-4 py-3 sm:py-3.5 bg-white border border-slate-200 rounded-xl sm:rounded-2xl focus:ring-2 focus:ring-blue-600 focus:border-blue-600 text-sm sm:text-base outline-none transition-all shadow-sm placeholder:text-slate-400"
-              />
-            </div>
-          </div>
-
-          {isLoading ? (
-            <div className="flex justify-center items-center h-[40vh] w-full">
-              <Loader2 className="h-10 w-10 lg:h-12 lg:w-12 animate-spin text-blue-600" />
-            </div>
-          ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-[40vh] text-slate-500 p-6 text-center">
-              <div className="h-20 w-20 lg:h-24 lg:w-24 bg-slate-50 rounded-full flex items-center justify-center mb-4 lg:mb-6 shadow-inner border border-slate-100">
-                <Truck className="h-10 w-10 lg:h-12 lg:w-12 text-slate-300" />
-              </div>
-              <p className="text-lg lg:text-xl font-bold text-slate-700">No suppliers found</p>
-              <p className="mt-2 text-sm lg:text-base text-slate-400">Try adjusting your search or add a new supplier.</p>
-            </div>
-          ) : (
-            <div className="w-full">
-              {/* MOBILE/TABLET VIEW */}
-              <div className="block md:hidden divide-y divide-slate-100">
-                {filtered.map(sup => (
-                  <div key={sup.id} className="p-4 sm:p-5 hover:bg-slate-50/80 transition-colors space-y-3">
-                    <div className="flex justify-between items-start gap-3">
-                      <div className="min-w-0 flex-1">
-                        <h4 className="text-base font-bold text-slate-900 truncate">{sup.name}</h4>
-                        <p className="text-sm text-slate-600 flex items-center gap-1.5 mt-1 font-medium truncate">
-                          <User className="h-3.5 w-3.5 text-slate-400 shrink-0" /> {sup.contactPerson}
-                        </p>
-                      </div>
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20 shrink-0">
-                        {sup.category || 'General'}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                      <div className="space-y-1.5 text-sm text-slate-500 flex-1 min-w-0 pr-3">
-                        <p className="flex items-center gap-2 truncate">
-                          <Phone className="h-4 w-4 text-slate-400 shrink-0" /> {sup.phone}
-                        </p>
-                        <p className="flex items-center gap-2 truncate">
-                          <Mail className="h-4 w-4 text-slate-400 shrink-0" /> {sup.email || '—'}
-                        </p>
-                      </div>
-                      <button 
-                        onClick={() => handleDeleteSupplier(sup)}
-                        disabled={processingId === sup.id}
-                        className="p-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-colors disabled:opacity-50 shrink-0"
-                      >
-                        {processingId === sup.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* DESKTOP VIEW */}
-              <table className="hidden md:table min-w-full divide-y divide-slate-200">
-                <thead className="bg-slate-50/80">
-                  <tr>
-                    <th className="py-4 pl-6 lg:pl-8 pr-3 text-left text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider">
-                      Supplier Name
-                    </th>
-                    <th className="px-3 py-4 text-left text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider">
-                      Contact Person
-                    </th>
-                    <th className="px-3 py-4 text-left text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider">
-                      Category
-                    </th>
-                    <th className="px-3 py-4 text-left text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider">
-                      Phone & Email
-                    </th>
-                    <th className="px-3 py-4 text-right text-xs lg:text-sm font-bold text-slate-500 uppercase tracking-wider pr-6 lg:pr-8">
-                      Action
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 bg-white">
-                  {filtered.map(sup => (
-                    <tr key={sup.id} className="hover:bg-slate-50/80 transition-colors group">
-                      <td className="py-4 pl-6 lg:pl-8 pr-3 text-sm lg:text-base font-bold text-slate-900 align-middle">
-                        {sup.name}
+        <div className="bg-white rounded-2xl lg:rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="w-full overflow-x-auto custom-scrollbar">
+            <table className="w-full min-w-[1000px] divide-y divide-slate-100 text-left">
+              <thead className="bg-slate-50/80">
+                <tr>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Supplier & Code</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Contact Info</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">KRA PIN</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Payment Terms</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-sm">
+                {loading ? (
+                  <tr><td colSpan={5} className="px-6 py-16 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto text-blue-600" /></td></tr>
+                ) : (
+                  filteredSuppliers.map((supplier) => (
+                    <tr key={supplier.id} className="hover:bg-slate-50/80 transition-colors group">
+                      <td className="px-6 py-4">
+                        <p className="font-bold text-slate-900">{supplier.companyName}</p>
+                        <p className="text-xs text-slate-500 font-mono mt-0.5">{supplier.code}</p>
                       </td>
-                      <td className="px-3 py-4 text-sm lg:text-base text-slate-600 font-medium align-middle">
-                        <span className="inline-flex items-center gap-2">
-                          <User className="h-4 w-4 text-slate-400 shrink-0" /> {sup.contactPerson}
+                      <td className="px-6 py-4">
+                        <p className="font-semibold text-slate-800">{supplier.contactPerson}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">{supplier.phone} • {supplier.email}</p>
+                      </td>
+                      <td className="px-6 py-4 font-mono text-slate-600 text-xs font-medium">{supplier.kraPin}</td>
+                      <td className="px-6 py-4 text-slate-700 font-bold">{supplier.paymentTerms}</td>
+                      <td className="px-6 py-4">
+                        <span className={`px-3 py-1 inline-flex text-xs font-bold rounded-full border ${
+                          supplier.approvalStatus === 'APPROVED' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                          supplier.approvalStatus === 'SUSPENDED' ? 'bg-red-50 text-red-700 border-red-200' :
+                          'bg-amber-50 text-amber-700 border-amber-200'
+                        }`}>
+                          {supplier.approvalStatus}
                         </span>
-                      </td>
-                      <td className="px-3 py-4 text-sm align-middle">
-                        <span className="inline-flex items-center px-3 py-1 rounded-lg text-xs lg:text-sm font-bold bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20">
-                          {sup.category || 'General'}
-                        </span>
-                      </td>
-                      <td className="px-3 py-4 text-sm lg:text-base text-slate-500 align-middle">
-                        <div className="flex flex-col gap-1">
-                          <span className="inline-flex items-center gap-2">
-                            <Phone className="h-4 w-4 text-slate-400 shrink-0" /> {sup.phone}
-                          </span>
-                          {sup.email && (
-                            <span className="inline-flex items-center gap-2">
-                              <Mail className="h-4 w-4 text-slate-400 shrink-0" /> {sup.email}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-3 py-4 text-sm text-right pr-6 lg:pr-8 align-middle">
-                        <button 
-                          onClick={() => handleDeleteSupplier(sup)}
-                          disabled={processingId === sup.id}
-                          className="p-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-colors inline-flex items-center disabled:opacity-50"
-                          title="Delete Supplier"
-                        >
-                          {processingId === sup.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
-                        </button>
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        {/* Responsive Modal */}
-        {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-6 overflow-y-auto custom-scrollbar">
-            <div className="bg-white w-full max-w-lg lg:max-w-xl rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col my-auto">
-              
-              <div className="flex items-center justify-between p-5 sm:p-6 lg:p-8 border-b border-slate-100 bg-white sticky top-0 z-10">
-                <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900 flex items-center gap-3">
-                  <Truck className="h-6 w-6 text-blue-600" /> Add New Supplier
-                </h3>
-                <button 
-                  onClick={() => setIsModalOpen(false)} 
-                  disabled={isSubmitting}
-                  className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-2 rounded-full transition-colors disabled:opacity-50"
-                >
-                  <X className="h-6 w-6" />
-                </button>
-              </div>
-              
-              <form onSubmit={handleAddSupplier} className="p-5 sm:p-6 lg:p-8 space-y-5 sm:space-y-6">
-                <div>
-                  <label className="block text-sm sm:text-base font-bold text-slate-700 mb-2">Company Name</label>
-                  <input 
-                    required 
-                    type="text" 
-                    value={newSupplier.name} 
-                    onChange={e => setNewSupplier({...newSupplier, name: e.target.value})} 
-                    disabled={isSubmitting}
-                    className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all text-sm sm:text-base shadow-sm placeholder:text-slate-400 disabled:opacity-50 disabled:bg-slate-50" 
-                    placeholder="e.g., Coca-Cola Beverages" 
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm sm:text-base font-bold text-slate-700 mb-2">Contact Person</label>
-                  <input 
-                    required 
-                    type="text" 
-                    value={newSupplier.contactPerson} 
-                    onChange={e => setNewSupplier({...newSupplier, contactPerson: e.target.value})} 
-                    disabled={isSubmitting}
-                    className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all text-sm sm:text-base shadow-sm placeholder:text-slate-400 disabled:opacity-50 disabled:bg-slate-50" 
-                    placeholder="e.g., James Mwangi" 
-                  />
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
-                  <div>
-                    <label className="block text-sm sm:text-base font-bold text-slate-700 mb-2">Phone</label>
-                    <input 
-                      required 
-                      type="text" 
-                      value={newSupplier.phone} 
-                      onChange={e => setNewSupplier({...newSupplier, phone: e.target.value})} 
-                      disabled={isSubmitting}
-                      className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all text-sm sm:text-base shadow-sm placeholder:text-slate-400 disabled:opacity-50 disabled:bg-slate-50" 
-                      placeholder="+254 700..." 
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm sm:text-base font-bold text-slate-700 mb-2">Category</label>
-                    <input 
-                      type="text" 
-                      value={newSupplier.category} 
-                      onChange={e => setNewSupplier({...newSupplier, category: e.target.value})} 
-                      disabled={isSubmitting}
-                      className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all text-sm sm:text-base shadow-sm placeholder:text-slate-400 disabled:opacity-50 disabled:bg-slate-50" 
-                      placeholder="Beverages" 
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm sm:text-base font-bold text-slate-700 mb-2">Email Address</label>
-                  <input 
-                    type="email" 
-                    value={newSupplier.email} 
-                    onChange={e => setNewSupplier({...newSupplier, email: e.target.value})} 
-                    disabled={isSubmitting}
-                    className="w-full rounded-xl sm:rounded-2xl border border-slate-200 py-3 sm:py-3.5 px-4 text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all text-sm sm:text-base shadow-sm placeholder:text-slate-400 disabled:opacity-50 disabled:bg-slate-50" 
-                    placeholder="supplier@example.com" 
-                  />
-                </div>
-                
-                <div className="pt-6 border-t border-slate-100 mt-8 flex flex-col sm:flex-row justify-end gap-3 sm:gap-4">
-                  <button 
-                    type="button" 
-                    onClick={() => setIsModalOpen(false)} 
-                    disabled={isSubmitting}
-                    className="w-full sm:w-auto px-6 py-3.5 sm:py-3 text-sm sm:text-base font-bold text-slate-700 hover:bg-slate-100 rounded-xl sm:rounded-2xl transition-colors disabled:opacity-50"
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    type="submit" 
-                    disabled={isSubmitting}
-                    className="w-full sm:w-auto px-6 py-3.5 sm:py-3 text-sm sm:text-base font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl sm:rounded-2xl flex items-center justify-center transition-colors shadow-md shadow-blue-600/20 disabled:opacity-50"
-                  >
-                    {isSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <CheckCircle2 className="mr-2 h-5 w-5" />} Save Supplier
-                  </button>
-                </div>
-              </form>
-              
-            </div>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
-        )}
-
+        </div>
       </div>
     </div>
   );
