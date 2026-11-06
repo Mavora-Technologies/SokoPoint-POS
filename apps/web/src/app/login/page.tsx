@@ -1,4 +1,3 @@
-//apps/web/src/app/login/page.tsx
 'use client';
 
 import { useState } from 'react';
@@ -19,13 +18,11 @@ export default function LoginPage() {
     e.preventDefault();
     setErrorMessage('');
 
-    // Strict validation: check if email contains '@'
     if (!email.includes('@')) {
       setErrorMessage('Please enter a valid email address containing "@".');
       return;
     }
 
-    // Strict validation: check if password is provided and not empty
     if (!password || password.trim() === '') {
       setErrorMessage('Password cannot be empty.');
       return;
@@ -34,10 +31,8 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      // Secure call to your Express backend auth endpoint
       const response = await api.post('/auth/login', { email, password });
       
-      // Extract token and user safely supporting both wrapped and direct payloads
       const responseBody = response.data;
       const token = responseBody?.data?.token || responseBody?.token;
       const user = responseBody?.data?.user || responseBody?.user;
@@ -48,11 +43,10 @@ export default function LoginPage() {
         return;
       }
 
-      // Securely store the token and user data matching your AuthContext layout
-      localStorage.setItem('vora_token', token);
-      localStorage.setItem('vora_user', JSON.stringify(user));
+      // FIXED: Keys now perfectly match what DashboardLayout is looking for
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
       
-      // Redirect to dashboard on success
       router.push('/dashboard');
     } catch (error: any) {
       console.error('Login failed:', error);
@@ -145,7 +139,10 @@ export default function LoginPage() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="block text-sm font-bold text-slate-700">Password</label>
-                <a href="#" className="text-sm font-semibold text-green-600 hover:text-green-500">Forgot password?</a>
+                {/* FIXED: Now routes to an actual forgot-password page */}
+                <Link href="/forgot-password" className="text-sm font-semibold text-green-600 hover:text-green-500">
+                  Forgot password?
+                </Link>
               </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -183,7 +180,10 @@ export default function LoginPage() {
           <div className="mt-8 pt-8 border-t border-slate-100 text-center lg:text-left">
             <p className="text-sm text-slate-500">
               Need to register a new business?{' '}
-              <a href="#" className="font-bold text-green-600 hover:text-green-500 transition-colors">Contact Sales</a>
+              {/* FIXED: Now routes to an actual register page */}
+              <Link href="/register" className="font-bold text-green-600 hover:text-green-500 transition-colors">
+                Create an account
+              </Link>
             </p>
           </div>
         </div>
