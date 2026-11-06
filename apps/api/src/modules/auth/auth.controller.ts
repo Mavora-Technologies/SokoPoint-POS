@@ -24,7 +24,7 @@ export class AuthController {
 
       const hashedPassword = await bcrypt.hash(password, 10);
       
-      // 2. Actually save the user to the database
+      // 2. Save the user to the database
       const newUser = await (prisma as any).user.create({
         data: {
           email,
@@ -36,10 +36,34 @@ export class AuthController {
         }
       });
 
+      // 3. Generate token for instant auto-login
+      const token = jwt.sign(
+        { userId: newUser.id, email: newUser.email, role: newUser.role || 'ADMIN' },
+        process.env.AUTH_SECRET || 'super_secret_auth_key_vora_pos_2026',
+        { expiresIn: '7d' }
+      );
+
+      const isProduction = process.env.NODE_ENV === 'production';
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: isProduction ? 'none' : 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000
+      });
+
       return res.status(201).json({
         success: true,
         message: 'Business registered successfully',
-        data: { email: newUser.email, businessName, name: `${newUser.firstName} ${newUser.lastName}` }
+        data: { 
+          token,
+          user: {
+            id: newUser.id,
+            email: newUser.email,
+            name: `${newUser.firstName} ${newUser.lastName}`.trim(),
+            businessName,
+            role: newUser.role
+          }
+        }
       });
     } catch (error: any) {
       return res.status(400).json({ success: false, message: error.message || 'Registration failed' });

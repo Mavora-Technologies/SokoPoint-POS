@@ -48,10 +48,15 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      // Secure call to Express backend registration endpoint
+      // Split fullName into firstName and lastName for the backend
+      const nameParts = formData.fullName.trim().split(' ');
+      const firstName = nameParts[0];
+      const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+
       const response = await api.post('/auth/register', { 
         businessName: formData.businessName,
-        fullName: formData.fullName,
+        firstName,
+        lastName,
         email: formData.email, 
         password: formData.password 
       });
@@ -61,12 +66,10 @@ export default function RegisterPage() {
       const user = responseBody?.data?.user || responseBody?.user;
 
       if (token && user) {
-        // Automatically log the user in if the API returns auth credentials
         localStorage.setItem('token', token);
         localStorage.setItem('user', JSON.stringify(user));
         router.push('/dashboard');
       } else {
-        // Otherwise, show success and route to login
         setSuccessMessage('Business account created successfully! Redirecting to login...');
         setTimeout(() => router.push('/login'), 2000);
       }
@@ -83,7 +86,7 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen w-full flex bg-white selection:bg-green-900 selection:text-white font-sans">
       
-      {/* LEFT PANEL: Branding & Visuals */}
+      {/* LEFT PANEL */}
       <div className="hidden lg:flex w-1/2 relative bg-slate-900 flex-col justify-between overflow-hidden">
         <div className="absolute inset-0 z-0">
           <img 
@@ -117,7 +120,7 @@ export default function RegisterPage() {
         </div>
       </div>
 
-      {/* RIGHT PANEL: Secure Registration Form */}
+      {/* RIGHT PANEL */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12 lg:p-16 xl:p-24 relative bg-slate-50 lg:bg-white overflow-y-auto custom-scrollbar">
         <div className="absolute inset-0 z-0 lg:hidden bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]"></div>
 
