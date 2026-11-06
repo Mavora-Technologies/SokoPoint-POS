@@ -15,14 +15,31 @@ export class AuthController {
       }
 
       const { email, password, businessName, firstName, lastName } = validation.data;
+      
+      // 1. Check if user already exists
+      const existingUser = await (prisma as any).user.findUnique({ where: { email } });
+      if (existingUser) {
+        return res.status(400).json({ success: false, message: 'Email is already registered' });
+      }
+
       const hashedPassword = await bcrypt.hash(password, 10);
       
-      // TODO: Save user to database here with prisma.user.create(...)
+      // 2. Actually save the user to the database
+      const newUser = await (prisma as any).user.create({
+        data: {
+          email,
+          password: hashedPassword,
+          firstName,
+          lastName,
+          businessName,
+          role: 'ADMIN', // Default role for the first user
+        }
+      });
 
       return res.status(201).json({
         success: true,
         message: 'Business registered successfully',
-        data: { email, businessName, name: `${firstName} ${lastName}` }
+        data: { email: newUser.email, businessName, name: `${newUser.firstName} ${newUser.lastName}` }
       });
     } catch (error: any) {
       return res.status(400).json({ success: false, message: error.message || 'Registration failed' });
@@ -38,24 +55,29 @@ export class AuthController {
 
       const { email, password } = validation.data;
 
-      // 1. Find user in the database (safely cast to bypass pre-generation type sync lag)
       const user = await (prisma as any).user.findUnique({ where: { email } });
       if (!user) {
         return res.status(401).json({ success: false, message: 'Invalid email or password' });
       }
 
-      // 2. Strictly compare the entered password with the stored hash
       const isPasswordValid = await bcrypt.compare(password, user.password);
       if (!isPasswordValid) {
         return res.status(401).json({ success: false, message: 'Invalid email or password' });
       }
 
-      // 3. Generate token only if password matches
       const token = jwt.sign(
         { userId: user.id, email: user.email, role: user.role || 'ADMIN' },
         process.env.AUTH_SECRET || 'super_secret_auth_key_vora_pos_2026',
         { expiresIn: '7d' }
       );
+
+      const isProduction = process.env.NODE_ENV === 'production';
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: isProduction ? 'none' : 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000
+      });
 
       return res.status(200).json({
         success: true,
@@ -73,5 +95,19 @@ export class AuthController {
     } catch (error: any) {
       return res.status(401).json({ success: false, message: error.message || 'Authentication failed' });
     }
+  }
+
+  static async logout(req: Request, res: Response) {
+    const isProduction = process.env.NODE_ENV === 'production';
+    res.clearCookie('token', {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax',
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Logged out successfully'
+    });
   }
 }
