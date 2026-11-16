@@ -9,14 +9,19 @@ const prisma = new PrismaClient();
 export class AuthController {
   static async register(req: Request, res: Response) {
     try {
+      console.log("[AUTH] Incoming register request:", req.body);
+      
       const validation = registerSchema.safeParse(req.body);
       if (!validation.success) {
+        console.log("[AUTH] Validation failed:", validation.error.format());
         return res.status(400).json({ success: false, errors: validation.error.format() });
       }
 
-      const { email, password, businessName, firstName, lastName } = validation.data;
+      let { email, password, businessName, firstName, lastName } = validation.data;
       
-      // 1. Check if user already exists
+      // SANITIZE: Force email to lowercase and remove accidental spaces
+      email = email.toLowerCase().trim();
+      
       const existingUser = await (prisma as any).user.findUnique({ where: { email } });
       if (existingUser) {
         return res.status(400).json({ success: false, message: 'Email is already registered' });
@@ -24,7 +29,6 @@ export class AuthController {
 
       const hashedPassword = await bcrypt.hash(password, 10);
       
-      // 2. Save the user to the database (Using your Prisma schema)
       const newUser = await (prisma as any).user.create({
         data: {
           email,
@@ -32,11 +36,12 @@ export class AuthController {
           firstName,
           lastName,
           businessName,
-          role: 'ADMIN', // Default role for the first user
+          role: 'ADMIN',
         }
       });
 
-      // 3. Generate token for instant auto-login & Multi-user isolation
+      console.log(`[AUTH] Successfully registered new user: ${email}`);
+
       const token = jwt.sign(
         { 
           userId: newUser.id, 
@@ -71,7 +76,8 @@ export class AuthController {
         }
       });
     } catch (error: any) {
-      return res.status(400).json({ success: false, message: error.message || 'Registration failed' });
+      console.error("[AUTH] Registration error:", error);
+      return res.status(500).json({ success: false, message: error.message || 'Registration failed' });
     }
   }
 
@@ -82,17 +88,25 @@ export class AuthController {
         return res.status(400).json({ success: false, errors: validation.error.format() });
       }
 
-      const { email, password } = validation.data;
+      let { email, password } = validation.data;
+      
+      // SANITIZE: Match the format saved during registration
+      email = email.toLowerCase().trim();
 
       const user = await (prisma as any).user.findUnique({ where: { email } });
+      
       if (!user) {
+        console.log(`[AUTH-LOGIN] Failed: User not found for email -> ${email}`);
         return res.status(401).json({ success: false, message: 'Invalid email or password' });
       }
 
       const isPasswordValid = await bcrypt.compare(password, user.password);
       if (!isPasswordValid) {
+        console.log(`[AUTH-LOGIN] Failed: Invalid password for email -> ${email}`);
         return res.status(401).json({ success: false, message: 'Invalid email or password' });
       }
+
+      console.log(`[AUTH-LOGIN] Success: Logged in -> ${email}`);
 
       const token = jwt.sign(
         { 
@@ -128,7 +142,8 @@ export class AuthController {
         },
       });
     } catch (error: any) {
-      return res.status(401).json({ success: false, message: error.message || 'Authentication failed' });
+      console.error("[AUTH-LOGIN] Server Error:", error);
+      return res.status(500).json({ success: false, message: error.message || 'Authentication failed due to server error' });
     }
   }
 
