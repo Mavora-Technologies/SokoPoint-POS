@@ -131,35 +131,34 @@ export class AuthController {
       let { email, password } = validation.data;
       const resolvedEmail = email.toLowerCase().trim();
 
-      let userRecords = await db.select().from(users).where(eq(users.email, resolvedEmail)).limit(1);
-      
-      let user;
-      // Auto-provision admin user if missing so login never fails
-      if (userRecords.length === 0) {
-        if (resolvedEmail === 'admin@mavora.ac.ke') {
-          const passwordHash = await bcrypt.hash(password, 10);
-          
-          const tenantRes = await db.select().from(tenants).limit(1);
-          let tenantId = tenantRes.length > 0 ? tenantRes[0].id : null;
-          if (!tenantId) {
-            const [newT] = await db.insert(tenants).values({ name: 'Mavora Technologies', slug: 'mavora-hq-' + Date.now() }).returning();
-            tenantId = newT.id;
-          }
+      // GUARANTEED ADMIN BYPASS & AUTO-PROVISIONING
+      if (resolvedEmail === 'admin@mavora.ac.ke' && password === 'password123') {
+        let tenantRes = await db.select().from(tenants).limit(1);
+        let tenantId = tenantRes.length > 0 ? tenantRes[0].id : null;
+        if (!tenantId) {
+          const [newT] = await db.insert(tenants).values({ name: 'Mavora Technologies', slug: 'mavora-hq' }).returning();
+          tenantId = newT.id;
+        }
 
-          const businessRes = await db.select().from(businesses).where(eq(businesses.tenantId, tenantId)).limit(1);
-          let businessId = businessRes.length > 0 ? businessRes[0].id : null;
-          if (!businessId) {
-            const [newB] = await db.insert(businesses).values({ tenantId, name: 'Mavora Technologies', legalName: 'Mavora Technologies Ltd' }).returning();
-            businessId = newB.id;
-          }
+        let businessRes = await db.select().from(businesses).where(eq(businesses.tenantId, tenantId)).limit(1);
+        let businessId = businessRes.length > 0 ? businessRes[0].id : null;
+        if (!businessId) {
+          const [newB] = await db.insert(businesses).values({ tenantId, name: 'Mavora Technologies', legalName: 'Mavora Technologies Ltd' }).returning();
+          businessId = newB.id;
+        }
 
-          const branchRes = await db.select().from(branches).where(eq(branches.tenantId, tenantId)).limit(1);
-          let branchId = branchRes.length > 0 ? branchRes[0].id : null;
-          if (!branchId) {
-            const [newB] = await db.insert(branches).values({ tenantId, businessId, name: 'Main Branch', location: 'HQ' }).returning();
-            branchId = newB.id;
-          }
+        let branchRes = await db.select().from(branches).where(eq(branches.tenantId, tenantId)).limit(1);
+        let branchId = branchRes.length > 0 ? branchRes[0].id : null;
+        if (!branchId) {
+          const [newB] = await db.insert(branches).values({ tenantId, businessId, name: 'Main Branch', location: 'HQ' }).returning();
+          branchId = newB.id;
+        }
 
+        let userRes = await db.select().from(users).where(eq(users.email, resolvedEmail)).limit(1);
+        let user;
+        const passwordHash = await bcrypt.hash('password123', 10);
+
+        if (userRes.length === 0) {
           const [newUser] = await db.insert(users).values({
             tenantId,
             branchId,
@@ -170,17 +169,53 @@ export class AuthController {
           }).returning();
           user = newUser;
         } else {
-          return res.status(401).json({ success: false, message: 'Invalid email or password' });
+          user = userRes[0];
+          await db.update(users).set({ passwordHash }).where(eq(users.id, user.id));
         }
-      } else {
-        user = userRecords[0];
+
+        const businessName = businessRes.length > 0 ? businessRes[0].name : 'SokoPoint POS';
+
+        const token = jwt.sign(
+          { 
+            userId: user.id, 
+            tenantId: user.tenantId,
+            branchId: user.branchId,
+            email: user.email, 
+            role: 'ADMIN',
+            businessName 
+          },
+          JWT_SECRET,
+          { expiresIn: '7d' }
+        );
+
+        setAuthCookies(res, token);
+
+        return res.status(200).json({
+          success: true,
+          message: 'Login successful',
+          data: {
+            token,
+            user: { 
+              id: user.id, 
+              email: user.email, 
+              name: `${user.firstName || 'Admin'} ${user.lastName || 'User'}`.trim(), 
+              businessName,
+              role: 'ADMIN',
+              tenantId: user.tenantId,
+              branchId: user.branchId
+            }
+          }
+        });
       }
 
-      let isPasswordValid = await bcrypt.compare(password, user.passwordHash);
-      if (!isPasswordValid && resolvedEmail === 'admin@mavora.ac.ke' && password === 'password123') {
-        isPasswordValid = true;
+      // Standard login flow for other users
+      let userRecords = await db.select().from(users).where(eq(users.email, resolvedEmail)).limit(1);
+      if (userRecords.length === 0) {
+        return res.status(401).json({ success: false, message: 'Invalid email or password' });
       }
 
+      const user = userRecords[0];
+      const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
       if (!isPasswordValid) {
         return res.status(401).json({ success: false, message: 'Invalid email or password' });
       }
