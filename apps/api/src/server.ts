@@ -1,18 +1,16 @@
 import { createApp } from './app';
 import { env } from './config/env';
-import { prisma } from './db/client';
 
 const app = createApp();
-const PORT = parseInt(env.PORT, 10);
+const PORT = env.PORT ? parseInt(env.PORT, 10) : 5000;
 
+// Only spin up the manual listener if we are running locally.
+// Vercel Serverless Functions just need the 'export default app' below.
 if (process.env.NODE_ENV !== 'production') {
   const startServer = async () => {
     try {
-      await prisma.$connect();
-      console.log('Connected to database via Prisma successfully.');
-
       app.listen(PORT, () => {
-        console.log(`Vora-POS API server running on port ${PORT} in ${env.NODE_ENV} mode`);
+        console.log(`Vora-POS API server running on port ${PORT} in ${env.NODE_ENV || 'development'} mode`);
       });
     } catch (error) {
       console.error('Failed to start server:', error);
