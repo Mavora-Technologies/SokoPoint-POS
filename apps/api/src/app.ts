@@ -41,7 +41,6 @@ export const createApp = () => {
       'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Tenant-ID, tenantid, tenant-id'
     );
     
-    // Instantly return 200 for Preflight OPTIONS requests
     if (req.method === 'OPTIONS') {
        res.status(200).end();
        return;

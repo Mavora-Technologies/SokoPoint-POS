@@ -1,6 +1,5 @@
 import { Request, Response } from 'express';
-// FIX: Corrected relative path from src/modules/auth/ to src/db/
-import { db } from '../../db'; 
+import { db } from '../../db';
 import { tenants, businesses, branches, users } from '../../db/schema';
 import { eq } from 'drizzle-orm';
 import bcrypt from 'bcrypt';
@@ -10,7 +9,6 @@ import { z } from 'zod';
 const JWT_SECRET = process.env.AUTH_SECRET || 'super_secret_auth_key_vora_pos_2026';
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
-// Inline validation schemas
 const loginSchema = z.object({
   email: z.string().email("Invalid email format"),
   password: z.string().min(6, "Password must be at least 6 characters")
@@ -29,7 +27,7 @@ const setAuthCookies = (res: Response, token: string) => {
     httpOnly: true,
     secure: IS_PRODUCTION,
     sameSite: (IS_PRODUCTION ? 'none' : 'lax') as 'none' | 'lax',
-    maxAge: 7 * 24 * 60 * 60 * 1000, 
+    maxAge: 7 * 24 * 60 * 60 * 1000,
   };
   res.cookie('token', token, cookieOptions);
 };
