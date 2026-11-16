@@ -18,10 +18,12 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ isSidebarOpen, setSidebarOpen, pathname, logout, userRole = 'cashier' }: SidebarProps) {
-  // Default to open if we are currently inside the inventory section
-  const [procurementOpen, setProcurementOpen] = useState(pathname?.startsWith('/dashboard/inventory') || pathname?.startsWith('/dashboard/procurement') || pathname?.startsWith('/dashboard/purchas'));
+  
+  // Safe initialization for null paths
+  const [procurementOpen, setProcurementOpen] = useState(
+    pathname ? (pathname.startsWith('/dashboard/inventory') || pathname.startsWith('/dashboard/procurement') || pathname.startsWith('/dashboard/purchas')) : false
+  );
 
-  // Enterprise SVG Icons mapping exactly to the 14 sub-modules
   const getIcon = (name: string) => {
     switch (name) {
       case 'Inventory Central': return <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>;
@@ -118,7 +120,7 @@ export default function Sidebar({ isSidebarOpen, setSidebarOpen, pathname, logou
         
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto custom-scrollbar">
           {navItems.map((item) => {
-            const isActive = pathname === item.href || (item.href !== '/dashboard' && !item.subItems && pathname?.startsWith(`${item.href}`));
+            const isActive = pathname === item.href || (item.href !== '/dashboard' && !item.subItems && !!pathname?.startsWith(`${item.href}`));
             const isProcurementGroup = item.name === 'Inventory & Procurement';
             const isChildActive = isProcurementGroup && item.subItems?.some(sub => pathname === sub.href);
 

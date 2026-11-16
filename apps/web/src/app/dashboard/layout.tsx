@@ -4,12 +4,14 @@ import { useState, useEffect, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Sidebar from './Sidebar';
-import { ShoppingBag, ChevronDown, Bell, Store, HelpCircle, LogOut, KeyRound, UserCog, X, Building2 } from 'lucide-react';
+import { 
+  Menu, Bell, ShoppingBag, Store, ChevronDown, 
+  UserCog, KeyRound, HelpCircle, LogOut, X, Building2 
+} from 'lucide-react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://sokopoint.vercel.app';
 
-// --- GLOBAL FETCH INTERCEPTOR (Restored from your logic) ---
-if (typeof window !== 'undefined' && !(window as any).__fetchIntercepted) {
+if (typeof window !== 'undefined' && !(window as any).__sokoFetchIntercepted) {
   const originalFetch = window.fetch;
   window.fetch = async (...args) => {
     let [resource, config] = args;
@@ -32,17 +34,17 @@ if (typeof window !== 'undefined' && !(window as any).__fetchIntercepted) {
     }
     return originalFetch(resource, config);
   };
-  (window as any).__fetchIntercepted = true;
+  (window as any).__sokoFetchIntercepted = true;
 }
 
-interface AuthProfile {
-  id?: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  role: string;
-  branchName: string;
-  branchId?: string;
+interface SokoProfile {
+  id: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  name?: string;
+  role?: string;
+  branchName?: string;
   tenantId?: string;
   businessName?: string;
 }
@@ -51,39 +53,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const router = useRouter();
   
-  // Layout State
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
   
-  // Dynamic Auth State
   const [loadingAuth, setLoadingAuth] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
-  const [user, setUser] = useState<AuthProfile | null>(null);
+  
+  const [profile, setProfile] = useState<SokoProfile | null>(null);
   const [userInitials, setUserInitials] = useState<string>('--');
-
-  // Dynamic Modal States
+  
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
-  const [isNameModalOpen, setIsNameModalOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
   const [modalError, setModalError] = useState('');
   const [modalSuccess, setModalSuccess] = useState('');
 
   const [pwdData, setPwdData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [nameData, setNameData] = useState({ firstName: '', lastName: '' });
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-    router.replace('/login');
-  };
-
-  useEffect(() => {
-    document.body.style.overflow = isSidebarOpen || mobileMenuOpen ? 'hidden' : 'unset';
-    return () => { document.body.style.overflow = 'unset'; };
-  }, [isSidebarOpen, mobileMenuOpen]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -95,52 +82,82 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // --- DYNAMIC SESSION HYDRATION ---
   useEffect(() => {
-    const fetchActiveSession = async () => {
+    document.body.style.overflow = isSidebarOpen ? 'hidden' : 'unset';
+    return () => { document.body.style.overflow = 'unset'; };
+  }, [isSidebarOpen]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const verifySession = async () => {
       try {
         const token = localStorage.getItem('token');
         if (!token) { handleLogout(); return; }
 
+        document.cookie = `token=${token}; path=/; max-age=604800; SameSite=Lax; ${window.location.protocol === 'https:' ? 'Secure' : ''}`;
+
         const cachedUserStr = localStorage.getItem('user');
-        let userData: AuthProfile | null = null;
+        let userData: SokoProfile | null = null;
 
         if (cachedUserStr) {
-          try { 
-            const parsed = JSON.parse(cachedUserStr);
-            userData = {
-              id: parsed.id,
-              firstName: parsed.firstName || parsed.name?.split(' ')[0] || 'User',
-              lastName: parsed.lastName || parsed.name?.split(' ').slice(1).join(' ') || '',
-              email: parsed.email || '',
-              role: parsed.role || 'ADMIN',
-              branchName: parsed.branchName || 'Main Branch',
-              businessName: parsed.businessName || 'SokoPoint POS',
-              tenantId: parsed.tenantId,
-              branchId: parsed.branchId
-            };
-          } catch (e) {}
+          try { userData = JSON.parse(cachedUserStr); } catch (e) {}
+        }
+
+        try {
+          const res = await fetch(`${API_URL}/api/v1/auth/me`);
+          if (res.ok) {
+            const freshData = await res.json();
+            userData = { ...userData, ...freshData.data };
+            localStorage.setItem('user', JSON.stringify(userData));
+          } else if (res.status === 401 || res.status === 403) {
+            handleLogout(); 
+            return;
+          }
+        } catch (fetchErr) {
+          console.warn("Network error verifying session, relying on cache.");
         }
 
         if (!userData) {
-          setAuthError("Unable to verify secure session. Please sign in again.");
+          setAuthError("Session expired. Please sign in again.");
           setTimeout(handleLogout, 2000);
           return;
         }
         
-        setUser(userData);
-        setUserInitials(`${userData.firstName.charAt(0)}${userData.lastName ? userData.lastName.charAt(0) : ''}`.toUpperCase());
-      } catch (error: any) {
+        if (isMounted) {
+          setProfile(userData);
+          // Safely parse name arrays to prevent slice/split crashes
+          const fName = userData.firstName || (userData.name ? userData.name.split(' ')[0] : 'User');
+          const lName = userData.lastName || (userData.name ? userData.name.split(' ').slice(1).join(' ') : '');
+          setUserInitials(`${fName.charAt(0)}${lName ? lName.charAt(0) : ''}`.toUpperCase());
+        }
+      } catch (error) {
         handleLogout();
       } finally {
-        setLoadingAuth(false);
+        if (isMounted) setLoadingAuth(false);
       }
     };
 
-    fetchActiveSession();
-  }, [router]);
+    verifySession();
+    return () => { isMounted = false; };
+  }, []);
 
-  // --- DYNAMIC MUTATIONS ---
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('tenantId');
+    document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    router.replace('/login');
+  };
+
+  // Safe formatting to prevent .pop() crash on null pathnames
+  const getPageTitle = () => {
+    if (!pathname || pathname === '/dashboard') return 'Executive Overview';
+    const segments = pathname.split('/').filter(Boolean);
+    const last = segments[segments.length - 1];
+    return last ? last.replace(/-/g, ' ') : 'Dashboard';
+  };
+
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
     setModalError(''); setModalSuccess('');
@@ -162,10 +179,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         body: JSON.stringify({ currentPassword: pwdData.currentPassword, newPassword: pwdData.newPassword })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || data.error || 'Failed to update password');
+      if (!res.ok) throw new Error(data.message || 'Failed to update password');
       
-      setModalSuccess('Password successfully updated!');
-      setTimeout(() => { setIsPasswordModalOpen(false); }, 2000);
+      setModalSuccess('Password securely updated!');
+      setTimeout(() => setIsPasswordModalOpen(false), 2000);
     } catch (err: any) {
       setModalError(err.message);
     } finally {
@@ -173,7 +190,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   };
 
-  const handleNameChange = async (e: React.FormEvent) => {
+  const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     setModalError(''); setModalSuccess('');
     setModalLoading(true);
@@ -185,20 +202,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         body: JSON.stringify({ firstName: nameData.firstName, lastName: nameData.lastName })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || data.error || 'Failed to update profile');
+      if (!res.ok) throw new Error(data.message || 'Failed to update profile');
       
       const fName = nameData.firstName.trim();
       const lName = nameData.lastName.trim();
-      setUserInitials(`${fName.charAt(0)}${lName ? lName.charAt(0) : ''}`.toUpperCase());
-
-      if (user) {
-        const updatedProfile = { ...user, firstName: fName, lastName: lName };
-        setUser(updatedProfile);
+      
+      if (profile) {
+        const updatedProfile = { ...profile, firstName: fName, lastName: lName, name: `${fName} ${lName}` };
+        setProfile(updatedProfile);
         localStorage.setItem('user', JSON.stringify(updatedProfile));
+        setUserInitials(`${fName.charAt(0)}${lName ? lName.charAt(0) : ''}`.toUpperCase());
       }
 
-      setModalSuccess('Profile name successfully updated!');
-      setTimeout(() => { setIsNameModalOpen(false); }, 2000);
+      setModalSuccess('Profile successfully updated!');
+      setTimeout(() => setIsProfileModalOpen(false), 2000);
     } catch (err: any) {
       setModalError(err.message);
     } finally {
@@ -206,19 +223,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   };
 
-  const getPageTitle = () => {
-    if (pathname === '/dashboard') return 'Executive Dashboard';
-    const segments = pathname.split('/');
-    const lastSegment = segments[segments.length - 1];
-    return lastSegment.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-  };
-
   if (loadingAuth || authError) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center flex-col gap-5 w-full">
+      <div className="h-screen w-full bg-slate-50 flex items-center justify-center flex-col gap-4">
         {!authError ? (
           <>
-            <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin shadow-sm"></div>
+            <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
             <p className="text-slate-600 font-bold text-sm tracking-wide">Securing Workspace...</p>
           </>
         ) : (
@@ -231,53 +241,75 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
+  // Strictly enforce types before replacing strings to prevent UI crashes
+  const safeRole = profile?.role ? String(profile.role).toLowerCase() : 'cashier';
+  const displayRole = profile?.role ? String(profile.role).toUpperCase().replace(/_/g, ' ') : 'CASHIER';
+  const displayName = profile?.firstName || (profile?.name ? profile.name.split(' ')[0] : 'User');
+  const displayFullName = profile?.name || `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim() || 'User';
+
   return (
     <div className="h-screen w-full bg-slate-50 flex overflow-hidden selection:bg-blue-900 selection:text-white font-sans text-slate-900">
       
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-900/50 z-40 lg:hidden backdrop-blur-sm transition-opacity" 
+          onClick={() => setSidebarOpen(false)} 
+        />
+      )}
+
       <Sidebar 
-        isSidebarOpen={isSidebarOpen || mobileMenuOpen} 
-        setSidebarOpen={mobileMenuOpen ? setMobileMenuOpen : setSidebarOpen} 
+        isSidebarOpen={isSidebarOpen} 
+        setSidebarOpen={setSidebarOpen} 
         pathname={pathname} 
         logout={handleLogout} 
+        userRole={safeRole}
       />
 
       <div className="flex flex-1 flex-col overflow-hidden min-w-0 transition-all duration-300">
-        <header className="flex h-16 xl:h-20 shrink-0 items-center justify-between border-b border-slate-200 bg-white/90 backdrop-blur-md px-4 sm:px-6 lg:px-8 xl:px-10 z-30 shadow-sm">
+        
+        <header className="flex h-16 xl:h-20 shrink-0 items-center justify-between border-b border-slate-200 bg-white/90 backdrop-blur-md px-4 sm:px-6 lg:px-8 z-30 shadow-sm">
           <div className="flex items-center gap-4">
-            <button type="button" className="text-slate-500 hover:text-blue-600 lg:hidden p-2 -ml-2 rounded-xl hover:bg-blue-50 transition-colors" onClick={() => setMobileMenuOpen(true)}>
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="lg:hidden p-2 -ml-2 rounded-xl text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+            >
               <Menu className="h-6 w-6" />
             </button>
-            <h1 className="hidden md:block text-lg xl:text-xl font-extrabold text-slate-900 truncate">
+            <h1 className="hidden md:block text-lg font-extrabold text-slate-900 capitalize truncate">
               {getPageTitle()}
             </h1>
           </div>
           
-          <div className="flex flex-1 justify-end items-center gap-3 sm:gap-5 xl:gap-6">
-            <Link href="/dashboard/pos" className="hidden sm:flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 xl:px-5 xl:py-2.5 rounded-full font-bold text-sm xl:text-base transition-colors shadow-sm">
-              <ShoppingBag className="w-4 h-4 xl:w-5 xl:h-5" /> Open POS
+          <div className="flex flex-1 justify-end items-center gap-3 sm:gap-5">
+            
+            <Link href="/dashboard/pos" className="hidden sm:flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-full font-bold text-sm transition-colors shadow-sm">
+              <ShoppingBag className="w-4 h-4" /> Open POS
             </Link>
 
-            <div className="hidden md:flex items-center gap-2 px-4 py-2 rounded-full border border-slate-200 bg-slate-50 text-slate-700 cursor-default">
+            <div className="hidden md:flex items-center gap-2 px-4 py-2 rounded-full border border-slate-200 bg-white hover:bg-slate-50 transition-colors cursor-default">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
               <Store className="w-4 h-4 text-blue-600" />
-              <span className="text-sm font-bold truncate max-w-[120px] xl:max-w-[200px]">{user?.branchName}</span>
+              <span className="text-sm font-bold truncate max-w-[150px]">{profile?.branchName || 'Main Branch'}</span>
             </div>
 
-            <button className="text-slate-400 hover:text-blue-600 p-2 rounded-full hover:bg-blue-50 transition-colors relative">
-              <Bell className="h-5 w-5 xl:h-6 xl:w-6" />
+            <button className="relative p-2 text-slate-400 hover:text-blue-600 rounded-full hover:bg-blue-50 transition-colors">
+              <Bell className="h-5 w-5" />
               <span className="absolute top-1.5 right-2 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />
             </button>
 
             <div className="hidden lg:block h-6 w-px bg-slate-200" aria-hidden="true" />
             
             <div className="relative" ref={userMenuRef}>
-              <button onClick={() => setUserMenuOpen(!userMenuOpen)} className="flex items-center gap-3 pl-1 pr-2 py-1 border-2 border-transparent hover:border-slate-100 rounded-full transition-all focus:outline-none">
-                <div className="h-9 w-9 xl:h-10 xl:w-10 rounded-full bg-gradient-to-tr from-blue-600 to-blue-400 flex items-center justify-center text-white font-bold text-sm xl:text-base shadow-sm ring-2 ring-white shrink-0">
+              <button 
+                onClick={() => setUserMenuOpen(!userMenuOpen)} 
+                className="flex items-center gap-3 pl-1 pr-2 py-1 border-2 border-transparent hover:border-slate-100 rounded-full transition-all focus:outline-none"
+              >
+                <div className="h-9 w-9 rounded-full bg-gradient-to-tr from-blue-700 to-blue-500 flex items-center justify-center text-white font-bold text-sm shadow-sm ring-2 ring-white shrink-0">
                   {userInitials}
                 </div>
                 <div className="hidden sm:flex flex-col items-start mr-1">
-                  <span className="text-sm font-bold text-slate-900 leading-none">{user?.firstName}</span>
-                  <span className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">{user?.role}</span>
+                  <span className="text-sm font-bold text-slate-900 leading-none">{displayName}</span>
+                  <span className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">{displayRole}</span>
                 </div>
                 <ChevronDown className="hidden sm:block w-4 h-4 text-slate-400" />
               </button>
@@ -285,24 +317,51 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               {userMenuOpen && (
                 <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2">
                   <div className="p-4 border-b border-slate-100 bg-slate-50/50">
-                    <p className="text-sm font-bold text-slate-900 truncate">{user?.firstName} {user?.lastName}</p>
-                    <p className="text-xs font-medium text-slate-500 mt-0.5 truncate">{user?.email}</p>
+                    <p className="text-sm font-bold text-slate-900 truncate">{displayFullName}</p>
+                    <p className="text-xs font-medium text-slate-500 mt-0.5 truncate">{profile?.email}</p>
                     <div className="mt-2 inline-flex">
-                      <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-black rounded uppercase tracking-wider">
-                        {user?.role}
+                      <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-[10px] font-black rounded uppercase tracking-wider">
+                        {displayRole}
                       </span>
                     </div>
                   </div>
                   
                   <div className="p-2 flex flex-col gap-1">
-                    <button onClick={() => { setIsNameModalOpen(true); setUserMenuOpen(false); setNameData({ firstName: user?.firstName || '', lastName: user?.lastName || '' }); }} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors">
+                    {safeRole !== 'cashier' && (
+                      <Link href="/dashboard/settings" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors">
+                        <Building2 className="w-4 h-4 text-slate-400" /> Business Settings
+                      </Link>
+                    )}
+                    
+                    <button 
+                      onClick={() => { 
+                        setIsProfileModalOpen(true); 
+                        setUserMenuOpen(false);
+                        setModalError(''); setModalSuccess('');
+                        setNameData({ 
+                          firstName: profile?.firstName || (profile?.name ? profile.name.split(' ')[0] : ''), 
+                          lastName: profile?.lastName || (profile?.name ? profile.name.split(' ').slice(1).join(' ') : '') 
+                        });
+                      }} 
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors"
+                    >
                       <UserCog className="w-4 h-4 text-slate-400" /> Edit Profile
                     </button>
-                    <button onClick={() => { setIsPasswordModalOpen(true); setUserMenuOpen(false); setPwdData({ currentPassword: '', newPassword: '', confirmPassword: '' }); setModalError(''); setModalSuccess(''); }} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors">
+                    
+                    <button 
+                      onClick={() => { 
+                        setIsPasswordModalOpen(true); 
+                        setUserMenuOpen(false);
+                        setModalError(''); setModalSuccess('');
+                        setPwdData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+                      }} 
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors"
+                    >
                       <KeyRound className="w-4 h-4 text-slate-400" /> Change Password
                     </button>
+                    
                     <Link href="/dashboard/support" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors">
-                      <HelpCircle className="w-4 h-4 text-slate-400" /> Support & Docs
+                      <HelpCircle className="w-4 h-4 text-slate-400" /> Help & Support
                     </Link>
                   </div>
                   
@@ -317,30 +376,29 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto bg-slate-50 p-4 sm:p-6 lg:p-8 xl:p-10 relative w-full scroll-smooth">
+        <main className="flex-1 overflow-y-auto bg-slate-50 p-4 sm:p-6 lg:p-8 relative w-full scroll-smooth">
           <div className="mx-auto w-full h-full max-w-[1920px]">
             {children}
           </div>
         </main>
       </div>
 
-      {/* --- REAL DYNAMIC EDIT PROFILE MODAL --- */}
-      {isNameModalOpen && (
+      {isProfileModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in">
-          <form onSubmit={handleNameChange} className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden slide-in-from-bottom-4 animate-in">
+          <form onSubmit={handleProfileUpdate} className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden slide-in-from-bottom-4 animate-in">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
               <div>
                 <h3 className="text-lg font-black text-slate-900">Update Profile</h3>
-                <p className="text-xs text-slate-500 mt-0.5">Manage your personal details.</p>
+                <p className="text-xs text-slate-500 mt-0.5">Manage your personal POS details.</p>
               </div>
-              <button type="button" onClick={() => setIsNameModalOpen(false)} className="text-slate-400 hover:text-slate-700 p-2 rounded-full hover:bg-slate-200 transition-colors">
+              <button type="button" onClick={() => setIsProfileModalOpen(false)} className="text-slate-400 hover:text-slate-700 p-2 rounded-full hover:bg-slate-200 transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="p-6 space-y-4">
               {modalError && <div className="p-3 bg-red-50 text-red-700 text-xs font-bold rounded-xl border border-red-100">{modalError}</div>}
               {modalSuccess && <div className="p-3 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-xl border border-emerald-100">{modalSuccess}</div>}
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">First Name</label>
@@ -356,12 +414,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <span>Work Email</span>
                   <span className="text-[10px] text-slate-400 font-bold uppercase bg-slate-100 px-2 py-0.5 rounded">Locked</span>
                 </label>
-                <input type="email" value={user?.email} disabled className="w-full border border-slate-100 bg-slate-50 text-slate-400 cursor-not-allowed px-4 py-2.5 rounded-xl text-sm font-medium outline-none" />
+                <input type="email" value={profile?.email || ''} disabled className="w-full border border-slate-100 bg-slate-50 text-slate-400 cursor-not-allowed px-4 py-2.5 rounded-xl text-sm font-medium outline-none" />
+                <p className="text-[10px] text-slate-400 mt-1.5">Emails are securely locked to your directory.</p>
               </div>
             </div>
             <div className="p-4 border-t border-slate-100 flex gap-3 bg-slate-50">
-              <button type="button" onClick={() => setIsNameModalOpen(false)} className="flex-1 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-bold text-sm rounded-xl hover:bg-slate-100 transition-colors">Cancel</button>
-              <button type="submit" disabled={modalLoading || !!modalSuccess} className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl shadow-md disabled:opacity-50 transition-colors">
+              <button type="button" onClick={() => setIsProfileModalOpen(false)} className="flex-1 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-bold text-sm rounded-xl hover:bg-slate-100 transition-colors">Cancel</button>
+              <button type="submit" disabled={modalLoading || !!modalSuccess} className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl shadow-md transition-colors disabled:opacity-50">
                 {modalLoading ? 'Saving...' : 'Save Profile'}
               </button>
             </div>
@@ -369,7 +428,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       )}
 
-      {/* --- REAL DYNAMIC CHANGE PASSWORD MODAL --- */}
       {isPasswordModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in">
           <form onSubmit={handlePasswordChange} className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden slide-in-from-bottom-4 animate-in">
@@ -388,27 +446,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">Current Password</label>
-                <input required type="password" value={pwdData.currentPassword} onChange={e => setPwdData({...pwdData, currentPassword: e.target.value})} className="w-full border border-slate-200 px-4 py-2.5 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-600" />
+                <input required type="password" value={pwdData.currentPassword} onChange={e => setPwdData({...pwdData, currentPassword: e.target.value})} className="w-full border border-slate-200 px-4 py-2.5 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-600" placeholder="Enter current password" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">New Password</label>
-                <input required type="password" value={pwdData.newPassword} onChange={e => setPwdData({...pwdData, newPassword: e.target.value})} placeholder="Min 6 characters" className="w-full border border-slate-200 px-4 py-2.5 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-600" />
+                <input required type="password" value={pwdData.newPassword} onChange={e => setPwdData({...pwdData, newPassword: e.target.value})} className="w-full border border-slate-200 px-4 py-2.5 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-600" placeholder="Min 6 characters" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">Confirm New Password</label>
-                <input required type="password" value={pwdData.confirmPassword} onChange={e => setPwdData({...pwdData, confirmPassword: e.target.value})} className="w-full border border-slate-200 px-4 py-2.5 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-600" />
+                <input required type="password" value={pwdData.confirmPassword} onChange={e => setPwdData({...pwdData, confirmPassword: e.target.value})} className="w-full border border-slate-200 px-4 py-2.5 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-600" placeholder="Retype new password" />
               </div>
             </div>
             <div className="p-4 border-t border-slate-100 flex gap-3 bg-slate-50">
               <button type="button" onClick={() => setIsPasswordModalOpen(false)} className="flex-1 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-bold text-sm rounded-xl hover:bg-slate-100 transition-colors">Cancel</button>
-              <button type="submit" disabled={modalLoading || !!modalSuccess} className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl shadow-md disabled:opacity-50 transition-colors">
+              <button type="submit" disabled={modalLoading || !!modalSuccess} className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl shadow-md transition-colors disabled:opacity-50">
                 {modalLoading ? 'Updating...' : 'Update Password'}
               </button>
             </div>
           </form>
         </div>
       )}
-
     </div>
   );
 }
