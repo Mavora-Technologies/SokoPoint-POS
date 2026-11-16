@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Loader2, ArrowRight, ShieldCheck, Mail, Lock, Building2, User } from 'lucide-react';
+import { Loader2, ArrowRight, ShieldCheck, Mail, Lock, Building2, User, Home } from 'lucide-react';
 import api from '../../lib/api';
 
 export default function RegisterPage() {
@@ -48,11 +48,11 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      // Split fullName into firstName and lastName for the backend
       const nameParts = formData.fullName.trim().split(' ');
       const firstName = nameParts[0];
       const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
 
+      // Hit exactly what the database is expecting
       const response = await api.post('/auth/register', { 
         businessName: formData.businessName,
         firstName,
@@ -66,6 +66,7 @@ export default function RegisterPage() {
       const user = responseBody?.data?.user || responseBody?.user;
 
       if (token && user) {
+        // Enforce Multiuser Isolation immediately
         localStorage.setItem('token', token);
         localStorage.setItem('user', JSON.stringify(user));
         router.push('/dashboard');
@@ -126,10 +127,16 @@ export default function RegisterPage() {
 
         <div className="w-full max-w-md relative z-10 bg-white lg:bg-transparent p-8 lg:p-0 rounded-3xl shadow-xl lg:shadow-none ring-1 ring-slate-900/5 lg:ring-0 my-auto">
           
-          <div className="flex lg:hidden justify-center mb-8">
-            <div className="h-16 w-16 bg-white rounded-2xl flex items-center justify-center shadow-md ring-1 ring-slate-100">
+          <div className="flex justify-between items-start mb-8">
+            <div className="flex lg:hidden h-16 w-16 bg-white rounded-2xl items-center justify-center shadow-md ring-1 ring-slate-100">
               <img src="/SokoPoint POS Logo.png" alt="SokoPoint-POS Logo" className="h-10 w-auto object-contain" />
             </div>
+            <Link 
+              href="/" 
+              className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition-all shadow-sm"
+            >
+              <Home className="h-4 w-4" /> Back to Homepage
+            </Link>
           </div>
 
           <div className="text-center lg:text-left mb-8">

@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
-export const requireAuth = (req: Request, _res: Response, next: NextFunction): void => {
+export const requireAuth = (req: Request, res: Response, next: NextFunction): void => {
   try {
     let token = '';
 
@@ -14,13 +14,9 @@ export const requireAuth = (req: Request, _res: Response, next: NextFunction): v
       token = (req as any).cookies.token;
     }
 
-    if (token === 'mock-jwt-token-for-development' || !token) {
-      (req as any).user = { 
-        email: 'admin@vorasupermarket.com', 
-        role: 'ADMIN', 
-        tenantId: 'demo-tenant' 
-      };
-      return next();
+    if (!token) {
+      res.status(401).json({ success: false, message: 'Authentication required. No token provided.' });
+      return;
     }
 
     const decoded = jwt.verify(
@@ -28,17 +24,11 @@ export const requireAuth = (req: Request, _res: Response, next: NextFunction): v
       process.env.AUTH_SECRET || 'super_secret_auth_key_vora_pos_2026'
     );
     
-    (req as any).user = decoded;
+    // Injects userId, businessName, and role into the request for isolated database queries
+    (req as any).user = decoded; 
     next();
   } catch (error) {
-    (req as any).user = { 
-      email: 'admin@vorasupermarket.com', 
-      role: 'ADMIN', 
-      tenantId: 'demo-tenant' 
-    };
-    return next();
+    res.status(401).json({ success: false, message: 'Invalid or expired authentication token.' });
+    return;
   }
 };
-
-// Force TypeScript to treat this file as an ES module
-export {};

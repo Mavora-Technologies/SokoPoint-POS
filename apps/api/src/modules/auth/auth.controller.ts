@@ -24,7 +24,7 @@ export class AuthController {
 
       const hashedPassword = await bcrypt.hash(password, 10);
       
-      // 2. Save the user to the database
+      // 2. Save the user to the database (Using your Prisma schema)
       const newUser = await (prisma as any).user.create({
         data: {
           email,
@@ -36,9 +36,14 @@ export class AuthController {
         }
       });
 
-      // 3. Generate token for instant auto-login
+      // 3. Generate token for instant auto-login & Multi-user isolation
       const token = jwt.sign(
-        { userId: newUser.id, email: newUser.email, role: newUser.role || 'ADMIN' },
+        { 
+          userId: newUser.id, 
+          email: newUser.email, 
+          role: newUser.role || 'ADMIN',
+          businessName: newUser.businessName 
+        },
         process.env.AUTH_SECRET || 'super_secret_auth_key_vora_pos_2026',
         { expiresIn: '7d' }
       );
@@ -60,7 +65,7 @@ export class AuthController {
             id: newUser.id,
             email: newUser.email,
             name: `${newUser.firstName} ${newUser.lastName}`.trim(),
-            businessName,
+            businessName: newUser.businessName,
             role: newUser.role
           }
         }
@@ -90,7 +95,12 @@ export class AuthController {
       }
 
       const token = jwt.sign(
-        { userId: user.id, email: user.email, role: user.role || 'ADMIN' },
+        { 
+          userId: user.id, 
+          email: user.email, 
+          role: user.role || 'ADMIN',
+          businessName: user.businessName 
+        },
         process.env.AUTH_SECRET || 'super_secret_auth_key_vora_pos_2026',
         { expiresIn: '7d' }
       );
@@ -112,6 +122,7 @@ export class AuthController {
             id: user.id, 
             email: user.email, 
             name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Admin User', 
+            businessName: user.businessName,
             role: user.role || 'ADMIN' 
           }
         },

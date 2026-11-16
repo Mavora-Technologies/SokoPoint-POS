@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Loader2, ArrowRight, ShieldCheck, Mail, Lock } from 'lucide-react';
+import { Loader2, ArrowRight, ShieldCheck, Mail, Lock, Home } from 'lucide-react';
 import api from '../../lib/api';
 
 export default function LoginPage() {
@@ -43,7 +43,7 @@ export default function LoginPage() {
         return;
       }
 
-      // FIXED: Keys now perfectly match what DashboardLayout is looking for
+      // Sync securely with the DashboardLayout expectations for multi-tenant isolation
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
       
@@ -61,7 +61,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen w-full flex bg-white selection:bg-green-900 selection:text-white font-sans">
       
-      {/* LEFT PANEL: Branding & Visuals */}
+      {/* LEFT PANEL */}
       <div className="hidden lg:flex w-1/2 relative bg-slate-900 flex-col justify-between overflow-hidden">
         <div className="absolute inset-0 z-0">
           <img 
@@ -95,21 +95,27 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* RIGHT PANEL: Secure Login Form */}
+      {/* RIGHT PANEL */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12 lg:p-16 xl:p-24 relative bg-slate-50 lg:bg-white">
         <div className="absolute inset-0 z-0 lg:hidden bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]"></div>
 
         <div className="w-full max-w-md relative z-10 bg-white lg:bg-transparent p-8 lg:p-0 rounded-3xl shadow-xl lg:shadow-none ring-1 ring-slate-900/5 lg:ring-0">
           
-          <div className="flex lg:hidden justify-center mb-8">
-            <div className="h-16 w-16 bg-white rounded-2xl flex items-center justify-center shadow-md ring-1 ring-slate-100">
+          <div className="flex justify-between items-start mb-8">
+            <div className="flex lg:hidden h-16 w-16 bg-white rounded-2xl items-center justify-center shadow-md ring-1 ring-slate-100">
               <img src="/SokoPoint POS Logo.png" alt="SokoPoint-POS Logo" className="h-10 w-auto object-contain" />
             </div>
+            <Link 
+              href="/" 
+              className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition-all shadow-sm"
+            >
+              <Home className="h-4 w-4" /> Back to Homepage
+            </Link>
           </div>
 
           <div className="text-center lg:text-left mb-8">
             <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight mb-3">Sign in to SokoPoint-POS</h2>
-            <p className="text-slate-500">Enter your credentials to access your business workspace.</p>
+            <p className="text-slate-500">Enter your credentials to access your isolated workspace.</p>
           </div>
 
           {errorMessage && (
@@ -126,12 +132,12 @@ export default function LoginPage() {
                   <Mail className="h-5 w-5 text-slate-400" />
                 </div>
                 <input
-                  type="text"
+                  type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="block w-full pl-11 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-green-600 focus:border-green-600 outline-none transition-all hover:bg-slate-100 focus:bg-white"
-                  placeholder="admin@sokopoint.com"
+                  placeholder="user@business.com"
                 />
               </div>
             </div>
@@ -139,8 +145,7 @@ export default function LoginPage() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="block text-sm font-bold text-slate-700">Password</label>
-                {/* FIXED: Now routes to an actual forgot-password page */}
-                <Link href="/forgot-password" className="text-sm font-semibold text-green-600 hover:text-green-500">
+                <Link href="/forgot-password" className="text-sm font-semibold text-green-600 hover:text-green-500 transition-colors">
                   Forgot password?
                 </Link>
               </div>
@@ -180,7 +185,6 @@ export default function LoginPage() {
           <div className="mt-8 pt-8 border-t border-slate-100 text-center lg:text-left">
             <p className="text-sm text-slate-500">
               Need to register a new business?{' '}
-              {/* FIXED: Now routes to an actual register page */}
               <Link href="/register" className="font-bold text-green-600 hover:text-green-500 transition-colors">
                 Create an account
               </Link>
