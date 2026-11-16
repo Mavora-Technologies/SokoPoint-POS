@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { AuthController } from '../../controllers/auth.controller';
+// FIX: Point to the local Drizzle controller, NOT the legacy one in the controllers folder
+import { AuthController } from './auth.controller';
 
 const router = Router();
 
