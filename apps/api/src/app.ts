@@ -1,5 +1,4 @@
 import express, { Request, Response, NextFunction } from 'express';
-import cors from 'cors';
 import helmet from 'helmet';
 
 import { authRoutes } from './modules/auth/auth.routes';
@@ -21,63 +20,47 @@ import refundRoutes from './modules/refunds/refunds.routes';
 export const createApp = () => {
   const app = express();
 
-  // Trust proxy for Vercel environments (essential for secure cookies)
   app.set('trust proxy', 1);
 
   // ==========================================
-  // BULLETPROOF CORS CONFIGURATION
+  // AGGRESSIVE MANUAL CORS INJECTION
   // ==========================================
-  const corsOptions = {
-    origin: [
-      'https://sokopoint.mavoratechnologies.com',
-      'https://sokopoint.pages.dev',
-      'http://localhost:3000',
-      'http://127.0.0.1:3000'
-    ],
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: [
-      'Content-Type',
-      'Authorization',
-      'X-Requested-With',
-      'X-Tenant-ID',
-      'tenantid',
-      'tenant-id',
-    ],
-    exposedHeaders: ['Content-Range', 'X-Total-Count'],
-    optionsSuccessStatus: 200 // Some legacy browsers choke on 204
-  };
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const origin = req.headers.origin;
+    
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    } else {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+    }
+    
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.setHeader(
+      'Access-Control-Allow-Headers', 
+      'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Tenant-ID, tenantid, tenant-id'
+    );
+    
+    // Instantly return 200 for Preflight OPTIONS requests
+    if (req.method === 'OPTIONS') {
+       res.status(200).end();
+       return;
+    }
+    
+    next();
+  });
 
-  // Register CORS first, before ANY other middleware or routes
-  app.use(cors(corsOptions));
-  
-  // Explicitly handle preflight requests for all routes (Crucial for Vercel)
-  app.options('*', cors(corsOptions));
-
-  // Security headers
   app.use(helmet());
-
-  // ==========================================
-  // BODY PARSING
-  // ==========================================
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
   // ==========================================
-  // HEALTH CHECK
-  // ==========================================
-  app.get('/health', (_req: Request, res: Response) => {
-    res.status(200).json({
-      success: true,
-      status: 'healthy',
-      service: 'vora-pos-api',
-      timestamp: new Date().toISOString(),
-    });
-  });
-
-  // ==========================================
   // API ROUTES
   // ==========================================
+  app.get('/health', (_req: Request, res: Response) => {
+    res.status(200).json({ success: true, status: 'healthy', service: 'vora-pos-api' });
+  });
+
   app.use('/api/v1/auth', authRoutes);
   app.use('/api/v1/products', productRoutes);
   app.use('/api/v1/orders', orderRoutes);
@@ -94,54 +77,23 @@ export const createApp = () => {
   app.use('/api/v1/credit', creditRoutes);
   app.use('/api/v1/refunds', refundRoutes);
 
-  // Backward-compatible route aliases
+  // Aliases
   app.use('/auth', authRoutes);
   app.use('/api/auth', authRoutes);
-  app.use('/products', productRoutes);
-  app.use('/orders', orderRoutes);
-  app.use('/inventory', inventoryRoutes);
-  app.use('/categories', categoryRoutes);
-  app.use('/customers', customerRoutes);
-  app.use('/suppliers', supplierRoutes);
-  app.use('/purchase-orders', purchasingRoutes);
-  app.use('/expenses', expenseRoutes);
-  app.use('/branches', branchRoutes);
-  app.use('/tills', tillRoutes);
-  app.use('/shifts', shiftRoutes);
-  app.use('/reports', reportRoutes);
-  app.use('/credit', creditRoutes);
-  app.use('/refunds', refundRoutes);
-  app.use('/api/refunds', refundRoutes);
 
-  // API Root
-  app.get('/api/v1', (_req: Request, res: Response) => {
-    res.status(200).json({
-      success: true,
-      message: 'Welcome to Vora-POS API v1',
-    });
-  });
-
-  // ==========================================
-  // 404 HANDLER
-  // ==========================================
   app.use((_req: Request, res: Response) => {
-    res.status(404).json({
-      success: false,
-      error: 'ROUTE_NOT_FOUND',
-      message: 'The requested API endpoint does not exist on this server.',
-    });
+    res.status(404).json({ success: false, message: 'Route not found' });
   });
 
   // ==========================================
   // CENTRALIZED ERROR HANDLER
   // ==========================================
   app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-    console.error('Unhandled Server Error:', err.stack || err.message);
-
+    console.error('Unhandled Server Error:', err);
     res.status(500).json({
       success: false,
       error: 'INTERNAL_SERVER_ERROR',
-      message: 'An unexpected server error occurred.',
+      message: err.message || 'An unexpected server error occurred.',
     });
   });
 
