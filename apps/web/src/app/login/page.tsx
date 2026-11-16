@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Loader2, ArrowRight, ShieldCheck, Mail, Lock, Home, Eye, EyeOff } from 'lucide-react';
 import api from '../../lib/api';
 
-export default function LoginPage() {
+// --- Extract the core login form into its own component ---
+function LoginFormContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -46,24 +47,20 @@ export default function LoginPage() {
         return;
       }
 
-      // 1. Save to LocalStorage for Client-Side Retrieval
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
       
-      // 2. VERY IMPORTANT: Securely Bake the Cookie for Cloudflare Edge Middleware!
       const isSecure = window.location.protocol === 'https:' ? 'Secure;' : '';
       document.cookie = `token=${token}; path=/; max-age=604800; SameSite=Lax; ${isSecure}`;
 
-      // 3. Strict Role-Based Redirection matching user specifications
       const userRole = (user?.role || '').toLowerCase();
       let defaultRedirect = '/dashboard';
 
       if (userRole === 'cashier') {
-        defaultRedirect = '/dashboard/pos'; // Cashier lands on POS
+        defaultRedirect = '/dashboard/pos';
       } else if (userRole === 'manager') {
-        defaultRedirect = '/dashboard/inventory'; // Managers land on Inventory
+        defaultRedirect = '/dashboard/inventory';
       } else {
-        // Admins and others see the full Dashboard
         defaultRedirect = '/dashboard';
       }
 
@@ -80,6 +77,89 @@ export default function LoginPage() {
     }
   };
 
+  return (
+    <>
+      <div className="space-y-1.5">
+        <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Sign in to SokoPoint-POS</h1>
+        <p className="text-sm text-gray-500 font-medium">Enter your secure credentials to access your workspace.</p>
+      </div>
+
+      {errorMessage && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-xs font-semibold shadow-sm">
+          {errorMessage}
+        </div>
+      )}
+
+      <form onSubmit={handleLogin} className="space-y-5">
+        <div>
+          <label className="block text-xs font-bold text-gray-700 mb-1.5">Email address</label>
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+              <Mail className="h-4 w-4 text-gray-400" />
+            </div>
+            <input 
+              type="email" 
+              required 
+              value={email} 
+              onChange={(e) => setEmail(e.target.value)} 
+              className="w-full pl-10 pr-4 py-3 bg-[#8BCBF0]/10 border border-[#8BCBF0]/30 rounded-xl text-sm font-medium text-gray-900 focus:bg-white focus:ring-2 focus:ring-[#366498] focus:border-[#366498] outline-none transition-all shadow-sm" 
+              placeholder="admin@business.com" 
+            />
+          </div>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="block text-xs font-bold text-gray-700">Password</label>
+            <Link href="/forgot-password" className="text-xs font-bold text-[#62C02A] hover:text-[#57ad25] hover:underline transition-colors">
+              Forgot password?
+            </Link>
+          </div>
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+              <Lock className="h-4 w-4 text-gray-400" />
+            </div>
+            <input 
+              type={showPassword ? "text" : "password"} 
+              required 
+              value={password} 
+              onChange={(e) => setPassword(e.target.value)} 
+              className="w-full pl-10 pr-12 py-3 bg-[#8BCBF0]/10 border border-[#8BCBF0]/30 rounded-xl text-sm font-medium text-gray-900 focus:bg-white focus:ring-2 focus:ring-[#366498] focus:border-[#366498] outline-none transition-all shadow-sm tracking-widest" 
+              placeholder="••••••••••••" 
+            />
+            <button 
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3.5 top-[13px] text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+          </div>
+        </div>
+
+        <button 
+          type="submit" 
+          disabled={isLoading} 
+          className="w-full bg-[#366498] hover:bg-[#2a4d75] text-white py-3.5 rounded-xl font-bold text-sm shadow-md shadow-[#366498]/20 transition-all disabled:opacity-70 mt-4 flex justify-center items-center gap-2 active:scale-[0.98]"
+        >
+          {isLoading ? (
+            <>
+              <Loader2 className="animate-spin h-4 w-4 text-white" />
+              Authenticating...
+            </>
+          ) : (
+            <>
+              Sign in to Workspace <ArrowRight className="h-4 w-4" />
+            </>
+          )}
+        </button>
+      </form>
+    </>
+  );
+}
+
+// --- Main Page Component ---
+export default function LoginPage() {
   return (
     <div className="min-h-screen w-full flex bg-white font-sans selection:bg-[#366498] selection:text-white overflow-x-hidden relative">
       
@@ -132,81 +212,14 @@ export default function LoginPage() {
             </Link>
           </div>
 
-          <div className="space-y-1.5">
-            <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Sign in to SokoPoint-POS</h1>
-            <p className="text-sm text-gray-500 font-medium">Enter your secure credentials to access your workspace.</p>
-          </div>
-
-          {errorMessage && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-xs font-semibold shadow-sm">
-              {errorMessage}
+          {/* Wrap the form utilizing useSearchParams in Suspense */}
+          <Suspense fallback={
+            <div className="flex justify-center py-12">
+              <Loader2 className="animate-spin h-8 w-8 text-[#366498]" />
             </div>
-          )}
-
-          <form onSubmit={handleLogin} className="space-y-5">
-            <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1.5">Email address</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                  <Mail className="h-4 w-4 text-gray-400" />
-                </div>
-                <input 
-                  type="email" 
-                  required 
-                  value={email} 
-                  onChange={(e) => setEmail(e.target.value)} 
-                  className="w-full pl-10 pr-4 py-3 bg-[#8BCBF0]/10 border border-[#8BCBF0]/30 rounded-xl text-sm font-medium text-gray-900 focus:bg-white focus:ring-2 focus:ring-[#366498] focus:border-[#366498] outline-none transition-all shadow-sm" 
-                  placeholder="admin@business.com" 
-                />
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-bold text-gray-700">Password</label>
-                <Link href="/forgot-password" className="text-xs font-bold text-[#62C02A] hover:text-[#57ad25] hover:underline transition-colors">
-                  Forgot password?
-                </Link>
-              </div>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                  <Lock className="h-4 w-4 text-gray-400" />
-                </div>
-                <input 
-                  type={showPassword ? "text" : "password"} 
-                  required 
-                  value={password} 
-                  onChange={(e) => setPassword(e.target.value)} 
-                  className="w-full pl-10 pr-12 py-3 bg-[#8BCBF0]/10 border border-[#8BCBF0]/30 rounded-xl text-sm font-medium text-gray-900 focus:bg-white focus:ring-2 focus:ring-[#366498] focus:border-[#366498] outline-none transition-all shadow-sm tracking-widest" 
-                  placeholder="••••••••••••" 
-                />
-                <button 
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-[13px] text-gray-400 hover:text-gray-600 transition-colors"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            <button 
-              type="submit" 
-              disabled={isLoading} 
-              className="w-full bg-[#366498] hover:bg-[#2a4d75] text-white py-3.5 rounded-xl font-bold text-sm shadow-md shadow-[#366498]/20 transition-all disabled:opacity-70 mt-4 flex justify-center items-center gap-2 active:scale-[0.98]"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="animate-spin h-4 w-4 text-white" />
-                  Authenticating...
-                </>
-              ) : (
-                <>
-                  Sign in to Workspace <ArrowRight className="h-4 w-4" />
-                </>
-              )}
-            </button>
-          </form>
+          }>
+            <LoginFormContent />
+          </Suspense>
 
           <div className="text-center mt-6 text-sm text-gray-600 font-medium border-t border-gray-100 pt-6">
             Need to register a new business?{' '}
