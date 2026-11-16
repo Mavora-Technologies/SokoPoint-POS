@@ -1,6 +1,5 @@
-
 import express, { Request, Response, NextFunction } from 'express';
-import cors, { CorsOptions } from 'cors';
+import cors from 'cors';
 import helmet from 'helmet';
 
 import { authRoutes } from './modules/auth/auth.routes';
@@ -22,60 +21,21 @@ import refundRoutes from './modules/refunds/refunds.routes';
 export const createApp = () => {
   const app = express();
 
-  // Trust proxy (Vercel deployment)
+  // Trust proxy for Vercel environments (essential for secure cookies)
   app.set('trust proxy', 1);
 
-  // Security headers
-  app.use(helmet());
-
   // ==========================================
-  // CORS CONFIGURATION
+  // BULLETPROOF CORS CONFIGURATION
   // ==========================================
-
-  const allowedOrigins = [
-    process.env.CLIENT_URL,
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-    'https://sokopoint.mavoratechnologies.com',
-    'https://sokopoint.pages.dev',
-  ].filter((origin): origin is string => Boolean(origin));
-
-  const corsOptions: CorsOptions = {
-    origin: (origin, callback) => {
-      // Allow requests without an Origin header
-      if (!origin) {
-        return callback(null, true);
-      }
-
-      // Allow explicitly configured frontend origins
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-
-      // Allow approved Mavora subdomains
-      if (
-        /^https:\/\/[a-z0-9-]+\.mavoratechnologies\.com$/i.test(origin) ||
-        /^https:\/\/[a-z0-9-]+\.pages\.dev$/i.test(origin)
-      ) {
-        return callback(null, true);
-      }
-
-      console.error(`CORS blocked origin: ${origin}`);
-
-      return callback(new Error('Origin not allowed by CORS'));
-    },
-
-    credentials: true,
-
-    methods: [
-      'GET',
-      'POST',
-      'PUT',
-      'PATCH',
-      'DELETE',
-      'OPTIONS',
+  const corsOptions = {
+    origin: [
+      'https://sokopoint.mavoratechnologies.com',
+      'https://sokopoint.pages.dev',
+      'http://localhost:3000',
+      'http://127.0.0.1:3000'
     ],
-
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: [
       'Content-Type',
       'Authorization',
@@ -84,33 +44,28 @@ export const createApp = () => {
       'tenantid',
       'tenant-id',
     ],
-
-    exposedHeaders: [
-      'Content-Range',
-      'X-Total-Count',
-    ],
-
-    optionsSuccessStatus: 204,
-    maxAge: 86400,
+    exposedHeaders: ['Content-Range', 'X-Total-Count'],
+    optionsSuccessStatus: 200 // Some legacy browsers choke on 204
   };
 
-  // Register CORS before all API routes and authentication
+  // Register CORS first, before ANY other middleware or routes
   app.use(cors(corsOptions));
+  
+  // Explicitly handle preflight requests for all routes (Crucial for Vercel)
+  app.options('*', cors(corsOptions));
+
+  // Security headers
+  app.use(helmet());
 
   // ==========================================
   // BODY PARSING
   // ==========================================
-
   app.use(express.json({ limit: '10mb' }));
-  app.use(express.urlencoded({
-    extended: true,
-    limit: '10mb',
-  }));
+  app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
   // ==========================================
   // HEALTH CHECK
   // ==========================================
-
   app.get('/health', (_req: Request, res: Response) => {
     res.status(200).json({
       success: true,
@@ -121,9 +76,8 @@ export const createApp = () => {
   });
 
   // ==========================================
-  // API V1 ROUTES
+  // API ROUTES
   // ==========================================
-
   app.use('/api/v1/auth', authRoutes);
   app.use('/api/v1/products', productRoutes);
   app.use('/api/v1/orders', orderRoutes);
@@ -140,13 +94,9 @@ export const createApp = () => {
   app.use('/api/v1/credit', creditRoutes);
   app.use('/api/v1/refunds', refundRoutes);
 
-  // ==========================================
-  // BACKWARD-COMPATIBLE ROUTE ALIASES
-  // ==========================================
-
+  // Backward-compatible route aliases
   app.use('/auth', authRoutes);
   app.use('/api/auth', authRoutes);
-
   app.use('/products', productRoutes);
   app.use('/orders', orderRoutes);
   app.use('/inventory', inventoryRoutes);
@@ -163,10 +113,7 @@ export const createApp = () => {
   app.use('/refunds', refundRoutes);
   app.use('/api/refunds', refundRoutes);
 
-  // ==========================================
-  // API ROOT
-  // ==========================================
-
+  // API Root
   app.get('/api/v1', (_req: Request, res: Response) => {
     res.status(200).json({
       success: true,
@@ -177,7 +124,6 @@ export const createApp = () => {
   // ==========================================
   // 404 HANDLER
   // ==========================================
-
   app.use((_req: Request, res: Response) => {
     res.status(404).json({
       success: false,
@@ -189,14 +135,8 @@ export const createApp = () => {
   // ==========================================
   // CENTRALIZED ERROR HANDLER
   // ==========================================
-
-  app.use((
-    err: Error,
-    _req: Request,
-    res: Response,
-    _next: NextFunction
-  ) => {
-    console.error('Unhandled Error:', err.stack || err.message);
+  app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+    console.error('Unhandled Server Error:', err.stack || err.message);
 
     res.status(500).json({
       success: false,
