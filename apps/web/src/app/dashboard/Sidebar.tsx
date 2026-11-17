@@ -6,7 +6,8 @@ import {
   LayoutDashboard, ShoppingBag, Users, Settings, LogOut, 
   Bell, Receipt, CreditCard, Scale, BarChart3, PieChart, 
   Bot, Clock, Inbox, MonitorSmartphone, Store, X, 
-  Package
+  UserCog, ShieldCheck, CalendarClock, Fingerprint, 
+  ClipboardList, Wallet
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -23,9 +24,14 @@ export default function Sidebar({ isSidebarOpen, setSidebarOpen, pathname, logou
   const [procurementOpen, setProcurementOpen] = useState(
     pathname ? (pathname.startsWith('/dashboard/inventory') || pathname.startsWith('/dashboard/procurement') || pathname.startsWith('/dashboard/purchas')) : false
   );
+  
+  const [hrOpen, setHrOpen] = useState(
+    pathname ? pathname.startsWith('/dashboard/hr') : false
+  );
 
   const getIcon = (name: string) => {
     switch (name) {
+      // Inventory Icons
       case 'Inventory Central': return <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>;
       case 'Stock Items Directory': return <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>;
       case 'Stock Movements': return <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
@@ -40,6 +46,15 @@ export default function Sidebar({ isSidebarOpen, setSidebarOpen, pathname, logou
       case 'Goods Inward (GRN)': return <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>;
       case 'Supplier Invoices': return <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" /></svg>;
       case 'Supplier Returns': return <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 15v-1a4 4 0 00-4-4H8m0 0l3 3m-3-3l3-3m9 14V5a2 2 0 00-2-2H6a2 2 0 00-2 2v16l4-2 4 2 4-2 4 2z" /></svg>;
+      
+      // HR Icons
+      case 'Employee Directory & Roster': return <Users className="w-4 h-4" />;
+      case 'Role-Based Access Control': return <ShieldCheck className="w-4 h-4" />;
+      case 'Weekly Shift Schedule': return <CalendarClock className="w-4 h-4" />;
+      case 'Biometric Clock-In': return <Fingerprint className="w-4 h-4" />;
+      case 'Shift Handover Notes': return <ClipboardList className="w-4 h-4" />;
+      case 'Cash Drawer Custodians': return <Wallet className="w-4 h-4" />;
+      
       default: return <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
     }
   };
@@ -76,9 +91,25 @@ export default function Sidebar({ isSidebarOpen, setSidebarOpen, pathname, logou
     { name: 'Expenses', href: '/dashboard/expenses', icon: <Receipt className="w-5 h-5 mr-3" /> },
     { name: 'Analytics', href: '/dashboard/analytics', icon: <PieChart className="w-5 h-5 mr-3" /> },
     { name: 'Reports', href: '/dashboard/reports', icon: <BarChart3 className="w-5 h-5 mr-3" /> },
-    { name: 'Shifts & Staff', href: '/dashboard/shifts', icon: <Clock className="w-5 h-5 mr-3" /> },
     { name: 'Cash Registers', href: '/dashboard/tills', icon: <Inbox className="w-5 h-5 mr-3" /> },
-    { name: 'Branches', href: '/dashboard/branches', icon: <Store className="w-5 h-5 mr-3" /> },
+    { name: 'Branches', href: '/dashboard/settings/branches', icon: <Store className="w-5 h-5 mr-3" /> },
+    
+    // Human Capital & System Settings Grouping
+    { isHeader: true, name: 'Human Capital & System Settings' },
+    { 
+      name: 'Staff & Shift Management', 
+      href: '/dashboard/hr',
+      icon: <UserCog className="w-5 h-5 mr-3" />,
+      subItems: [
+        { name: 'Employee Directory & Roster', href: '/dashboard/hr/employees' },
+        { name: 'Role-Based Access Control', href: '/dashboard/hr/roles' },
+        { name: 'Weekly Shift Schedule', href: '/dashboard/hr/schedule' },
+        { name: 'Biometric Clock-In', href: '/dashboard/hr/attendance' },
+        { name: 'Shift Handover Notes', href: '/dashboard/hr/handover' },
+        { name: 'Cash Drawer Custodians', href: '/dashboard/hr/drawers' },
+      ]
+    },
+    
     { name: 'Notifications', href: '/dashboard/notifications', icon: <Bell className="w-5 h-5 mr-3" /> },
     { name: 'Settings', href: '/dashboard/settings', icon: <Settings className="w-5 h-5 mr-3" /> },
   ];
@@ -119,19 +150,35 @@ export default function Sidebar({ isSidebarOpen, setSidebarOpen, pathname, logou
         </div>
         
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto custom-scrollbar">
-          {navItems.map((item) => {
+          {navItems.map((item, index) => {
+            
+            if (item.isHeader) {
+              return (
+                <div key={`header-${index}`} className="px-3 pt-6 pb-2 text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                  {item.name}
+                </div>
+              );
+            }
+
             const isActive = pathname === item.href || (item.href !== '/dashboard' && !item.subItems && !!pathname?.startsWith(`${item.href}`));
+            
             const isProcurementGroup = item.name === 'Inventory & Procurement';
-            const isChildActive = isProcurementGroup && item.subItems?.some(sub => pathname === sub.href);
+            const isHrGroup = item.name === 'Staff & Shift Management';
+            
+            const isChildActive = (isProcurementGroup && item.subItems?.some(sub => pathname === sub.href)) || 
+                                  (isHrGroup && item.subItems?.some(sub => pathname === sub.href));
 
             return (
               <div key={item.name}>
                 <Link
-                  href={item.href}
+                  href={item.href!}
                   onClick={(e) => {
                     if (isProcurementGroup) {
                       e.preventDefault();
                       setProcurementOpen(!procurementOpen);
+                    } else if (isHrGroup) {
+                      e.preventDefault();
+                      setHrOpen(!hrOpen);
                     } else {
                       setSidebarOpen(false);
                     }
@@ -147,10 +194,13 @@ export default function Sidebar({ isSidebarOpen, setSidebarOpen, pathname, logou
                     <span>{item.name}</span>
                   </div>
                   {item.subItems && (
-                    <span className="text-[10px] text-gray-400 font-black">{procurementOpen ? '▼' : '▶'}</span>
+                    <span className="text-[10px] text-gray-400 font-black">
+                      {(isProcurementGroup && procurementOpen) || (isHrGroup && hrOpen) ? '▼' : '▶'}
+                    </span>
                   )}
                 </Link>
 
+                {/* Submenu for Procurement */}
                 {isProcurementGroup && item.subItems && procurementOpen && (
                   <div className="pl-6 py-2 space-y-1 border-l-2 border-gray-700/50 ml-5 mt-1.5 mb-3">
                     {item.subItems.map((sub) => {
@@ -168,6 +218,30 @@ export default function Sidebar({ isSidebarOpen, setSidebarOpen, pathname, logou
                         >
                           {getIcon(sub.name)}
                           {sub.name}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Submenu for HR & Shift Management */}
+                {isHrGroup && item.subItems && hrOpen && (
+                  <div className="pl-6 py-2 space-y-1 border-l-2 border-gray-700/50 ml-5 mt-1.5 mb-3">
+                    {item.subItems.map((sub) => {
+                      const isSubActive = pathname === sub.href;
+                      return (
+                        <Link
+                          key={sub.name}
+                          href={sub.href}
+                          onClick={() => setSidebarOpen(false)}
+                          className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-colors ${
+                            isSubActive 
+                              ? 'bg-blue-500/20 text-blue-400 font-bold shadow-sm' 
+                              : 'text-gray-300 hover:text-white hover:bg-white/5'
+                          }`}
+                        >
+                          {getIcon(sub.name)}
+                          <span className="truncate">{sub.name}</span>
                         </Link>
                       );
                     })}
