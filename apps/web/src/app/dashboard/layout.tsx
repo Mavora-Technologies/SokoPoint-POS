@@ -126,7 +126,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         
         if (isMounted) {
           setProfile(userData);
-          // Safely parse name arrays to prevent slice/split crashes
           const fName = userData.firstName || (userData.name ? userData.name.split(' ')[0] : 'User');
           const lName = userData.lastName || (userData.name ? userData.name.split(' ').slice(1).join(' ') : '');
           setUserInitials(`${fName.charAt(0)}${lName ? lName.charAt(0) : ''}`.toUpperCase());
@@ -150,7 +149,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     router.replace('/login');
   };
 
-  // Safe formatting to prevent .pop() crash on null pathnames
   const getPageTitle = () => {
     if (!pathname || pathname === '/dashboard') return 'Executive Overview';
     const segments = pathname.split('/').filter(Boolean);
@@ -225,7 +223,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (loadingAuth || authError) {
     return (
-      <div className="h-screen w-full bg-slate-50 flex items-center justify-center flex-col gap-4">
+      <div className="h-screen w-full bg-[#f8fafc] flex items-center justify-center flex-col gap-4">
         {!authError ? (
           <>
             <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
@@ -241,18 +239,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
-  // Strictly enforce types before replacing strings to prevent UI crashes
   const safeRole = profile?.role ? String(profile.role).toLowerCase() : 'cashier';
   const displayRole = profile?.role ? String(profile.role).toUpperCase().replace(/_/g, ' ') : 'CASHIER';
   const displayName = profile?.firstName || (profile?.name ? profile.name.split(' ')[0] : 'User');
   const displayFullName = profile?.name || `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim() || 'User';
+  const displayBranch = profile?.businessName 
+    ? `${profile.businessName} - ${profile?.branchName || 'Main Branch'}` 
+    : (profile?.branchName || 'Main Branch');
 
   return (
-    <div className="h-screen w-full bg-slate-50 flex overflow-hidden selection:bg-blue-900 selection:text-white font-sans text-slate-900">
+    <div className="h-screen w-full bg-[#f8fafc] flex overflow-hidden selection:bg-blue-900 selection:text-white font-sans text-slate-900">
       
       {isSidebarOpen && (
         <div 
-          className="fixed inset-0 bg-slate-900/50 z-40 lg:hidden backdrop-blur-sm transition-opacity" 
+          className="fixed inset-0 bg-slate-900/60 z-40 lg:hidden backdrop-blur-sm transition-opacity" 
           onClick={() => setSidebarOpen(false)} 
         />
       )}
@@ -267,7 +267,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       <div className="flex flex-1 flex-col overflow-hidden min-w-0 transition-all duration-300">
         
-        <header className="flex h-16 xl:h-20 shrink-0 items-center justify-between border-b border-slate-200 bg-white/90 backdrop-blur-md px-4 sm:px-6 lg:px-8 z-30 shadow-sm">
+        {/* Dynamic Header */}
+        <header className="flex h-16 xl:h-20 shrink-0 items-center justify-between border-b border-slate-200 bg-white/95 backdrop-blur-md px-4 sm:px-6 lg:px-8 z-30 shadow-sm">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setSidebarOpen(true)}
@@ -275,21 +276,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             >
               <Menu className="h-6 w-6" />
             </button>
-            <h1 className="hidden md:block text-lg font-extrabold text-slate-900 capitalize truncate">
+            <h1 className="hidden md:block text-lg xl:text-xl font-extrabold text-slate-900 capitalize truncate">
               {getPageTitle()}
             </h1>
           </div>
           
-          <div className="flex flex-1 justify-end items-center gap-3 sm:gap-5">
+          <div className="flex flex-1 justify-end items-center gap-4 sm:gap-5">
             
-            <Link href="/dashboard/pos" className="hidden sm:flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-full font-bold text-sm transition-colors shadow-sm">
+            <Link href="/dashboard/pos" className="hidden sm:flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-colors shadow-md shadow-blue-500/20">
               <ShoppingBag className="w-4 h-4" /> Open POS
             </Link>
 
-            <div className="hidden md:flex items-center gap-2 px-4 py-2 rounded-full border border-slate-200 bg-white hover:bg-slate-50 transition-colors cursor-default">
+            <div className="hidden md:flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors cursor-default shadow-sm">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
               <Store className="w-4 h-4 text-blue-600" />
-              <span className="text-sm font-bold truncate max-w-[150px]">{profile?.branchName || 'Main Branch'}</span>
+              <span className="text-sm font-bold truncate max-w-[250px]">{displayBranch}</span>
+              <ChevronDown className="w-4 h-4 text-slate-400 ml-1" />
             </div>
 
             <button className="relative p-2 text-slate-400 hover:text-blue-600 rounded-full hover:bg-blue-50 transition-colors">
@@ -297,56 +299,47 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <span className="absolute top-1.5 right-2 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />
             </button>
 
-            <div className="hidden lg:block h-6 w-px bg-slate-200" aria-hidden="true" />
+            <div className="hidden lg:block h-8 w-px bg-slate-200 mx-1" aria-hidden="true" />
             
             <div className="relative" ref={userMenuRef}>
               <button 
                 onClick={() => setUserMenuOpen(!userMenuOpen)} 
-                className="flex items-center gap-3 pl-1 pr-2 py-1 border-2 border-transparent hover:border-slate-100 rounded-full transition-all focus:outline-none"
+                className="flex items-center gap-3 pl-1 pr-2 py-1.5 border-2 border-transparent hover:border-slate-100 rounded-xl transition-all focus:outline-none"
               >
-                <div className="h-9 w-9 rounded-full bg-gradient-to-tr from-blue-700 to-blue-500 flex items-center justify-center text-white font-bold text-sm shadow-sm ring-2 ring-white shrink-0">
+                <div className="h-10 w-10 rounded-full bg-blue-700 flex items-center justify-center text-white font-bold text-sm shadow-sm shrink-0">
                   {userInitials}
                 </div>
                 <div className="hidden sm:flex flex-col items-start mr-1">
-                  <span className="text-sm font-bold text-slate-900 leading-none">{displayName}</span>
-                  <span className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">{displayRole}</span>
+                  <span className="text-sm font-extrabold text-slate-900 leading-none">{displayName}</span>
+                  <span className="text-[10px] font-bold text-slate-500 mt-1 uppercase tracking-wider">{displayRole}</span>
                 </div>
                 <ChevronDown className="hidden sm:block w-4 h-4 text-slate-400" />
               </button>
 
               {userMenuOpen && (
-                <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2">
-                  <div className="p-4 border-b border-slate-100 bg-slate-50/50">
-                    <p className="text-sm font-bold text-slate-900 truncate">{displayFullName}</p>
-                    <p className="text-xs font-medium text-slate-500 mt-0.5 truncate">{profile?.email}</p>
-                    <div className="mt-2 inline-flex">
-                      <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-[10px] font-black rounded uppercase tracking-wider">
+                <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2">
+                  <div className="p-5 border-b border-slate-100 bg-slate-50/50">
+                    <p className="text-sm font-extrabold text-slate-900 truncate">{displayFullName}</p>
+                    <p className="text-xs font-medium text-slate-500 mt-1 truncate">{profile?.email}</p>
+                    <div className="mt-3 inline-flex">
+                      <span className="px-2.5 py-1 bg-blue-50 text-blue-700 text-[10px] font-black rounded uppercase tracking-wider">
                         {displayRole}
                       </span>
                     </div>
                   </div>
                   
-                  <div className="p-2 flex flex-col gap-1">
+                  <div className="p-3 flex flex-col gap-1">
                     {safeRole !== 'cashier' && (
-                      <Link href="/dashboard/settings" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors">
-                        <Building2 className="w-4 h-4 text-slate-400" /> Business Settings
-                      </Link>
+                      <>
+                        <Link href="/dashboard/settings" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors">
+                          <Building2 className="w-4 h-4 text-slate-400" /> Business Profile
+                        </Link>
+                        <Link href="/dashboard/settings/branches" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors">
+                          <Store className="w-4 h-4 text-slate-400" /> Locations & Outlets
+                        </Link>
+                        <div className="h-px bg-slate-100 my-1"></div>
+                      </>
                     )}
-                    
-                    <button 
-                      onClick={() => { 
-                        setIsProfileModalOpen(true); 
-                        setUserMenuOpen(false);
-                        setModalError(''); setModalSuccess('');
-                        setNameData({ 
-                          firstName: profile?.firstName || (profile?.name ? profile.name.split(' ')[0] : ''), 
-                          lastName: profile?.lastName || (profile?.name ? profile.name.split(' ').slice(1).join(' ') : '') 
-                        });
-                      }} 
-                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors"
-                    >
-                      <UserCog className="w-4 h-4 text-slate-400" /> Edit Profile
-                    </button>
                     
                     <button 
                       onClick={() => { 
@@ -360,12 +353,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       <KeyRound className="w-4 h-4 text-slate-400" /> Change Password
                     </button>
                     
+                    <button 
+                      onClick={() => { 
+                        setIsProfileModalOpen(true); 
+                        setUserMenuOpen(false);
+                        setModalError(''); setModalSuccess('');
+                        setNameData({ 
+                          firstName: profile?.firstName || (profile?.name ? profile.name.split(' ')[0] : ''), 
+                          lastName: profile?.lastName || (profile?.name ? profile.name.split(' ').slice(1).join(' ') : '') 
+                        });
+                      }} 
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors"
+                    >
+                      <UserCog className="w-4 h-4 text-slate-400" /> Change Name & Username
+                    </button>
+                    
                     <Link href="/dashboard/support" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors">
-                      <HelpCircle className="w-4 h-4 text-slate-400" /> Help & Support
+                      <HelpCircle className="w-4 h-4 text-slate-400" /> Documentation & Support
                     </Link>
                   </div>
                   
-                  <div className="p-2 border-t border-slate-100 bg-red-50/30">
+                  <div className="p-3 border-t border-slate-100 bg-red-50/30">
                     <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-red-600 hover:bg-red-50 transition-colors">
                       <LogOut className="w-4 h-4 text-red-500" /> Sign Out
                     </button>
@@ -376,7 +384,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto bg-slate-50 p-4 sm:p-6 lg:p-8 relative w-full scroll-smooth">
+        <main className="flex-1 overflow-y-auto bg-[#f8fafc] p-4 sm:p-6 lg:p-8 relative w-full scroll-smooth">
           <div className="mx-auto w-full h-full max-w-[1920px]">
             {children}
           </div>
@@ -388,8 +396,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <form onSubmit={handleProfileUpdate} className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden slide-in-from-bottom-4 animate-in">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
               <div>
-                <h3 className="text-lg font-black text-slate-900">Update Profile</h3>
-                <p className="text-xs text-slate-500 mt-0.5">Manage your personal POS details.</p>
+                <h3 className="text-lg font-black text-slate-900">Change Name & Username</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Update how you appear across the system.</p>
               </div>
               <button type="button" onClick={() => setIsProfileModalOpen(false)} className="text-slate-400 hover:text-slate-700 p-2 rounded-full hover:bg-slate-200 transition-colors">
                 <X className="w-5 h-5" />
@@ -415,7 +423,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <span className="text-[10px] text-slate-400 font-bold uppercase bg-slate-100 px-2 py-0.5 rounded">Locked</span>
                 </label>
                 <input type="email" value={profile?.email || ''} disabled className="w-full border border-slate-100 bg-slate-50 text-slate-400 cursor-not-allowed px-4 py-2.5 rounded-xl text-sm font-medium outline-none" />
-                <p className="text-[10px] text-slate-400 mt-1.5">Emails are securely locked to your directory.</p>
+                <p className="text-[10px] text-slate-400 mt-1.5">Email addresses are locked to your enterprise directory.</p>
               </div>
             </div>
             <div className="p-4 border-t border-slate-100 flex gap-3 bg-slate-50">
@@ -434,7 +442,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
               <div>
                 <h3 className="text-lg font-black text-slate-900">Change Password</h3>
-                <p className="text-xs text-slate-500 mt-0.5">Secure your SokoPoint account.</p>
+                <p className="text-xs text-slate-500 mt-0.5">Secure your SokoPoint account credentials.</p>
               </div>
               <button type="button" onClick={() => setIsPasswordModalOpen(false)} className="text-slate-400 hover:text-slate-700 p-2 rounded-full hover:bg-slate-200 transition-colors">
                 <X className="w-5 h-5" />
@@ -460,7 +468,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className="p-4 border-t border-slate-100 flex gap-3 bg-slate-50">
               <button type="button" onClick={() => setIsPasswordModalOpen(false)} className="flex-1 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-bold text-sm rounded-xl hover:bg-slate-100 transition-colors">Cancel</button>
               <button type="submit" disabled={modalLoading || !!modalSuccess} className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl shadow-md transition-colors disabled:opacity-50">
-                {modalLoading ? 'Updating...' : 'Update Password'}
+                {modalLoading ? 'Updating...' : 'Save Password'}
               </button>
             </div>
           </form>
