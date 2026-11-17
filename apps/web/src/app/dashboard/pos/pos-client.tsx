@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, ShoppingCart, Plus, Minus, Trash2, CreditCard, Loader2, CheckCircle2, Banknote, Smartphone, Printer, X, Image as ImageIcon } from 'lucide-react';
+import { Search, ShoppingCart, Plus, Minus, Trash2, CreditCard, Loader2, CheckCircle2, Banknote, Smartphone, Printer, X, Image as ImageIcon, ChevronUp } from 'lucide-react';
 import api from '../../../lib/api';
 
 interface Product {
@@ -26,8 +26,8 @@ interface ReceiptData {
   total: number;
   subtotal: number;
   taxableBase: number;
-  tax: number; // 16% VAT
-  cateringLevy: number; // 2% Levy
+  tax: number;
+  cateringLevy: number;
   method: string;
   amountTendered?: number;
   change?: number;
@@ -51,6 +51,7 @@ export default function POSClient() {
   const [amountTendered, setAmountTendered] = useState<string>('');
   const [mpesaPhone, setMpesaPhone] = useState<string>('');
   const [isRefundMode, setIsRefundMode] = useState<boolean>(false);
+  const [isMobileCartOpen, setIsMobileCartOpen] = useState<boolean>(false);
   
   const [receipt, setReceipt] = useState<ReceiptData | null>(null);
   const [paperSize, setPaperSize] = useState<'80mm' | '58mm'>('80mm');
@@ -177,6 +178,7 @@ export default function POSClient() {
   
   const tendered = parseFloat(amountTendered) || 0;
   const changeDue = paymentMethod === 'cash' && tendered > cartTotal && !isRefundMode ? tendered - cartTotal : 0;
+  const totalItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   const handleCheckout = async () => {
     if (cart.length === 0) return;
@@ -226,6 +228,7 @@ export default function POSClient() {
       setAmountTendered('');
       setMpesaPhone('');
       setIsRefundMode(false);
+      setIsMobileCartOpen(false);
       await loadProducts();
     } catch (error) {
       console.error('Failed to complete sale:', error);
@@ -260,12 +263,13 @@ export default function POSClient() {
         `
       }} />
 
-      <div id="pos-layout" className="flex flex-col lg:flex-row w-full bg-slate-50 relative print:hidden lg:h-[calc(100vh-4rem)]">
+      {/* Main Responsive Layout: Edge-to-Edge Grid / Flex */}
+      <div id="pos-layout" className="flex flex-col lg:flex-row w-full flex-1 bg-slate-50 relative print:hidden h-[calc(100vh-5rem)] overflow-hidden">
         
-        {/* LEFT PANEL: Product Grid */}
-        <div className="flex flex-col w-full lg:flex-1 h-[55vh] lg:h-full overflow-hidden bg-white border-b-8 border-slate-100 lg:border-b-0 lg:border-r lg:border-slate-200 shrink-0">
+        {/* LEFT PANEL: Product Grid & Search */}
+        <div className="flex flex-col flex-1 h-full overflow-hidden bg-white border-r border-slate-200">
           
-          <div className="p-3 sm:p-4 lg:p-5 xl:p-6 border-b border-slate-200 bg-white z-10 shrink-0 shadow-sm flex gap-3">
+          <div className="p-4 sm:p-5 lg:p-6 border-b border-slate-200 bg-white z-10 shrink-0 shadow-sm flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
               <input
@@ -280,25 +284,25 @@ export default function POSClient() {
             </div>
             <button 
               onClick={() => setIsRefundMode(!isRefundMode)}
-              className={`px-4 py-3 rounded-2xl text-xs font-bold transition-all whitespace-nowrap ${isRefundMode ? 'bg-red-100 text-red-700 border border-red-300' : 'bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200'}`}
+              className={`px-5 py-3 sm:py-3.5 rounded-2xl text-xs font-bold transition-all whitespace-nowrap shadow-sm ${isRefundMode ? 'bg-red-100 text-red-700 border border-red-300' : 'bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200'}`}
             >
               {isRefundMode ? '🔴 Refund Mode' : 'Return / Refund'}
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-5 xl:p-6 custom-scrollbar bg-slate-50/50">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-5 lg:p-6 custom-scrollbar bg-slate-50/50 pb-24 lg:pb-6">
             {isLoading ? (
               <div className="h-full flex items-center justify-center">
                 <Loader2 className="h-10 w-10 animate-spin text-green-600" />
               </div>
             ) : filteredProducts.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-slate-500">
+              <div className="h-full flex flex-col items-center justify-center text-slate-500 py-16">
                 <ShoppingCart className="h-16 w-16 mb-4 text-slate-300" />
-                <p className="text-base sm:text-lg font-medium">No products found</p>
+                <p className="text-base sm:text-lg font-bold">No products found</p>
                 <p className="text-sm mt-1 text-slate-400">Try adjusting your search query</p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-4 lg:gap-5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
                 {filteredProducts.map((product) => {
                   const hasRealImageInDB = product.imageUrl && !product.imageUrl.includes('placehold.co');
                   const displayImage = hasRealImageInDB ? product.imageUrl : `/products/${product.name}.png`;
@@ -309,10 +313,10 @@ export default function POSClient() {
                       key={product.id}
                       onClick={() => addToCart(product)}
                       disabled={isOutOfStock && !isRefundMode}
-                      className={`group flex flex-col text-left rounded-2xl border transition-all bg-white overflow-hidden ${
+                      className={`group flex flex-col text-left rounded-2xl border transition-all bg-white overflow-hidden shadow-sm ${
                         isOutOfStock && !isRefundMode
                           ? 'border-red-100 opacity-60 cursor-not-allowed' 
-                          : `border-slate-200 hover:shadow-xl active:scale-[0.98] ${isRefundMode ? 'hover:border-red-500' : 'hover:border-green-600'}`
+                          : `border-slate-200 hover:shadow-lg active:scale-[0.98] ${isRefundMode ? 'hover:border-red-500' : 'hover:border-green-600'}`
                       }`}
                     >
                       <div className="aspect-[4/3] w-full bg-slate-100 relative overflow-hidden flex items-center justify-center shrink-0">
@@ -335,25 +339,25 @@ export default function POSClient() {
                         </div>
                         {isOutOfStock && !isRefundMode && (
                           <div className="absolute inset-0 bg-white/70 backdrop-blur-[2px] flex items-center justify-center z-10">
-                            <span className="bg-red-600 text-white text-xs font-bold px-3 py-1.5 rounded-full uppercase tracking-widest shadow-sm">Out of Stock</span>
+                            <span className="bg-red-600 text-white text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-widest shadow-sm">Out of Stock</span>
                           </div>
                         )}
                       </div>
                       
                       <div className="p-3 sm:p-4 flex flex-col flex-1 w-full min-w-0">
-                        <h3 className="font-bold text-sm text-slate-900 line-clamp-2 leading-tight mb-2 w-full">{product.name}</h3>
-                        <div className="flex justify-between items-center">
-                          <span className="text-xs text-slate-400 font-medium truncate mr-2">{product.sku || 'NO SKU'}</span>
-                          <span className={`text-[11px] font-bold shrink-0 ${Number(product.stock) <= 5 ? 'text-red-500' : 'text-slate-500'}`}>
-                            Stock: {product.stock}
+                        <h3 className="font-bold text-xs sm:text-sm text-slate-900 line-clamp-2 leading-tight mb-2 w-full">{product.name}</h3>
+                        <div className="flex justify-between items-center text-[11px] text-slate-400 mb-2">
+                          <span className="truncate mr-1">{product.sku || 'SKU N/A'}</span>
+                          <span className={`font-semibold shrink-0 ${Number(product.stock) <= 5 ? 'text-red-500' : 'text-slate-500'}`}>
+                            Qty: {product.stock}
                           </span>
                         </div>
-                        <div className="w-full flex items-center justify-between mt-auto pt-3 border-t border-slate-100">
-                          <span className="font-extrabold text-sm text-slate-900 truncate">
+                        <div className="w-full flex items-center justify-between mt-auto pt-2.5 border-t border-slate-100">
+                          <span className="font-black text-xs sm:text-sm text-slate-900 truncate">
                             KES {Number(product.sellingPrice || product.price || 0).toLocaleString('en-US')}
                           </span>
-                          <div className={`h-8 w-8 rounded-full flex items-center justify-center transition-all ${isRefundMode ? 'bg-red-50 text-red-600 group-hover:bg-red-600 group-hover:text-white' : 'bg-green-50 text-green-600 group-hover:bg-green-600 group-hover:text-white'}`}>
-                            {isRefundMode ? <Minus className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                          <div className={`h-7 w-7 sm:h-8 sm:w-8 rounded-full flex items-center justify-center transition-all ${isRefundMode ? 'bg-red-50 text-red-600 group-hover:bg-red-600 group-hover:text-white' : 'bg-green-50 text-green-600 group-hover:bg-green-600 group-hover:text-white'}`}>
+                            {isRefundMode ? <Minus className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
                           </div>
                         </div>
                       </div>
@@ -365,100 +369,140 @@ export default function POSClient() {
           </div>
         </div>
 
-        {/* RIGHT PANEL: Cart & Checkout */}
-        <div className="flex flex-col w-full lg:w-[400px] xl:w-[440px] h-auto lg:h-full bg-white lg:shadow-2xl z-20 shrink-0">
-          
-          <div className={`p-4 lg:p-5 text-white flex justify-between items-center shrink-0 ${isRefundMode ? 'bg-red-950' : 'bg-green-950'}`}>
-            <h2 className="font-bold text-lg flex items-center gap-3">
-              <ShoppingCart className={`h-5 w-5 ${isRefundMode ? 'text-red-400' : 'text-green-400'}`} /> 
-              {isRefundMode ? 'Refund Order' : 'Current Order'}
-            </h2>
-            <span className="bg-white/10 px-3 py-1.5 rounded-lg text-xs font-bold tracking-wider">{cart.length} items</span>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-3 sm:p-4 custom-scrollbar bg-slate-50/50 space-y-3">
-            {cart.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-slate-400 py-10">
-                <ShoppingCart className="h-16 w-16 mb-4 text-slate-300" />
-                <p className="font-bold text-lg text-slate-500">Cart is empty</p>
-                <p className="mt-1 text-slate-400 text-sm">Select products to add them to the order</p>
-              </div>
-            ) : (
-              cart.map((item) => (
-                <div key={item.cartId} className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-3 transition-all hover:border-slate-300">
-                  <div className="flex justify-between items-start gap-3">
-                    <h4 className="font-bold text-sm text-slate-900 leading-snug">{item.name}</h4>
-                    <button onClick={() => removeFromCart(item.cartId)} className="text-slate-400 hover:text-red-500 hover:bg-red-50 p-2 rounded-xl transition-colors shrink-0">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                  <div className="flex justify-between items-center mt-auto border-t border-slate-50 pt-3">
-                    <span className={`font-extrabold text-sm ${isRefundMode ? 'text-red-600' : 'text-slate-900'}`}>
-                      {isRefundMode ? '-' : ''}KES {(Number(item.sellingPrice || item.price || 0) * item.quantity).toLocaleString('en-US')}
-                    </span>
-                    <div className="flex items-center gap-1.5 bg-slate-50 rounded-xl p-1.5 border border-slate-100">
-                      <button onClick={() => updateQuantity(item.cartId, -1)} className="h-8 w-8 flex items-center justify-center bg-white shadow-sm rounded-lg text-slate-600 hover:bg-slate-100 active:scale-95"><Minus className="h-4 w-4" /></button>
-                      <span className="text-sm font-bold w-8 text-center text-slate-900">{item.quantity}</span>
-                      <button onClick={() => updateQuantity(item.cartId, 1)} className="h-8 w-8 flex items-center justify-center bg-white shadow-sm rounded-lg text-slate-600 hover:bg-slate-100 active:scale-95"><Plus className="h-4 w-4" /></button>
-                    </div>
-                  </div>
+        {/* RIGHT PANEL: Cart & Checkout (Sidebar on desktop, Expandable Bottom Sheet on Mobile) */}
+        <>
+          {/* Mobile Floating Trigger Bar */}
+          <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-slate-900 text-white p-4 flex justify-between items-center shadow-2xl z-40 border-t border-slate-800">
+            <button onClick={() => setIsMobileCartOpen(true)} className="flex items-center gap-3 w-full justify-between">
+              <div className="flex items-center gap-3">
+                <div className="bg-green-600 p-2 rounded-xl text-white">
+                  <ShoppingCart className="h-5 w-5" />
                 </div>
-              ))
-            )}
-          </div>
-
-          <div className="p-4 sm:p-5 bg-white border-t border-slate-200 shrink-0 shadow-[0_-4px_20px_rgba(0,0,0,0.03)] z-10">
-            {!isRefundMode && (
-              <div className="mb-5">
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">Payment Method</p>
-                <div className="grid grid-cols-3 gap-2">
-                  {(['cash', 'mpesa', 'card'] as const).map(method => (
-                    <button key={method} onClick={() => setPaymentMethod(method)}
-                      className={`flex flex-col items-center justify-center py-2.5 px-2 rounded-xl border-2 transition-all capitalize ${paymentMethod === method ? 'border-green-600 bg-green-50 text-green-700' : 'border-slate-100 text-slate-500 hover:bg-slate-50'}`}
-                    >
-                      {method === 'cash' ? <Banknote className="h-5 w-5 mb-1.5" /> : method === 'mpesa' ? <Smartphone className="h-5 w-5 mb-1.5" /> : <CreditCard className="h-5 w-5 mb-1.5" />}
-                      <span className="text-xs font-bold">{method}</span>
-                    </button>
-                  ))}
+                <div className="text-left">
+                  <p className="text-xs text-slate-400 font-medium">{totalItemCount} items in cart</p>
+                  <p className="text-base font-black">KES {cartTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
                 </div>
               </div>
-            )}
-
-            {!isRefundMode && paymentMethod === 'cash' && (
-              <div className="flex gap-2 mb-4">
-                <div className="flex-1 relative">
-                  <span className="absolute left-3 top-2 text-[10px] font-bold text-slate-400 uppercase">Tendered</span>
-                  <input type="number" value={amountTendered} onChange={e => setAmountTendered(e.target.value)} placeholder="0.00" className="w-full pl-20 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-1 focus:ring-green-600 outline-none" />
-                </div>
-                {tendered > cartTotal && (
-                  <div className="flex-1 bg-slate-50 border border-slate-200 rounded-xl py-1.5 px-3 flex flex-col justify-center text-right">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">Change Due</span>
-                    <span className="text-sm font-black text-green-600">KES {changeDue.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                  </div>
-                )}
+              <div className="flex items-center gap-1 bg-white/10 px-3 py-2 rounded-xl text-xs font-bold">
+                <span>View Cart</span>
+                <ChevronUp className="h-4 w-4" />
               </div>
-            )}
-
-            <div className="space-y-2 mb-5 text-sm">
-              <div className="flex justify-between text-slate-500 font-medium"><span>Taxable Base Net</span><span>KES {taxableBaseNet.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span></div>
-              <div className="flex justify-between text-slate-500 font-medium"><span>KRA VAT (16%)</span><span>KES {cartTax.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span></div>
-              <div className="flex justify-between text-slate-500 font-medium"><span>Catering Levy (2%)</span><span>KES {cartLevy.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span></div>
-              <div className="flex justify-between text-xl font-black text-slate-900 pt-3 border-t border-slate-200 mt-3">
-                <span>Total Paid</span>
-                <span className={isRefundMode ? 'text-red-600' : 'text-green-600'}>KES {cartTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-              </div>
-            </div>
-            
-            <button
-              onClick={handleCheckout}
-              disabled={cart.length === 0 || isProcessing || (!isRefundMode && paymentMethod === 'cash' && tendered < cartTotal)}
-              className={`w-full py-4 text-white text-base font-bold rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-[0.98] shadow-lg disabled:opacity-50 disabled:cursor-not-allowed ${isRefundMode ? 'bg-red-500 hover:bg-red-600' : 'bg-green-600 hover:bg-green-700'}`}
-            >
-              {isProcessing ? <Loader2 className="h-5 w-5 animate-spin" /> : <CheckCircle2 className="h-5 w-5" />}
-              {isProcessing ? 'Processing Transaction...' : isRefundMode ? 'Process Refund' : 'Complete Checkout'}
             </button>
           </div>
-        </div>
+
+          {/* Cart Sidebar Container */}
+          <div className={`
+            fixed lg:static inset-x-0 bottom-0 z-50 lg:z-auto
+            w-full lg:w-[400px] xl:w-[445px] 
+            h-[85vh] lg:h-full 
+            bg-white lg:shadow-2xl flex flex-col shrink-0
+            transition-transform duration-300 ease-in-out
+            ${isMobileCartOpen ? 'translate-y-0' : 'translate-y-full lg:translate-y-0'}
+            rounded-t-3xl lg:rounded-none border-t lg:border-t-0 border-slate-200
+          `}>
+            
+            {/* Mobile Header Close / Drag Indicator */}
+            <div className="lg:hidden flex justify-center pt-3 pb-1 bg-slate-100 rounded-t-3xl">
+              <div className="w-12 h-1.5 bg-slate-300 rounded-full" />
+            </div>
+
+            <div className={`p-4 lg:p-5 text-white flex justify-between items-center shrink-0 ${isRefundMode ? 'bg-red-950' : 'bg-green-950'}`}>
+              <h2 className="font-bold text-base sm:text-lg flex items-center gap-3">
+                <ShoppingCart className={`h-5 w-5 ${isRefundMode ? 'text-red-400' : 'text-green-400'}`} /> 
+                {isRefundMode ? 'Refund Order' : 'Current Order'}
+              </h2>
+              <div className="flex items-center gap-3">
+                <span className="bg-white/10 px-3 py-1.5 rounded-lg text-xs font-bold tracking-wider">{totalItemCount} items</span>
+                <button onClick={() => setIsMobileCartOpen(false)} className="lg:hidden text-slate-300 hover:text-white p-1">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-3 sm:p-4 custom-scrollbar bg-slate-50/50 space-y-3">
+              {cart.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-slate-400 py-10">
+                  <ShoppingCart className="h-14 w-14 mb-3 text-slate-300" />
+                  <p className="font-bold text-base text-slate-500">Cart is empty</p>
+                  <p className="mt-1 text-slate-400 text-xs sm:text-sm text-center px-4">Select products from the catalog to add them to the order</p>
+                </div>
+              ) : (
+                cart.map((item) => (
+                  <div key={item.cartId} className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-2.5 transition-all hover:border-slate-300">
+                    <div className="flex justify-between items-start gap-3">
+                      <h4 className="font-bold text-sm text-slate-900 leading-snug">{item.name}</h4>
+                      <button onClick={() => removeFromCart(item.cartId)} className="text-slate-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-xl transition-colors shrink-0">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="flex justify-between items-center mt-auto border-t border-slate-50 pt-2.5">
+                      <span className={`font-black text-sm ${isRefundMode ? 'text-red-600' : 'text-slate-900'}`}>
+                        {isRefundMode ? '-' : ''}KES {(Number(item.sellingPrice || item.price || 0) * item.quantity).toLocaleString('en-US')}
+                      </span>
+                      <div className="flex items-center gap-1.5 bg-slate-50 rounded-xl p-1 border border-slate-200">
+                        <button onClick={() => updateQuantity(item.cartId, -1)} className="h-7 w-7 flex items-center justify-center bg-white shadow-sm rounded-lg text-slate-600 hover:bg-slate-100 active:scale-95"><Minus className="h-3.5 w-3.5" /></button>
+                        <span className="text-xs font-bold w-6 text-center text-slate-900">{item.quantity}</span>
+                        <button onClick={() => updateQuantity(item.cartId, 1)} className="h-7 w-7 flex items-center justify-center bg-white shadow-sm rounded-lg text-slate-600 hover:bg-slate-100 active:scale-95"><Plus className="h-3.5 w-3.5" /></button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="p-4 sm:p-5 bg-white border-t border-slate-200 shrink-0 shadow-[0_-4px_20px_rgba(0,0,0,0.03)] z-10">
+              {!isRefundMode && (
+                <div className="mb-4">
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">Payment Method</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['cash', 'mpesa', 'card'] as const).map(method => (
+                      <button key={method} onClick={() => setPaymentMethod(method)}
+                        className={`flex flex-col items-center justify-center py-2.5 px-2 rounded-xl border-2 transition-all capitalize ${paymentMethod === method ? 'border-green-600 bg-green-50 text-green-700 shadow-sm' : 'border-slate-100 text-slate-500 hover:bg-slate-50'}`}
+                      >
+                        {method === 'cash' ? <Banknote className="h-4 w-4 mb-1" /> : method === 'mpesa' ? <Smartphone className="h-4 w-4 mb-1" /> : <CreditCard className="h-4 w-4 mb-1" />}
+                        <span className="text-xs font-bold">{method}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {!isRefundMode && paymentMethod === 'cash' && (
+                <div className="flex gap-2 mb-3">
+                  <div className="flex-1 relative">
+                    <span className="absolute left-3 top-2 text-[10px] font-bold text-slate-400 uppercase">Tendered</span>
+                    <input type="number" value={amountTendered} onChange={e => setAmountTendered(e.target.value)} placeholder="0.00" className="w-full pl-20 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-1 focus:ring-green-600 outline-none" />
+                  </div>
+                  {tendered > cartTotal && (
+                    <div className="flex-1 bg-slate-50 border border-slate-200 rounded-xl py-1.5 px-3 flex flex-col justify-center text-right">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">Change Due</span>
+                      <span className="text-xs sm:text-sm font-black text-green-600">KES {changeDue.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="space-y-1.5 mb-4 text-xs sm:text-sm">
+                <div className="flex justify-between text-slate-500 font-medium"><span>Taxable Base Net</span><span>KES {taxableBaseNet.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span></div>
+                <div className="flex justify-between text-slate-500 font-medium"><span>KRA VAT (16%)</span><span>KES {cartTax.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span></div>
+                <div className="flex justify-between text-slate-500 font-medium"><span>Catering Levy (2%)</span><span>KES {cartLevy.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span></div>
+                <div className="flex justify-between text-lg sm:text-xl font-black text-slate-900 pt-2.5 border-t border-slate-200 mt-2">
+                  <span>Total Paid</span>
+                  <span className={isRefundMode ? 'text-red-600' : 'text-green-600'}>KES {cartTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                </div>
+              </div>
+              
+              <button
+                onClick={handleCheckout}
+                disabled={cart.length === 0 || isProcessing || (!isRefundMode && paymentMethod === 'cash' && tendered < cartTotal)}
+                className={`w-full py-3.5 sm:py-4 text-white text-sm sm:text-base font-bold rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-[0.98] shadow-lg disabled:opacity-50 disabled:cursor-not-allowed ${isRefundMode ? 'bg-red-500 hover:bg-red-600' : 'bg-green-600 hover:bg-green-700'}`}
+              >
+                {isProcessing ? <Loader2 className="h-5 w-5 animate-spin" /> : <CheckCircle2 className="h-5 w-5" />}
+                {isProcessing ? 'Processing Transaction...' : isRefundMode ? 'Process Refund' : 'Complete Checkout'}
+              </button>
+            </div>
+          </div>
+        </>
       </div>
 
       {/* RECEIPT MODAL */}
@@ -484,7 +528,7 @@ export default function POSClient() {
                 <p className="font-medium text-[10px]">eTIMS CU Serial: KRA-ETIMS-0082914-2026</p>
                 
                 <p className="font-bold text-[11px] mt-3">{receipt.receiptNumber}</p>
-                <p className="font-medium text-[10px]">{receipt.date} - {receipt.time} | Terminal 1</p>
+                <p className="font-medium text-[10px]">{receipt.date} {receipt.time} | Terminal 1</p>
               </div>
 
               <div className="flex justify-between font-medium text-[10px] border-b border-dashed border-black pb-2 mb-2">
