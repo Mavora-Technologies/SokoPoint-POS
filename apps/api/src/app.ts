@@ -17,6 +17,7 @@ import { shiftRoutes } from './modules/shifts/shifts.routes';
 import reportRoutes from './modules/reports/reports.routes';
 import creditRoutes from './modules/finance/credit.routes';
 import refundRoutes from './modules/refunds/refunds.routes';
+import supportRoutes from './modules/support/support.routes';
 
 export const createApp = () => {
   const app = express();
@@ -70,6 +71,7 @@ export const createApp = () => {
   app.use('/api/v1/reports', reportRoutes);
   app.use('/api/v1/credit', creditRoutes);
   app.use('/api/v1/refunds', refundRoutes);
+  app.use('/api/v1/support', supportRoutes);
 
   // Aliases
   app.use('/auth', authRoutes);

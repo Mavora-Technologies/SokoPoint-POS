@@ -119,6 +119,19 @@ export const orderItems = pgTable('order_items', {
   subtotal: decimal('subtotal', { precision: 12, scale: 2 }).notNull(),
 });
 
+// --- SUPPORT TICKETS TABLE ---
+export const supportTickets = pgTable('support_tickets', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
+  ticketNumber: varchar('ticket_number', { length: 50 }).notNull(),
+  subject: varchar('subject', { length: 255 }).notNull(),
+  description: text('description').notNull(),
+  status: varchar('status', { length: 50 }).notNull().default('PENDING'), 
+  priority: varchar('priority', { length: 50 }).notNull().default('MEDIUM'), 
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
 // --- PHASE 10 EXPORTS ---
 // Export the new, advanced customer module so other files can import it directly from db/schema
 export * from './schema/customers';
