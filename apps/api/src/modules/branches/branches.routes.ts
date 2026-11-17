@@ -1,7 +1,11 @@
 import { Router } from 'express';
-import { getBranches, createBranch } from '../../controllers/branch.controller';
+import { BranchesController } from './branches.controller';
 
-export const branchRoutes = Router();
+const router = Router();
 
-branchRoutes.get('/', getBranches);
-branchRoutes.post('/', createBranch);
+// Routes are protected by your frontend JWT interceptor & tenant headers
+router.get('/', BranchesController.getBranches);
+router.post('/', BranchesController.createBranch);
+router.put('/:id', BranchesController.updateBranch);
+
+export default router;
