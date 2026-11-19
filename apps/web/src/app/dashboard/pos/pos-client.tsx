@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import Link from 'next/link';
 import {
   Search,
   ShoppingCart,
@@ -16,6 +17,7 @@ import {
   X,
   ChevronUp,
   User,
+  LogIn,
 } from 'lucide-react';
 import api from '../../../lib/api';
 
@@ -123,9 +125,11 @@ export default function POSClient() {
 
       setProducts(rawList);
     } catch (error: any) {
-      console.error('Failed to load POS catalog:', error);
-      if (error?.response?.status === 401) {
-        setAuthError('Session expired or unauthorized (401). Please sign in again to load your tenant catalog.');
+      const status = error?.response?.status;
+      if (status === 401) {
+        setAuthError('Unauthorized (401): Invalid or expired token. Please sign in again.');
+      } else {
+        setAuthError(error?.response?.data?.message || 'Unable to load POS products.');
       }
       setProducts([]);
     } finally {
@@ -304,7 +308,6 @@ export default function POSClient() {
       setIsMobileCartOpen(false);
       await loadPosContext();
     } catch (error: any) {
-      console.error('POS checkout failed:', error);
       alert(error?.response?.data?.message || 'Checkout failed. Server refused transaction.');
     } finally {
       setProcessing(false);
@@ -386,13 +389,21 @@ export default function POSClient() {
               </div>
             ) : authError ? (
               <div className="h-full flex flex-col items-center justify-center text-center p-6">
-                <p className="text-sm font-bold text-red-600 mb-2">{authError}</p>
-                <button
-                  onClick={loadPosContext}
-                  className="px-4 py-2 bg-[#0554F4] text-white text-xs font-bold rounded-xl"
-                >
-                  Retry Load Catalog
-                </button>
+                <p className="text-sm font-bold text-red-600 mb-3">{authError}</p>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={loadPosContext}
+                    className="px-4 py-2 bg-slate-200 text-slate-800 text-xs font-bold rounded-xl hover:bg-slate-300 transition-colors"
+                  >
+                    Retry
+                  </button>
+                  <Link
+                    href="/login"
+                    className="px-4 py-2 bg-[#0554F4] text-white text-xs font-bold rounded-xl hover:bg-[#041F56] transition-colors flex items-center gap-1.5"
+                  >
+                    <LogIn className="h-3.5 w-3.5" /> Sign In Again
+                  </Link>
+                </div>
               </div>
             ) : filteredProducts.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-slate-500">
@@ -552,7 +563,6 @@ export default function POSClient() {
             </div>
           </div>
 
-          {/* Customer Reference Bar */}
           <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 flex items-center gap-2 shrink-0">
             <User className="h-3.5 w-3.5 text-slate-400 shrink-0" />
             <input
@@ -564,7 +574,6 @@ export default function POSClient() {
             />
           </div>
 
-          {/* Cart Items */}
           <div className="flex-1 overflow-y-auto p-3 custom-scrollbar bg-slate-50/50 space-y-2">
             {cart.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-slate-400 py-10">
@@ -613,7 +622,6 @@ export default function POSClient() {
             )}
           </div>
 
-          {/* Payment & Totals Footer */}
           <div className="p-3 sm:p-4 bg-white border-t border-slate-200 shrink-0 shadow-[0_-4px_20px_rgba(0,0,0,0.03)] z-10">
             {!isRefundMode && (
               <div className="mb-3 lg:mb-4">

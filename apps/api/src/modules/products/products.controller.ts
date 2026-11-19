@@ -43,7 +43,12 @@ export class ProductsController {
         price: Number(p.sellingPrice ?? 0),
         sellingPrice: Number(p.sellingPrice ?? 0),
         costPrice: Number(p.costPrice ?? 0),
-        stock: p.reorderLevel && p.reorderLevel > 0 ? p.reorderLevel : p.minimumStock && p.minimumStock > 0 ? p.minimumStock : 10,
+        stock:
+          p.reorderLevel && p.reorderLevel > 0
+            ? p.reorderLevel
+            : p.minimumStock && p.minimumStock > 0
+            ? p.minimumStock
+            : 10,
       }));
 
       return res.status(200).json({ success: true, data });

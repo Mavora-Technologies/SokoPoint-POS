@@ -1,7 +1,11 @@
 import axios from 'axios';
 
+const rawEnvUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1').trim();
+const cleanedOrigin = rawEnvUrl.replace(/\/+$/, '').replace(/\/api\/v1$/i, '');
+const normalizedBaseURL = `${cleanedOrigin}/api/v1`;
+
 export const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1',
+  baseURL: normalizedBaseURL,
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
@@ -9,6 +13,11 @@ export const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
+  // Prevent accidental double /api/v1/api/v1 if a caller passes /api/v1/...
+  if (config.url && /^\/?api\/v1\//i.test(config.url)) {
+    config.url = config.url.replace(/^\/?api\/v1/i, '');
+  }
+
   if (typeof window !== 'undefined') {
     const token =
       localStorage.getItem('vora_token') ||
@@ -21,15 +30,5 @@ api.interceptors.request.use((config) => {
   }
   return config;
 });
-
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (typeof window !== 'undefined' && error?.response?.status === 401) {
-      // Optional: keep state predictable without hard loops
-    }
-    return Promise.reject(error);
-  }
-);
 
 export default api;
