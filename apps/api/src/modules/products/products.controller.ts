@@ -20,6 +20,8 @@ export class ProductsController {
       const rows = await db
         .select({
           id: products.id,
+          tenantId: products.tenantId,
+          categoryId: products.categoryId,
           name: products.name,
           description: products.description,
           sku: products.sku,
@@ -38,7 +40,10 @@ export class ProductsController {
 
       const data = rows.map((p) => ({
         ...p,
-        stock: p.minimumStock && p.minimumStock > 0 ? p.minimumStock : 10,
+        price: Number(p.sellingPrice ?? 0),
+        sellingPrice: Number(p.sellingPrice ?? 0),
+        costPrice: Number(p.costPrice ?? 0),
+        stock: p.reorderLevel && p.reorderLevel > 0 ? p.reorderLevel : p.minimumStock && p.minimumStock > 0 ? p.minimumStock : 10,
       }));
 
       return res.status(200).json({ success: true, data });
@@ -59,7 +64,19 @@ export class ProductsController {
         return res.status(401).json({ success: false, message: 'Unauthorized: missing tenant context' });
       }
 
-      const { name, description, sku, barcode, costPrice, sellingPrice, taxRate, minimumStock, reorderLevel } = req.body;
+      const {
+        name,
+        description,
+        sku,
+        barcode,
+        costPrice,
+        sellingPrice,
+        taxRate,
+        minimumStock,
+        reorderLevel,
+        categoryId,
+      } = req.body;
+
       if (!name || sellingPrice === undefined) {
         return res.status(400).json({ success: false, message: 'Product name and sellingPrice are required' });
       }
@@ -68,6 +85,7 @@ export class ProductsController {
         .insert(products)
         .values({
           tenantId,
+          categoryId: categoryId || null,
           name: name.trim(),
           description: description || null,
           sku: sku || null,

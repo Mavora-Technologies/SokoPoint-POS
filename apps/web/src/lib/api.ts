@@ -1,8 +1,8 @@
 import axios from 'axios';
 
 export const api = axios.create({
-  // Hakikisha hapa inaenda kwenye live backend URL yako au fallback ya local
   baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1',
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -10,13 +10,26 @@ export const api = axios.create({
 
 api.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
-    // Inachunguza token zote ili kuzuia conflict ya 'vora_token' na 'token'
-    const token = localStorage.getItem('vora_token') || localStorage.getItem('token');
+    const token =
+      localStorage.getItem('vora_token') ||
+      localStorage.getItem('token') ||
+      localStorage.getItem('auth_token');
+
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
   }
   return config;
 });
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (typeof window !== 'undefined' && error?.response?.status === 401) {
+      // Optional: keep state predictable without hard loops
+    }
+    return Promise.reject(error);
+  }
+);
 
 export default api;

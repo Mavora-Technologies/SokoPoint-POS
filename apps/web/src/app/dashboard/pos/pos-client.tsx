@@ -21,6 +21,7 @@ import api from '../../../lib/api';
 
 interface Product {
   id: string;
+  tenantId?: string;
   name: string;
   sku?: string;
   barcode?: string;
@@ -70,6 +71,7 @@ export default function POSClient() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'M-Pesa' | 'Card'>('Cash');
@@ -80,7 +82,6 @@ export default function POSClient() {
   const [receipt, setReceipt] = useState<ReceiptData | null>(null);
   const [paperSize, setPaperSize] = useState<'80mm' | '58mm'>('80mm');
 
-  // Dynamic tenant context resolved from server (/auth/me)
   const [cashierName, setCashierName] = useState('Cashier');
   const [businessName, setBusinessName] = useState('SokoPoint Retail');
   const [branchName, setBranchName] = useState('Main Branch');
@@ -102,11 +103,9 @@ export default function POSClient() {
   const loadPosContext = useCallback(async () => {
     try {
       setLoading(true);
-      const [meRes, productsRes] = await Promise.all([
-        api.get('/auth/me').catch(() => null),
-        api.get('/products'),
-      ]);
+      setAuthError(null);
 
+      const meRes = await api.get('/auth/me').catch(() => null);
       const profile = meRes?.data?.data;
       if (profile) {
         if (profile.name) setCashierName(profile.name);
@@ -115,6 +114,7 @@ export default function POSClient() {
         if (profile.currency) setCurrency(profile.currency);
       }
 
+      const productsRes = await api.get('/products');
       const rawList = Array.isArray(productsRes.data?.data)
         ? productsRes.data.data
         : Array.isArray(productsRes.data)
@@ -122,8 +122,12 @@ export default function POSClient() {
         : [];
 
       setProducts(rawList);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to load POS catalog:', error);
+      if (error?.response?.status === 401) {
+        setAuthError('Session expired or unauthorized (401). Please sign in again to load your tenant catalog.');
+      }
+      setProducts([]);
     } finally {
       setLoading(false);
     }
@@ -231,7 +235,6 @@ export default function POSClient() {
     );
   };
 
-  // Totals (Standard 16% KRA VAT — no catering levy)
   const rawSubtotal = cart.reduce((sum, item) => sum + item.subtotal, 0);
   const cartSubtotal = isRefundMode ? -Math.abs(rawSubtotal) : rawSubtotal;
   const taxRate = 0.16;
@@ -309,7 +312,6 @@ export default function POSClient() {
   };
 
   const filteredProducts = products.filter((p) => {
-    if (Number(p.stock ?? 0) <= 0 && !isRefundMode && !searchQuery) return true;
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
     return (
@@ -381,6 +383,16 @@ export default function POSClient() {
             {loading ? (
               <div className="h-full flex items-center justify-center">
                 <Loader2 className="h-10 w-10 animate-spin text-[#0554F4]" />
+              </div>
+            ) : authError ? (
+              <div className="h-full flex flex-col items-center justify-center text-center p-6">
+                <p className="text-sm font-bold text-red-600 mb-2">{authError}</p>
+                <button
+                  onClick={loadPosContext}
+                  className="px-4 py-2 bg-[#0554F4] text-white text-xs font-bold rounded-xl"
+                >
+                  Retry Load Catalog
+                </button>
               </div>
             ) : filteredProducts.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-slate-500">
