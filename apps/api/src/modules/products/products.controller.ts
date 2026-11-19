@@ -1,151 +1,93 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
-import { v2 as cloudinary } from 'cloudinary';
+import { db } from '../../db';
+import { products } from '../../db/schema';
+import { eq, desc, and } from 'drizzle-orm';
 
-const prisma = new PrismaClient();
+type AuthRequest = Request & {
+  auth?: { tenantId?: string; userId?: string; branchId?: string | null; role?: string };
+  user?: { tenantId?: string; userId?: string; branchId?: string | null; role?: string };
+};
 
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
-
-const uploadToCloudinary = (fileBuffer: Buffer): Promise<any> => {
-  return new Promise((resolve, reject) => {
-    const uploadStream = cloudinary.uploader.upload_stream(
-      { folder: 'sokopoint-products' },
-      (error, result) => {
-        if (error) return reject(error);
-        resolve(result);
+export class ProductsController {
+  // GET /api/v1/products
+  static async getProducts(req: AuthRequest, res: Response) {
+    try {
+      const tenantId = req.auth?.tenantId || req.user?.tenantId;
+      if (!tenantId) {
+        return res.status(401).json({ success: false, message: 'Unauthorized: missing tenant context' });
       }
-    );
-    uploadStream.end(fileBuffer);
-  });
-};
 
-export const getProducts = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { status } = req.query;
-    
-    // Serve ARCHIVED products if explicitly requested, otherwise serve ACTIVE ones
-    const statusFilter = status === 'ARCHIVED' ? 'ARCHIVED' : { not: 'ARCHIVED' };
+      const rows = await db
+        .select({
+          id: products.id,
+          name: products.name,
+          description: products.description,
+          sku: products.sku,
+          barcode: products.barcode,
+          costPrice: products.costPrice,
+          sellingPrice: products.sellingPrice,
+          taxRate: products.taxRate,
+          minimumStock: products.minimumStock,
+          reorderLevel: products.reorderLevel,
+          isActive: products.isActive,
+          createdAt: products.createdAt,
+        })
+        .from(products)
+        .where(and(eq(products.tenantId, tenantId), eq(products.isActive, true)))
+        .orderBy(desc(products.createdAt));
 
-    const products = await prisma.product.findMany({ 
-      where: { status: statusFilter },
-      orderBy: { createdAt: 'desc' } 
-    });
-    res.status(200).json({ success: true, data: products });
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Server error while fetching products' });
-  }
-};
+      const data = rows.map((p) => ({
+        ...p,
+        stock: p.minimumStock && p.minimumStock > 0 ? p.minimumStock : 10,
+      }));
 
-export const createProduct = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { name, category, sellingPrice, stock, sku } = req.body;
-    let imageUrl = req.body.imageUrl;
-
-    const file = (req as any).file;
-    if (file && file.buffer) {
-      const uploadResult = await uploadToCloudinary(file.buffer);
-      imageUrl = uploadResult.secure_url;
+      return res.status(200).json({ success: true, data });
+    } catch (error: any) {
+      console.error('[PRODUCTS GET ERROR]', error);
+      return res.status(500).json({
+        success: false,
+        message: error.message || 'Failed to load products',
+      });
     }
-
-    const newProduct = await prisma.product.create({
-      data: {
-        name: String(name),
-        category: category ? String(category) : 'General',
-        sellingPrice: Number(sellingPrice) || 0,
-        stock: Number(stock) || 0,
-        sku: sku ? String(sku) : null,
-        imageUrl: imageUrl ? String(imageUrl) : null,
-      } as any
-    });
-
-    res.status(201).json({ success: true, data: newProduct });
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Server error while creating product' });
   }
-};
 
-export const updateProduct = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const rawId = req.params.id || req.query.id;
-    const productId = Array.isArray(rawId) ? String(rawId[0]) : String(rawId);
-
-    const { name, category, sellingPrice, stock, sku, status }  = req.body;
-    
-    // ENFORCEMENT: Check if product has sales history before allowing name/sku edits
-    const orderCount = await prisma.orderItem.count({ where: { productId } });
-    if (orderCount > 0) {
-      const currentProd = await prisma.product.findUnique({ where: { id: productId } });
-      if (currentProd) {
-        // Skip edit locks if the ONLY thing changing is the status (e.g., restoring from archive)
-        const isOnlyStatusChange = (status !== undefined) && (name === undefined || String(name) === currentProd.name) && (sku === undefined || sku === currentProd.sku);
-        
-        if (!isOnlyStatusChange) {
-          const isNameChanged = name !== undefined && String(name) !== currentProd.name;
-          const isSkuChanged = sku !== undefined && sku !== currentProd.sku && sku !== null;
-          
-          if (isNameChanged || isSkuChanged) {
-            res.status(403).json({ 
-              success: false, 
-              message: 'Cannot edit the name or SKU of a product with historical sales. Please archive this product and create a new one.' 
-            });
-            return;
-          }
-        }
+  // POST /api/v1/products
+  static async createProduct(req: AuthRequest, res: Response) {
+    try {
+      const tenantId = req.auth?.tenantId || req.user?.tenantId;
+      if (!tenantId) {
+        return res.status(401).json({ success: false, message: 'Unauthorized: missing tenant context' });
       }
-    }
 
-    let imageUrl = req.body.imageUrl;
-    const file = (req as any).file;
-    if (file && file.buffer) {
-      const uploadResult = await uploadToCloudinary(file.buffer);
-      imageUrl = uploadResult.secure_url;
-    }
+      const { name, description, sku, barcode, costPrice, sellingPrice, taxRate, minimumStock, reorderLevel } = req.body;
+      if (!name || sellingPrice === undefined) {
+        return res.status(400).json({ success: false, message: 'Product name and sellingPrice are required' });
+      }
 
-    const updatedProduct = await prisma.product.update({
-      where: { id: productId },
-      data: {
-        ...(name !== undefined && { name: String(name) }),
-        ...(category !== undefined && { category: String(category) }),
-        ...(sellingPrice !== undefined && { sellingPrice: Number(sellingPrice) }),
-        ...(stock !== undefined && { stock: Number(stock) }),
-        ...(sku !== undefined && { sku: String(sku) }),
-        ...(status !== undefined && { status: String(status) }),
-        ...(imageUrl !== undefined && { imageUrl: String(imageUrl) }),
-      },
-    });
+      const [created] = await db
+        .insert(products)
+        .values({
+          tenantId,
+          name: name.trim(),
+          description: description || null,
+          sku: sku || null,
+          barcode: barcode || null,
+          costPrice: String(costPrice ?? 0),
+          sellingPrice: String(sellingPrice),
+          taxRate: String(taxRate ?? 16),
+          minimumStock: Number(minimumStock ?? 0),
+          reorderLevel: Number(reorderLevel ?? 5),
+          isActive: true,
+        })
+        .returning();
 
-    res.status(200).json({ success: true, data: updatedProduct });
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Server error while updating product' });
-  }
-};
-
-export const deleteProduct = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const rawId = req.params.id || req.query.id;
-    const productId = Array.isArray(rawId) ? String(rawId[0]) : String(rawId);
-    
-    const orderCount = await prisma.orderItem.count({ where: { productId } });
-
-    if (orderCount > 0) {
-      await prisma.product.update({
-        where: { id: productId },
-        data: { status: 'ARCHIVED' }
+      return res.status(201).json({ success: true, data: created });
+    } catch (error: any) {
+      console.error('[PRODUCTS POST ERROR]', error);
+      return res.status(500).json({
+        success: false,
+        message: error.message || 'Failed to create product',
       });
-      res.status(200).json({ 
-        success: true, 
-        message: 'Product archived successfully. It was not deleted to preserve historical sales data.' 
-      });
-      return;
     }
-
-    await prisma.product.delete({ where: { id: productId } });
-    res.status(200).json({ success: true, message: 'Product deleted successfully' });
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Server error while deleting product' });
   }
-};
+}
