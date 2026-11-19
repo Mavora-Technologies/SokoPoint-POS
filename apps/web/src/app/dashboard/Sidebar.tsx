@@ -1,13 +1,51 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { 
-  LayoutDashboard, ShoppingBag, Users, Settings, LogOut, 
-  Bell, Receipt, CreditCard, Scale, BarChart3, PieChart, 
-  Bot, Clock, Inbox, MonitorSmartphone, Store, X, 
-  UserCog, ShieldCheck, CalendarClock, Fingerprint, 
-  ClipboardList, Wallet
+import {
+  LayoutDashboard,
+  MonitorSmartphone,
+  ShoppingBag,
+  Users,
+  Settings2,
+  LogOut,
+  Bell,
+  Receipt,
+  CreditCard,
+  Scale,
+  BarChart4,
+  PieChart,
+  TrendingUp,
+  Bot,
+  Sparkles,
+  BrainCircuit,
+  Inbox,
+  Store,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  UserCheck,
+  ShieldCheck,
+  CalendarClock,
+  Fingerprint,
+  ClipboardList,
+  Wallet,
+  Boxes,
+  Activity,
+  FileText,
+  FileSpreadsheet,
+  Banknote,
+  Landmark,
+  Calculator,
+  RefreshCcw,
+  DownloadCloud,
+  Tag,
+  Barcode,
+  Layers,
+  Truck,
+  ArrowLeftRight,
+  AlertTriangle,
+  Award,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -16,248 +54,524 @@ interface SidebarProps {
   pathname: string;
   logout: () => void;
   userRole?: string;
+  businessName?: string;
+  branchName?: string;
 }
 
-export default function Sidebar({ isSidebarOpen, setSidebarOpen, pathname, logout, userRole = 'cashier' }: SidebarProps) {
-  
-  // Safe initialization for null paths
-  const [procurementOpen, setProcurementOpen] = useState(
-    pathname ? (pathname.startsWith('/dashboard/inventory') || pathname.startsWith('/dashboard/procurement') || pathname.startsWith('/dashboard/purchas')) : false
-  );
-  
-  const [hrOpen, setHrOpen] = useState(
-    pathname ? pathname.startsWith('/dashboard/hr') : false
-  );
+interface SubNavItem {
+  name: string;
+  href: string;
+}
 
-  const getIcon = (name: string) => {
+interface NavModule {
+  name: string;
+  href?: string;
+  subItems?: SubNavItem[];
+  allowedRoles?: string[]; // Omit to allow all authenticated roles
+}
+
+interface SidebarSegment {
+  header: string;
+  modules: NavModule[];
+}
+
+export default function Sidebar({
+  isSidebarOpen,
+  setSidebarOpen,
+  pathname,
+  logout,
+  userRole = 'CASHIER',
+  businessName = 'SokoPoint-POS',
+  branchName = 'Enterprise Retail',
+}: SidebarProps) {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [openModules, setOpenModules] = useState<Record<string, boolean>>({});
+
+  const toggleModule = (moduleName: string) => {
+    if (isCollapsed) setIsCollapsed(false);
+    setOpenModules((prev) => ({ ...prev, [moduleName]: !prev[moduleName] }));
+  };
+
+  const getMainIcon = (name: string) => {
     switch (name) {
-      // Inventory Icons
-      case 'Inventory Central': return <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>;
-      case 'Stock Items Directory': return <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>;
-      case 'Stock Movements': return <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
-      case 'Physical Audits': return <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>;
-      case 'Branch Transfers': return <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>;
-      case 'Batches & Expirations': return <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>;
-      case 'Reorder Suggestions': return <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>;
-      case 'Wastage & Spoilage': return <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>;
-      case 'Approved Suppliers': return <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>;
-      case 'Purchase Requests': return <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>;
-      case 'Purchase Orders': return <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" /></svg>;
-      case 'Goods Inward (GRN)': return <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>;
-      case 'Supplier Invoices': return <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" /></svg>;
-      case 'Supplier Returns': return <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 15v-1a4 4 0 00-4-4H8m0 0l3 3m-3-3l3-3m9 14V5a2 2 0 00-2-2H6a2 2 0 00-2 2v16l4-2 4 2 4-2 4 2z" /></svg>;
-      
-      // HR Icons
-      case 'Employee Directory & Roster': return <Users className="w-4 h-4" />;
-      case 'Role-Based Access Control': return <ShieldCheck className="w-4 h-4" />;
-      case 'Weekly Shift Schedule': return <CalendarClock className="w-4 h-4" />;
-      case 'Biometric Clock-In': return <Fingerprint className="w-4 h-4" />;
-      case 'Shift Handover Notes': return <ClipboardList className="w-4 h-4" />;
-      case 'Cash Drawer Custodians': return <Wallet className="w-4 h-4" />;
-      
-      default: return <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
+      case 'Overview Dashboard':
+        return <LayoutDashboard className="w-5 h-5 shrink-0" />;
+      case 'POS Terminal':
+        return <MonitorSmartphone className="w-5 h-5 shrink-0" />;
+      case 'Sales & Wholesale':
+        return <ShoppingBag className="w-5 h-5 shrink-0" />;
+      case 'Customers & Credit':
+        return <Users className="w-5 h-5 shrink-0" />;
+      case 'Product Catalogue':
+        return <Tag className="w-5 h-5 shrink-0" />;
+      case 'Inventory & Warehouses':
+        return <Boxes className="w-5 h-5 shrink-0" />;
+      case 'Procurement & Suppliers':
+        return <Truck className="w-5 h-5 shrink-0" />;
+      case 'Treasury & Payments':
+        return <Wallet className="w-5 h-5 shrink-0" />;
+      case 'Executive Analytics & BI':
+        return <TrendingUp className="w-5 h-5 shrink-0" />;
+      case 'SokoPoint Intelligence AI':
+        return <BrainCircuit className="w-5 h-5 shrink-0" />;
+      case 'Staff & Shift Management':
+        return <UserCheck className="w-5 h-5 shrink-0" />;
+      case 'Branches & Warehouses':
+        return <Store className="w-5 h-5 shrink-0" />;
+      case 'Notifications':
+        return <Bell className="w-5 h-5 shrink-0" />;
+      case 'Audit Log & Security':
+        return <ShieldCheck className="w-5 h-5 shrink-0" />;
+      case 'Organization & Settings':
+        return <Settings2 className="w-5 h-5 shrink-0" />;
+      default:
+        return <Settings2 className="w-5 h-5 shrink-0" />;
     }
   };
 
-  const navItems = [
-    { name: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard className="w-5 h-5 mr-3" /> },
-    { name: 'POS Terminal', href: '/dashboard/pos', icon: <MonitorSmartphone className="w-5 h-5 mr-3" /> },
-    { name: 'SokoPoint AI Copilot', href: '/dashboard/ai', icon: <Bot className="w-5 h-5 mr-3" /> },
-    { name: 'Sales Ledger', href: '/dashboard/sales', icon: <CreditCard className="w-5 h-5 mr-3" /> },
-    { name: 'Orders', href: '/dashboard/orders', icon: <ShoppingBag className="w-5 h-5 mr-3" /> },
-    { name: 'Credit & Tabs', href: '/dashboard/credit', icon: <Scale className="w-5 h-5 mr-3" /> },
-    { name: 'Customers', href: '/dashboard/customers', icon: <Users className="w-5 h-5 mr-3" /> },
-    { 
-      name: 'Inventory & Procurement', 
-      href: '/dashboard/inventory',
-      icon: <svg className="w-5 h-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>,
-      subItems: [
-        { name: 'Inventory Central', href: '/dashboard/inventory' },
-        { name: 'Stock Items Directory', href: '/dashboard/products' },
-        { name: 'Stock Movements', href: '/dashboard/inventory/movements' },
-        { name: 'Physical Audits', href: '/dashboard/inventory/audits' },
-        { name: 'Branch Transfers', href: '/dashboard/inventory/transfers' },
-        { name: 'Batches & Expirations', href: '/dashboard/inventory/batches' },
-        { name: 'Reorder Suggestions', href: '/dashboard/inventory/reorder' },
-        { name: 'Wastage & Spoilage', href: '/dashboard/inventory/wastage' },
-        { name: 'Approved Suppliers', href: '/dashboard/suppliers' },
-        { name: 'Purchase Requests', href: '/dashboard/procurement/requests' },
-        { name: 'Purchase Orders', href: '/dashboard/purchasing' },
-        { name: 'Goods Inward (GRN)', href: '/dashboard/procurement/grn' },
-        { name: 'Supplier Invoices', href: '/dashboard/purchases' },
-        { name: 'Supplier Returns', href: '/dashboard/procurement/returns' },
-      ]
+  const getSubIcon = (name: string) => {
+    switch (name) {
+      // Sales & Wholesale
+      case 'Sales Ledger':
+        return <CreditCard className="w-4 h-4 shrink-0" />;
+      case 'Retail & POS Orders':
+        return <ShoppingBag className="w-4 h-4 shrink-0" />;
+      case 'Wholesale Orders':
+        return <Truck className="w-4 h-4 shrink-0" />;
+      case 'Quotations & Invoices':
+        return <FileText className="w-4 h-4 shrink-0" />;
+      case 'Returns & Refunds':
+        return <RefreshCcw className="w-4 h-4 shrink-0" />;
+
+      // Customers & Credit
+      case 'Customer Directory':
+        return <Users className="w-4 h-4 shrink-0" />;
+      case 'Credit Accounts & Tabs':
+        return <Scale className="w-4 h-4 shrink-0" />;
+      case 'Loyalty & Rewards':
+        return <Award className="w-4 h-4 shrink-0" />;
+
+      // Product Catalogue
+      case 'Products & SKUs':
+        return <Boxes className="w-4 h-4 shrink-0" />;
+      case 'Categories & Brands':
+        return <Layers className="w-4 h-4 shrink-0" />;
+      case 'Barcodes & Labels':
+        return <Barcode className="w-4 h-4 shrink-0" />;
+      case 'Price Lists & Promotions':
+        return <Tag className="w-4 h-4 shrink-0" />;
+
+      // Inventory & Warehouses
+      case 'Inventory Central':
+        return <Boxes className="w-4 h-4 shrink-0" />;
+      case 'Stock Movements & Bin Cards':
+        return <Activity className="w-4 h-4 shrink-0" />;
+      case 'Physical Stock Audits':
+        return <ClipboardList className="w-4 h-4 shrink-0" />;
+      case 'Inter-Branch Transfers':
+        return <ArrowLeftRight className="w-4 h-4 shrink-0" />;
+      case 'Reorder Suggestions':
+        return <TrendingUp className="w-4 h-4 shrink-0" />;
+      case 'Wastage & Write-Offs':
+        return <AlertTriangle className="w-4 h-4 shrink-0" />;
+
+      // Procurement & Suppliers
+      case 'Approved Suppliers':
+        return <Users className="w-4 h-4 shrink-0" />;
+      case 'Purchase Requests':
+        return <FileText className="w-4 h-4 shrink-0" />;
+      case 'Purchase Orders (PO)':
+        return <FileSpreadsheet className="w-4 h-4 shrink-0" />;
+      case 'Goods Inward (GRN)':
+        return <Boxes className="w-4 h-4 shrink-0" />;
+      case 'Supplier Invoices (A/P)':
+        return <Receipt className="w-4 h-4 shrink-0" />;
+      case 'Supplier Returns':
+        return <RefreshCcw className="w-4 h-4 shrink-0" />;
+
+      // Treasury & Payments
+      case 'Cash Registers & Tills':
+        return <Inbox className="w-4 h-4 shrink-0" />;
+      case 'M-Pesa & Digital Payments':
+        return <Banknote className="w-4 h-4 shrink-0" />;
+      case 'Bank Reconciliation':
+        return <Landmark className="w-4 h-4 shrink-0" />;
+      case 'Operational Expenses':
+        return <Calculator className="w-4 h-4 shrink-0" />;
+      case 'Tax & KRA eTIMS':
+        return <ShieldCheck className="w-4 h-4 shrink-0" />;
+
+      // Analytics & BI
+      case 'Analytics Control Tower':
+        return <BarChart4 className="w-4 h-4 shrink-0" />;
+      case 'Sales & Revenue Reports':
+        return <TrendingUp className="w-4 h-4 shrink-0" />;
+      case 'Product Margin Analysis':
+        return <PieChart className="w-4 h-4 shrink-0" />;
+      case 'Inventory Valuation':
+        return <Boxes className="w-4 h-4 shrink-0" />;
+      case 'Report Exports':
+        return <DownloadCloud className="w-4 h-4 shrink-0" />;
+
+      // AI Copilot
+      case 'AI Business Copilot':
+        return <Sparkles className="w-4 h-4 shrink-0" />;
+      case 'Demand & Reorder Forecast':
+        return <TrendingUp className="w-4 h-4 shrink-0" />;
+      case 'Slow-Mover & Anomaly Alerts':
+        return <Bot className="w-4 h-4 shrink-0" />;
+
+      // HR & Staff
+      case 'Employee Directory & Roster':
+        return <Users className="w-4 h-4 shrink-0" />;
+      case 'Role-Based Access Control':
+        return <ShieldCheck className="w-4 h-4 shrink-0" />;
+      case 'Weekly Shift Schedule':
+        return <CalendarClock className="w-4 h-4 shrink-0" />;
+      case 'Biometric Clock-In':
+        return <Fingerprint className="w-4 h-4 shrink-0" />;
+      case 'Shift Handover Notes':
+        return <ClipboardList className="w-4 h-4 shrink-0" />;
+      case 'Cash Drawer Custodians':
+        return <Wallet className="w-4 h-4 shrink-0" />;
+
+      default:
+        return <ChevronRight className="w-4 h-4 shrink-0" />;
+    }
+  };
+
+  const sidebarSegments: SidebarSegment[] = [
+    {
+      header: 'RETAIL, SUPERMARKET & WHOLESALE',
+      modules: [
+        { name: 'Overview Dashboard', href: '/dashboard' },
+        { name: 'POS Terminal', href: '/dashboard/pos' },
+        {
+          name: 'Sales & Wholesale',
+          subItems: [
+            { name: 'Sales Ledger', href: '/dashboard/sales' },
+            { name: 'Retail & POS Orders', href: '/dashboard/orders' },
+            { name: 'Wholesale Orders', href: '/dashboard/wholesale' },
+            { name: 'Quotations & Invoices', href: '/dashboard/quotations' },
+            { name: 'Returns & Refunds', href: '/dashboard/returns' },
+          ],
+        },
+        {
+          name: 'Customers & Credit',
+          subItems: [
+            { name: 'Customer Directory', href: '/dashboard/customers' },
+            { name: 'Credit Accounts & Tabs', href: '/dashboard/credit' },
+            { name: 'Loyalty & Rewards', href: '/dashboard/loyalty' },
+          ],
+        },
+      ],
     },
-    { name: 'Expenses', href: '/dashboard/expenses', icon: <Receipt className="w-5 h-5 mr-3" /> },
-    { name: 'Analytics', href: '/dashboard/analytics', icon: <PieChart className="w-5 h-5 mr-3" /> },
-    { name: 'Reports', href: '/dashboard/reports', icon: <BarChart3 className="w-5 h-5 mr-3" /> },
-    { name: 'Cash Registers', href: '/dashboard/tills', icon: <Inbox className="w-5 h-5 mr-3" /> },
-    { name: 'Branches', href: '/dashboard/settings/branches', icon: <Store className="w-5 h-5 mr-3" /> },
-    
-    // Human Capital & System Settings Grouping
-    { isHeader: true, name: 'Human Capital & System Settings' },
-    { 
-      name: 'Staff & Shift Management', 
-      href: '/dashboard/hr',
-      icon: <UserCog className="w-5 h-5 mr-3" />,
-      subItems: [
-        { name: 'Employee Directory & Roster', href: '/dashboard/hr/employees' },
-        { name: 'Role-Based Access Control', href: '/dashboard/hr/roles' },
-        { name: 'Weekly Shift Schedule', href: '/dashboard/hr/schedule' },
-        { name: 'Biometric Clock-In', href: '/dashboard/hr/attendance' },
-        { name: 'Shift Handover Notes', href: '/dashboard/hr/handover' },
-        { name: 'Cash Drawer Custodians', href: '/dashboard/hr/drawers' },
-      ]
+    {
+      header: 'CATALOGUE, INVENTORY & SUPPLY CHAIN',
+      modules: [
+        {
+          name: 'Product Catalogue',
+          allowedRoles: ['BUSINESS_OWNER', 'BUSINESS_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'MANAGER', 'INVENTORY_MANAGER', 'WHOLESALE_MANAGER'],
+          subItems: [
+            { name: 'Products & SKUs', href: '/dashboard/products' },
+            { name: 'Categories & Brands', href: '/dashboard/categories' },
+            { name: 'Barcodes & Labels', href: '/dashboard/barcodes' },
+            { name: 'Price Lists & Promotions', href: '/dashboard/pricing' },
+          ],
+        },
+        {
+          name: 'Inventory & Warehouses',
+          allowedRoles: ['BUSINESS_OWNER', 'BUSINESS_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'MANAGER', 'INVENTORY_MANAGER', 'WAREHOUSE_MANAGER'],
+          subItems: [
+            { name: 'Inventory Central', href: '/dashboard/inventory' },
+            { name: 'Stock Movements & Bin Cards', href: '/dashboard/inventory/movements' },
+            { name: 'Physical Stock Audits', href: '/dashboard/inventory/audits' },
+            { name: 'Inter-Branch Transfers', href: '/dashboard/inventory/transfers' },
+            { name: 'Reorder Suggestions', href: '/dashboard/inventory/reorder' },
+            { name: 'Wastage & Write-Offs', href: '/dashboard/inventory/wastage' },
+          ],
+        },
+        {
+          name: 'Procurement & Suppliers',
+          allowedRoles: ['BUSINESS_OWNER', 'BUSINESS_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'MANAGER', 'INVENTORY_MANAGER', 'PROCUREMENT_OFFICER'],
+          subItems: [
+            { name: 'Approved Suppliers', href: '/dashboard/suppliers' },
+            { name: 'Purchase Requests', href: '/dashboard/procurement/requests' },
+            { name: 'Purchase Orders (PO)', href: '/dashboard/purchasing' },
+            { name: 'Goods Inward (GRN)', href: '/dashboard/procurement/grn' },
+            { name: 'Supplier Invoices (A/P)', href: '/dashboard/purchases' },
+            { name: 'Supplier Returns', href: '/dashboard/procurement/returns' },
+          ],
+        },
+      ],
     },
-    
-    { name: 'Notifications', href: '/dashboard/notifications', icon: <Bell className="w-5 h-5 mr-3" /> },
-    { name: 'Settings', href: '/dashboard/settings', icon: <Settings className="w-5 h-5 mr-3" /> },
+    {
+      header: 'FINANCE, TREASURY & ANALYTICS',
+      modules: [
+        {
+          name: 'Treasury & Payments',
+          allowedRoles: ['BUSINESS_OWNER', 'BUSINESS_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'MANAGER', 'ACCOUNTANT'],
+          subItems: [
+            { name: 'Cash Registers & Tills', href: '/dashboard/tills' },
+            { name: 'M-Pesa & Digital Payments', href: '/dashboard/payments/mpesa' },
+            { name: 'Bank Reconciliation', href: '/dashboard/payments/reconciliation' },
+            { name: 'Operational Expenses', href: '/dashboard/expenses' },
+            { name: 'Tax & KRA eTIMS', href: '/dashboard/payments/etims' },
+          ],
+        },
+        {
+          name: 'Executive Analytics & BI',
+          allowedRoles: ['BUSINESS_OWNER', 'BUSINESS_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'MANAGER', 'ACCOUNTANT', 'AUDITOR'],
+          subItems: [
+            { name: 'Analytics Control Tower', href: '/dashboard/analytics' },
+            { name: 'Sales & Revenue Reports', href: '/dashboard/reports' },
+            { name: 'Product Margin Analysis', href: '/dashboard/analytics/margins' },
+            { name: 'Inventory Valuation', href: '/dashboard/analytics/inventory' },
+            { name: 'Report Exports', href: '/dashboard/analytics/export' },
+          ],
+        },
+      ],
+    },
+    {
+      header: 'SOKOPOINT INTELLIGENCE AI',
+      modules: [
+        {
+          name: 'SokoPoint Intelligence AI',
+          allowedRoles: ['BUSINESS_OWNER', 'BUSINESS_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'MANAGER', 'INVENTORY_MANAGER'],
+          subItems: [
+            { name: 'AI Business Copilot', href: '/dashboard/ai' },
+            { name: 'Demand & Reorder Forecast', href: '/dashboard/ai/forecasting' },
+            { name: 'Slow-Mover & Anomaly Alerts', href: '/dashboard/ai/anomalies' },
+          ],
+        },
+      ],
+    },
+    {
+      header: 'HUMAN CAPITAL & SYSTEM SETTINGS',
+      modules: [
+        {
+          name: 'Staff & Shift Management',
+          allowedRoles: ['BUSINESS_OWNER', 'BUSINESS_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'MANAGER'],
+          subItems: [
+            { name: 'Employee Directory & Roster', href: '/dashboard/hr/employees' },
+            { name: 'Role-Based Access Control', href: '/dashboard/hr/roles' },
+            { name: 'Weekly Shift Schedule', href: '/dashboard/hr/schedule' },
+            { name: 'Biometric Clock-In', href: '/dashboard/hr/attendance' },
+            { name: 'Shift Handover Notes', href: '/dashboard/hr/handover' },
+            { name: 'Cash Drawer Custodians', href: '/dashboard/hr/drawers' },
+          ],
+        },
+        {
+          name: 'Branches & Warehouses',
+          href: '/dashboard/settings/branches',
+          allowedRoles: ['BUSINESS_OWNER', 'BUSINESS_ADMIN', 'ADMIN'],
+        },
+        { name: 'Notifications', href: '/dashboard/notifications' },
+        {
+          name: 'Audit Log & Security',
+          href: '/dashboard/audit',
+          allowedRoles: ['BUSINESS_OWNER', 'BUSINESS_ADMIN', 'ADMIN', 'AUDITOR'],
+        },
+        {
+          name: 'Organization & Settings',
+          href: '/dashboard/settings',
+          allowedRoles: ['BUSINESS_OWNER', 'BUSINESS_ADMIN', 'ADMIN'],
+        },
+      ],
+    },
   ];
+
+  // Auto-open the parent module matching the active route
+  useEffect(() => {
+    if (!pathname) return;
+    sidebarSegments.forEach((segment) => {
+      segment.modules.forEach((mod) => {
+        if (mod.subItems?.some((sub) => pathname === sub.href || pathname.startsWith(`${sub.href}/`))) {
+          setOpenModules((prev) => ({ ...prev, [mod.name]: true }));
+        }
+      });
+    });
+  }, [pathname]);
+
+  // Multi-tenant RBAC visibility filter (backend still enforces true authorization)
+  const normalizedRole = (userRole || 'CASHIER').toUpperCase();
+  const isFullAccess = ['BUSINESS_OWNER', 'BUSINESS_ADMIN', 'ADMIN'].includes(normalizedRole);
+
+  const filteredSegments = sidebarSegments
+    .map((segment) => ({
+      ...segment,
+      modules: segment.modules.filter((mod) => {
+        if (isFullAccess || !mod.allowedRoles) return true;
+        return mod.allowedRoles.includes(normalizedRole);
+      }),
+    }))
+    .filter((segment) => segment.modules.length > 0);
 
   return (
     <>
       {isSidebarOpen && (
-        <div 
-          className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-sm lg:hidden transition-opacity duration-300" 
+        <div
+          className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-sm lg:hidden transition-opacity duration-300"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
-      <aside className={`fixed inset-y-0 left-0 z-50 w-72 lg:w-64 xl:w-72 bg-[#1b2a4a] text-white transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 flex flex-col shadow-2xl lg:shadow-none ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        
-        <div className="flex h-16 xl:h-20 shrink-0 items-center justify-between px-4 xl:px-6 border-b border-gray-800/60">
-          <div className="flex items-center min-w-0 gap-3">
-            <div className="bg-white rounded-xl shadow-md p-1.5 flex items-center justify-center flex-shrink-0">
-              <img 
-                src="/SokoPoint POS Logo.png" 
-                alt="SokoPoint-POS Logo" 
-                className="h-6 xl:h-8 w-auto object-contain"
+      <aside
+        className={`
+          fixed inset-y-0 left-0 z-50 bg-[#041F56] text-white flex flex-col shadow-2xl transition-all duration-300 ease-in-out
+          ${isCollapsed ? 'w-[80px]' : 'w-[280px]'}
+          lg:static lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+        `}
+      >
+        {/* Header & Collapse Toggle */}
+        <div
+          className={`p-4 border-b border-[#176E84]/30 flex items-center gap-3 shrink-0 ${
+            isCollapsed ? 'justify-center flex-col relative' : 'justify-between'
+          }`}
+        >
+          <div className={`flex items-center gap-3 min-w-0 ${isCollapsed ? 'justify-center' : ''}`}>
+            <div className="bg-white rounded-lg shadow-md p-1 flex items-center justify-center shrink-0 h-9 w-9 overflow-hidden">
+              <img
+                src="/SokoPoint POS Logo.png"
+                alt="SokoPoint-POS Logo"
+                className="h-full w-full object-contain"
                 suppressHydrationWarning
               />
             </div>
-            <div>
-              <span className="text-lg xl:text-xl font-bold tracking-tight truncate leading-tight block">SokoPoint-POS</span>
-              <p className="text-[10px] text-blue-400 font-medium tracking-wide">● Enterprise Retail</p>
+
+            <div
+              className={`min-w-0 transition-opacity duration-200 ${
+                isCollapsed ? 'hidden opacity-0' : 'block opacity-100'
+              }`}
+            >
+              <h1 className="text-[15px] font-bold text-white tracking-tight leading-tight truncate">
+                {businessName}
+              </h1>
+              <p className="text-[11px] text-[#05BBBB] font-medium tracking-wide truncate">
+                ● {branchName}
+              </p>
             </div>
           </div>
-          
-          <button 
+
+          <button
             onClick={() => setSidebarOpen(false)}
-            className="lg:hidden p-2 -mr-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+            className="lg:hidden text-gray-400 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition-colors"
+            aria-label="Close sidebar"
           >
-            <X className="h-5 w-5" />
+            <X className="w-5 h-5" />
+          </button>
+
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className={`hidden lg:flex text-[#8BCBF0] hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition-all ${
+              isCollapsed
+                ? 'absolute -right-3 top-6 bg-[#041F56] border border-[#176E84] z-50 rounded-full shadow-md'
+                : ''
+            }`}
+            aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           </button>
         </div>
-        
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto custom-scrollbar">
-          {navItems.map((item, index) => {
-            
-            if (item.isHeader) {
-              return (
-                <div key={`header-${index}`} className="px-3 pt-6 pb-2 text-[10px] font-bold text-gray-500 uppercase tracking-wider">
-                  {item.name}
+
+        {/* Segmented Navigation List */}
+        <nav className={`flex-1 py-4 space-y-4 overflow-y-auto custom-scrollbar ${isCollapsed ? 'px-2' : 'px-3'}`}>
+          {filteredSegments.map((segment, segmentIndex) => (
+            <div key={`segment-${segmentIndex}`} className="mb-2">
+              {!isCollapsed && (
+                <div className="pt-2 pb-2.5 px-3 text-[10px] font-extrabold text-[#05BBBB] tracking-widest uppercase">
+                  {segment.header}
                 </div>
-              );
-            }
+              )}
 
-            const isActive = pathname === item.href || (item.href !== '/dashboard' && !item.subItems && !!pathname?.startsWith(`${item.href}`));
-            
-            const isProcurementGroup = item.name === 'Inventory & Procurement';
-            const isHrGroup = item.name === 'Staff & Shift Management';
-            
-            const isChildActive = (isProcurementGroup && item.subItems?.some(sub => pathname === sub.href)) || 
-                                  (isHrGroup && item.subItems?.some(sub => pathname === sub.href));
+              <div className="space-y-1">
+                {segment.modules.map((mod, moduleIndex) => {
+                  const hasSubItems = !!mod.subItems;
+                  const isModuleOpen = !!openModules[mod.name];
 
-            return (
-              <div key={item.name}>
-                <Link
-                  href={item.href!}
-                  onClick={(e) => {
-                    if (isProcurementGroup) {
-                      e.preventDefault();
-                      setProcurementOpen(!procurementOpen);
-                    } else if (isHrGroup) {
-                      e.preventDefault();
-                      setHrOpen(!hrOpen);
-                    } else {
-                      setSidebarOpen(false);
-                    }
-                  }}
-                  className={`flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                    isActive || isChildActive
-                      ? 'bg-blue-600 text-white shadow-md font-bold'
-                      : 'text-gray-300 hover:bg-white/10 hover:text-white'
-                  }`}
-                >
-                  <div className="flex items-center">
-                    {item.icon}
-                    <span>{item.name}</span>
-                  </div>
-                  {item.subItems && (
-                    <span className="text-[10px] text-gray-400 font-black">
-                      {(isProcurementGroup && procurementOpen) || (isHrGroup && hrOpen) ? '▼' : '▶'}
-                    </span>
-                  )}
-                </Link>
+                  const isActive = mod.href
+                    ? pathname === mod.href || (mod.href !== '/dashboard' && !!pathname?.startsWith(`${mod.href}/`))
+                    : mod.subItems?.some((sub) => pathname === sub.href || !!pathname?.startsWith(`${sub.href}/`));
 
-                {/* Submenu for Procurement */}
-                {isProcurementGroup && item.subItems && procurementOpen && (
-                  <div className="pl-6 py-2 space-y-1 border-l-2 border-gray-700/50 ml-5 mt-1.5 mb-3">
-                    {item.subItems.map((sub) => {
-                      const isSubActive = pathname === sub.href;
-                      return (
-                        <Link
-                          key={sub.name}
-                          href={sub.href}
-                          onClick={() => setSidebarOpen(false)}
-                          className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-colors ${
-                            isSubActive 
-                              ? 'bg-blue-500/20 text-blue-400 font-bold shadow-sm' 
-                              : 'text-gray-300 hover:text-white hover:bg-white/5'
-                          }`}
-                        >
-                          {getIcon(sub.name)}
-                          {sub.name}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                )}
+                  return (
+                    <div key={`module-${moduleIndex}`} className="relative group">
+                      <Link
+                        href={mod.href || '#'}
+                        onClick={(e) => {
+                          if (hasSubItems) {
+                            e.preventDefault();
+                            toggleModule(mod.name);
+                          } else {
+                            setSidebarOpen(false);
+                          }
+                        }}
+                        className={`flex items-center px-3 py-2.5 rounded-lg text-[13px] font-medium transition-colors ${
+                          isActive && !hasSubItems
+                            ? 'bg-[#0554F4] text-white shadow-md font-bold'
+                            : isActive && hasSubItems
+                            ? 'bg-[#176E84]/30 text-white font-semibold'
+                            : 'text-[#8BCBF0] hover:bg-white/10 hover:text-white'
+                        } ${isCollapsed ? 'justify-center' : 'justify-between'}`}
+                        title={isCollapsed ? mod.name : undefined}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          {getMainIcon(mod.name)}
+                          {!isCollapsed && <span className="truncate">{mod.name}</span>}
+                        </div>
 
-                {/* Submenu for HR & Shift Management */}
-                {isHrGroup && item.subItems && hrOpen && (
-                  <div className="pl-6 py-2 space-y-1 border-l-2 border-gray-700/50 ml-5 mt-1.5 mb-3">
-                    {item.subItems.map((sub) => {
-                      const isSubActive = pathname === sub.href;
-                      return (
-                        <Link
-                          key={sub.name}
-                          href={sub.href}
-                          onClick={() => setSidebarOpen(false)}
-                          className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-colors ${
-                            isSubActive 
-                              ? 'bg-blue-500/20 text-blue-400 font-bold shadow-sm' 
-                              : 'text-gray-300 hover:text-white hover:bg-white/5'
-                          }`}
-                        >
-                          {getIcon(sub.name)}
-                          <span className="truncate">{sub.name}</span>
-                        </Link>
-                      );
-                    })}
-                  </div>
-                )}
+                        {!isCollapsed && hasSubItems && (
+                          <span className="text-gray-400 shrink-0">
+                            <ChevronRight
+                              className={`w-4 h-4 transition-transform duration-200 ${
+                                isModuleOpen ? 'rotate-90 text-white' : ''
+                              }`}
+                            />
+                          </span>
+                        )}
+                      </Link>
+
+                      {/* Expandable Sub-Items */}
+                      {!isCollapsed && hasSubItems && isModuleOpen && (
+                        <div className="pl-7 py-1 space-y-0.5 border-l border-[#176E84]/50 ml-[1.125rem] mt-1 mb-2">
+                          {mod.subItems!.map((sub, subIndex) => {
+                            const isSubActive = pathname === sub.href;
+                            return (
+                              <Link
+                                key={`sub-${subIndex}`}
+                                href={sub.href}
+                                onClick={() => setSidebarOpen(false)}
+                                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-[12px] font-medium transition-colors ${
+                                  isSubActive
+                                    ? 'text-white bg-[#0554F4]/30 font-bold'
+                                    : 'text-gray-300 hover:text-white hover:bg-white/5'
+                                }`}
+                              >
+                                {getSubIcon(sub.name)}
+                                <span className="truncate">{sub.name}</span>
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
+            </div>
+          ))}
         </nav>
-        
-        <div className="p-4 border-t border-gray-800/60 bg-[#152138] shrink-0">
+
+        {/* Footer / Sign Out */}
+        <div className={`p-4 border-t border-[#176E84]/30 bg-[#02143A] shrink-0 flex ${isCollapsed ? 'justify-center' : ''}`}>
           <button
             onClick={logout}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
+            title={isCollapsed ? 'Sign Out' : undefined}
+            className={`flex items-center justify-center gap-2 rounded-xl text-sm font-semibold text-red-400 hover:text-red-300 hover:bg-red-400/10 transition-colors ${
+              isCollapsed ? 'p-2' : 'w-full px-4 py-2.5'
+            }`}
           >
-            <LogOut className="mr-3 h-4 w-4 text-gray-400" /> Sign Out
+            <LogOut className="w-5 h-5 shrink-0" />
+            {!isCollapsed && <span className="whitespace-nowrap">Sign Out</span>}
           </button>
         </div>
       </aside>
