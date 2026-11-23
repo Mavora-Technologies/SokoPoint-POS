@@ -1,12 +1,13 @@
-//apps/api/src/modules/orders/orders.routes.ts
 import { Router } from 'express';
-import { OrderController } from './orders.controller';
-import { requireAuth } from '../../middleware/auth.middleware';
+import { OrdersController } from './orders.controller';
+import { requireAuth } from '../../middleware/requireAuth';
 
 const router = Router();
 
 router.use(requireAuth);
-router.post('/', OrderController.create);
-router.get('/', OrderController.getAll); // <-- NEW
 
-export const orderRoutes = router;
+router.get('/', OrdersController.getOrders);
+router.post('/', OrdersController.createOrder);
+
+export const ordersRoutes = router;
+export default router;

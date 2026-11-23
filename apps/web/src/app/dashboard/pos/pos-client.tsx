@@ -269,29 +269,37 @@ export default function POSClient() {
       const payload = {
         orderNum: receiptNum,
         customer: customerName.trim() || 'Walk-in Customer',
-        total: cartTotal,
         method: normalizedMethod,
         isRefund: isRefundMode,
         items: cart.map((item) => ({
           productId: item.productId,
           quantity: isRefundMode ? -Math.abs(item.quantity) : item.quantity,
-          price: item.unitPrice,
         })),
       };
 
-      await api.post('/orders', payload);
+      const orderRes = await api.post('/orders', payload);
+      const savedOrder = orderRes.data?.data;
+
+      const serverTotal = savedOrder ? Math.abs(Number(savedOrder.total)) : Math.abs(cartTotal);
+      const serverTax = savedOrder ? Math.abs(Number(savedOrder.tax)) : Math.abs(cartTax);
+      const serverBase = savedOrder ? Math.abs(Number(savedOrder.subtotal)) : Math.abs(taxableBaseNet);
+      const serverReceiptNum = savedOrder?.orderNumber || receiptNum;
+      const serverChange =
+        paymentMethod === 'Cash' && tendered > serverTotal && !isRefundMode
+          ? tendered - serverTotal
+          : 0;
 
       const now = new Date();
       setReceipt({
-        receiptNumber: receiptNum,
+        receiptNumber: serverReceiptNum,
         items: [...cart],
-        total: Math.abs(cartTotal),
-        subtotal: Math.abs(cartSubtotal),
-        taxableBase: Math.abs(taxableBaseNet),
-        tax: Math.abs(cartTax),
+        total: serverTotal,
+        subtotal: serverTotal,
+        taxableBase: serverBase,
+        tax: serverTax,
         method: paymentMethod,
         amountTendered: tendered,
-        change: changeDue,
+        change: serverChange,
         date: now.toLocaleDateString('en-GB'),
         time: now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }),
         cashierName,
