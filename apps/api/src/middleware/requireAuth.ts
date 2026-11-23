@@ -1,7 +1,30 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.AUTH_SECRET || 'super_secret_auth_key_vora_pos_2026';
+const FALLBACK_SECRET = 'super_secret_auth_key_vora_pos_2026';
+
+export const getJwtSecret = (): string => {
+  return (process.env.AUTH_SECRET || FALLBACK_SECRET).trim();
+};
+
+const cleanToken = (raw?: string | null): string => {
+  if (!raw) return '';
+  const cleaned = raw.trim().replace(/^["']|["']$/g, '');
+  if (!cleaned || cleaned === 'null' || cleaned === 'undefined') return '';
+  return cleaned;
+};
+
+const extractCookieToken = (cookieHeader?: string): string => {
+  if (!cookieHeader) return '';
+  const parts = cookieHeader.split(';');
+  for (const part of parts) {
+    const [k, ...v] = part.trim().split('=');
+    if (k === 'token') {
+      return cleanToken(decodeURIComponent(v.join('=')));
+    }
+  }
+  return '';
+};
 
 export const requireAuth = (req: Request, res: Response, next: NextFunction): void => {
   try {
@@ -9,11 +32,19 @@ export const requireAuth = (req: Request, res: Response, next: NextFunction): vo
 
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
-      token = authHeader.split(' ')[1];
-    } else if (req.headers['x-auth-token']) {
-      token = req.headers['x-auth-token'] as string;
-    } else if ((req as any).cookies && (req as any).cookies.token) {
-      token = (req as any).cookies.token;
+      token = cleanToken(authHeader.slice(7));
+    }
+
+    if (!token && req.headers['x-auth-token']) {
+      token = cleanToken(String(req.headers['x-auth-token']));
+    }
+
+    if (!token && (req as any).cookies?.token) {
+      token = cleanToken((req as any).cookies.token);
+    }
+
+    if (!token && req.headers.cookie) {
+      token = extractCookieToken(req.headers.cookie);
     }
 
     if (!token) {
@@ -21,11 +52,13 @@ export const requireAuth = (req: Request, res: Response, next: NextFunction): vo
       return;
     }
 
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const secret = getJwtSecret();
+    const decoded = jwt.verify(token, secret);
     (req as any).user = decoded;
     (req as any).auth = decoded;
     next();
-  } catch (error) {
+  } catch (error: any) {
+    console.error('[AUTH VERIFY FAILED]', error?.name, error?.message);
     res.status(401).json({ success: false, message: 'Invalid or expired authentication token.' });
     return;
   }
@@ -49,5 +82,4 @@ export const requireRole = (...allowedRoles: string[]) => {
   };
 };
 
-// Export alias to match any alternative naming
 export const requireAuthorisation = requireAuth;
