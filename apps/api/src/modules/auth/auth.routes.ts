@@ -10,3 +10,4 @@ router.post('/logout', AuthController.logout);
 router.get('/me', requireAuth, AuthController.me);
 
 export const authRoutes = router;
+export default router;

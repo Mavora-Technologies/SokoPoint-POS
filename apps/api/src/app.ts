@@ -4,7 +4,7 @@ import cors from 'cors';
 
 import { authRoutes } from './modules/auth/auth.routes';
 import productRoutes from './modules/products/products.routes';
-import { orderRoutes } from './modules/orders/orders.routes';
+import { ordersRoutes } from './modules/orders/orders.routes';
 import inventoryRoutes from './modules/inventory/inventory.routes';
 import categoryRoutes from './modules/inventory/categories.routes';
 import { customerRoutes } from './modules/customers/customers.routes';
@@ -13,7 +13,7 @@ import { purchasingRoutes } from './modules/purchasing/purchasing.routes';
 import { expenseRoutes } from './modules/finance/expenses.routes';
 import branchRoutes from './modules/branches/branches.routes';
 import { tillRoutes } from './modules/tills/tills.routes';
-import { shiftRoutes } from './modules/shifts/shifts.routes';
+import shiftsRoutes from './modules/shifts/shifts.routes';
 import reportRoutes from './modules/reports/reports.routes';
 import creditRoutes from './modules/finance/credit.routes';
 import refundRoutes from './modules/refunds/refunds.routes';
@@ -27,23 +27,24 @@ export const createApp = () => {
   // ==========================================
   // BULLETPROOF CORS CONFIGURATION
   // ==========================================
-  app.use(cors({
-    origin: function (origin, callback) {
-      // Allow all origins for now to prevent any blocking
-      callback(null, true);
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: [
-      'Origin', 
-      'X-Requested-With', 
-      'Content-Type', 
-      'Accept', 
-      'Authorization', 
-      'x-tenant-id', // Must be exactly how the frontend sends it
-      'tenantid'
-    ]
-  }));
+  app.use(
+    cors({
+      origin: function (_origin, callback) {
+        callback(null, true);
+      },
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      allowedHeaders: [
+        'Origin',
+        'X-Requested-With',
+        'Content-Type',
+        'Accept',
+        'Authorization',
+        'x-tenant-id',
+        'tenantid',
+      ],
+    })
+  );
 
   app.use(helmet());
   app.use(express.json({ limit: '10mb' }));
@@ -53,12 +54,12 @@ export const createApp = () => {
   // API ROUTES
   // ==========================================
   app.get('/health', (_req: Request, res: Response) => {
-    res.status(200).json({ success: true, status: 'healthy', service: 'vora-pos-api' });
+    res.status(200).json({ success: true, status: 'healthy', service: 'sokopoint-pos-api' });
   });
 
   app.use('/api/v1/auth', authRoutes);
   app.use('/api/v1/products', productRoutes);
-  app.use('/api/v1/orders', orderRoutes);
+  app.use('/api/v1/orders', ordersRoutes);
   app.use('/api/v1/inventory', inventoryRoutes);
   app.use('/api/v1/categories', categoryRoutes);
   app.use('/api/v1/customers', customerRoutes);
@@ -67,7 +68,7 @@ export const createApp = () => {
   app.use('/api/v1/expenses', expenseRoutes);
   app.use('/api/v1/branches', branchRoutes);
   app.use('/api/v1/tills', tillRoutes);
-  app.use('/api/v1/shifts', shiftRoutes);
+  app.use('/api/v1/shifts', shiftsRoutes);
   app.use('/api/v1/reports', reportRoutes);
   app.use('/api/v1/credit', creditRoutes);
   app.use('/api/v1/refunds', refundRoutes);

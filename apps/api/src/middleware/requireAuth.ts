@@ -23,11 +23,30 @@ export const requireAuth = (req: Request, res: Response, next: NextFunction): vo
 
     const decoded = jwt.verify(token, JWT_SECRET);
     (req as any).user = decoded;
+    (req as any).auth = decoded;
     next();
   } catch (error) {
     res.status(401).json({ success: false, message: 'Invalid or expired authentication token.' });
     return;
   }
+};
+
+export const requireRole = (...allowedRoles: string[]) => {
+  const normalizedAllowed = allowedRoles.map((r) => r.toUpperCase());
+
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const userRole = ((req as any).auth?.role || (req as any).user?.role || '').toUpperCase();
+
+    if (!userRole || !normalizedAllowed.includes(userRole)) {
+      res.status(403).json({
+        success: false,
+        message: 'Forbidden: insufficient role permissions for this action.',
+      });
+      return;
+    }
+
+    next();
+  };
 };
 
 // Export alias to match any alternative naming
