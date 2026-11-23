@@ -21,6 +21,7 @@ import supportRoutes from './modules/support/support.routes';
 import wholesaleRoutes from './modules/wholesale/wholesale.routes';
 import quotationsRoutes from './modules/quotations/quotations.routes';
 import loyaltyRoutes from './modules/loyalty/loyalty.routes';
+import barcodeRoutes from './modules/barcodes/barcodes.routes';
 
 export const createApp = () => {
   const app = express();
@@ -79,6 +80,7 @@ export const createApp = () => {
   app.use('/api/v1/wholesale', wholesaleRoutes);
   app.use('/api/v1/quotations', quotationsRoutes);
   app.use('/api/v1/loyalty', loyaltyRoutes);
+  app.use('/api/v1/barcodes', barcodeRoutes);
 
   // Aliases
   app.use('/auth', authRoutes);
