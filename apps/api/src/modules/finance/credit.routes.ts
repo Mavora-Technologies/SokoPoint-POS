@@ -1,9 +1,14 @@
 import { Router } from 'express';
-import { getCreditAccounts, createCreditAccount } from '../../controllers/credit.controller';
+import { CreditController } from './credit.controller';
+import { requireAuth } from '../../middleware/requireAuth';
 
 const router = Router();
+router.use(requireAuth);
 
-router.get('/', getCreditAccounts);
-router.post('/', createCreditAccount);
+router.get('/', CreditController.getAll);
+router.post('/', CreditController.create);
+router.patch('/:id/payment', CreditController.adjustBalance);
+router.delete('/:id', CreditController.remove);
 
+export const creditRoutes = router;
 export default router;
