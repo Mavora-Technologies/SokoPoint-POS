@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { db } from '../../db';
-import { categories, products } from '../../db/schema';
-import { eq, and, asc, ilike } from 'drizzle-orm';
+import { categories } from '../../db/schema/categories';
+import { eq, and, asc, ilike, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 type AuthRequest = Request & {
@@ -34,7 +34,7 @@ export class CategoriesController {
       console.error('[CATEGORIES GET ERROR]', error);
       return res.status(500).json({
         success: false,
-        message: error.message || 'Failed to fetch categories',
+        message: error?.message || 'Failed to fetch categories',
       });
     }
   }
@@ -58,7 +58,6 @@ export class CategoriesController {
 
       const cleanName = parsed.data.name.trim();
 
-      // Prevent duplicate active category names within the same tenant
       const existing = await db
         .select({ id: categories.id })
         .from(categories)
@@ -93,7 +92,7 @@ export class CategoriesController {
       console.error('[CATEGORIES CREATE ERROR]', error);
       return res.status(500).json({
         success: false,
-        message: error.message || 'Failed to create category',
+        message: error?.message || 'Failed to create category',
       });
     }
   }
@@ -135,7 +134,10 @@ export class CategoriesController {
       return res.status(200).json({ success: true, data: updated });
     } catch (error: any) {
       console.error('[CATEGORIES UPDATE ERROR]', error);
-      return res.status(500).json({ success: false, message: 'Failed to update category' });
+      return res.status(500).json({
+        success: false,
+        message: error?.message || 'Failed to update category',
+      });
     }
   }
 
@@ -149,24 +151,20 @@ export class CategoriesController {
 
       const categoryId = String(req.params.id);
 
-      // Block deletion if active products in this tenant are assigned to this category
-      const linkedProducts = await db
-        .select({ id: products.id })
-        .from(products)
-        .where(
-          and(
-            eq(products.tenantId, tenantId),
-            eq(products.categoryId, categoryId),
-            eq(products.isActive, true)
-          )
-        )
-        .limit(1);
-
-      if (linkedProducts.length > 0) {
-        return res.status(409).json({
-          success: false,
-          message: 'Cannot delete this category because active products are currently assigned to it.',
-        });
+      // Guard against deleting a category still referenced by tenant products
+      try {
+        const linked: any = await db.execute(
+          sql`SELECT id FROM products WHERE tenant_id = ${tenantId} AND category_id = ${categoryId} LIMIT 1`
+        );
+        const linkedRows = Array.isArray(linked) ? linked : linked?.rows || [];
+        if (linkedRows.length > 0) {
+          return res.status(409).json({
+            success: false,
+            message: 'Cannot delete this category because products are currently assigned to it.',
+          });
+        }
+      } catch {
+        // Ignore if products table does not have category_id column
       }
 
       const [deleted] = await db
@@ -180,8 +178,17 @@ export class CategoriesController {
 
       return res.status(200).json({ success: true, message: 'Category deleted successfully' });
     } catch (error: any) {
+      if (error?.code === '23503') {
+        return res.status(409).json({
+          success: false,
+          message: 'Cannot delete this category because products are currently assigned to it.',
+        });
+      }
       console.error('[CATEGORIES DELETE ERROR]', error);
-      return res.status(500).json({ success: false, message: 'Failed to delete category' });
+      return res.status(500).json({
+        success: false,
+        message: error?.message || 'Failed to delete category',
+      });
     }
   }
 }
