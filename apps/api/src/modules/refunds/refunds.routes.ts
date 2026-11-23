@@ -1,9 +1,12 @@
 import { Router } from 'express';
-import { processRefund } from './refunds.controller';
+import { RefundsController } from './refunds.controller';
+import { requireAuth } from '../../middleware/requireAuth';
 
 const router = Router();
+router.use(requireAuth);
 
-// POST /api/refunds
-router.post('/', processRefund);
+router.get('/', RefundsController.getRefunds);
+router.post('/', RefundsController.createRefund);
 
+export const refundRoutes = router;
 export default router;
