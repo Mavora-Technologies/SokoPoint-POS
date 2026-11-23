@@ -6,7 +6,7 @@ import { authRoutes } from './modules/auth/auth.routes';
 import productRoutes from './modules/products/products.routes';
 import { ordersRoutes } from './modules/orders/orders.routes';
 import inventoryRoutes from './modules/inventory/inventory.routes';
-import categoryRoutes from './modules/inventory/categories.routes';
+import categoryRoutes from './modules/categories/categories.routes';
 import { customerRoutes } from './modules/customers/customers.routes';
 import { supplierRoutes } from './modules/purchasing/suppliers.routes';
 import { purchasingRoutes } from './modules/purchasing/purchasing.routes';
@@ -79,8 +79,6 @@ export const createApp = () => {
   app.use('/api/v1/wholesale', wholesaleRoutes);
   app.use('/api/v1/quotations', quotationsRoutes);
   app.use('/api/v1/loyalty', loyaltyRoutes);
-  
-  
 
   // Aliases
   app.use('/auth', authRoutes);
