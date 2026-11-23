@@ -75,6 +75,194 @@ interface SidebarSegment {
   modules: NavModule[];
 }
 
+const SIDEBAR_SEGMENTS: SidebarSegment[] = [
+  {
+    header: 'RETAIL, SUPERMARKET & WHOLESALE',
+    modules: [
+      { name: 'Overview Dashboard', href: '/dashboard' },
+      { name: 'POS Terminal', href: '/dashboard/pos' },
+      {
+        name: 'Sales & Wholesale',
+        subItems: [
+          { name: 'Sales Ledger', href: '/dashboard/sales' },
+          { name: 'Retail & POS Orders', href: '/dashboard/orders' },
+          { name: 'Wholesale Orders', href: '/dashboard/wholesale' },
+          { name: 'Quotations & Invoices', href: '/dashboard/quotations' },
+          { name: 'Returns & Refunds', href: '/dashboard/returns' },
+        ],
+      },
+      {
+        name: 'Customers & Credit',
+        subItems: [
+          { name: 'Customer Directory', href: '/dashboard/customers' },
+          { name: 'Credit Accounts & Tabs', href: '/dashboard/credit' },
+          { name: 'Loyalty & Rewards', href: '/dashboard/loyalty' },
+        ],
+      },
+    ],
+  },
+  {
+    header: 'CATALOGUE, INVENTORY & SUPPLY CHAIN',
+    modules: [
+      {
+        name: 'Product Catalogue',
+        allowedRoles: [
+          'BUSINESS_OWNER',
+          'BUSINESS_ADMIN',
+          'ADMIN',
+          'BRANCH_MANAGER',
+          'MANAGER',
+          'INVENTORY_MANAGER',
+          'WHOLESALE_MANAGER',
+        ],
+        subItems: [
+          { name: 'Products & SKUs', href: '/dashboard/products' },
+          { name: 'Categories & Brands', href: '/dashboard/categories' },
+          { name: 'Barcodes & Labels', href: '/dashboard/barcodes' },
+          { name: 'Price Lists & Promotions', href: '/dashboard/pricing' },
+        ],
+      },
+      {
+        name: 'Inventory & Warehouses',
+        allowedRoles: [
+          'BUSINESS_OWNER',
+          'BUSINESS_ADMIN',
+          'ADMIN',
+          'BRANCH_MANAGER',
+          'MANAGER',
+          'INVENTORY_MANAGER',
+          'WAREHOUSE_MANAGER',
+        ],
+        subItems: [
+          { name: 'Inventory Central', href: '/dashboard/inventory' },
+          { name: 'Stock Movements & Bin Cards', href: '/dashboard/inventory/movements' },
+          { name: 'Physical Stock Audits', href: '/dashboard/inventory/audits' },
+          { name: 'Inter-Branch Transfers', href: '/dashboard/inventory/transfers' },
+          { name: 'Reorder Suggestions', href: '/dashboard/inventory/reorder' },
+          { name: 'Wastage & Write-Offs', href: '/dashboard/inventory/wastage' },
+        ],
+      },
+      {
+        name: 'Procurement & Suppliers',
+        allowedRoles: [
+          'BUSINESS_OWNER',
+          'BUSINESS_ADMIN',
+          'ADMIN',
+          'BRANCH_MANAGER',
+          'MANAGER',
+          'INVENTORY_MANAGER',
+          'PROCUREMENT_OFFICER',
+        ],
+        subItems: [
+          { name: 'Approved Suppliers', href: '/dashboard/suppliers' },
+          { name: 'Purchase Requests', href: '/dashboard/procurement/requests' },
+          { name: 'Purchase Orders (PO)', href: '/dashboard/purchasing' },
+          { name: 'Goods Inward (GRN)', href: '/dashboard/procurement/grn' },
+          { name: 'Supplier Invoices (A/P)', href: '/dashboard/purchases' },
+          { name: 'Supplier Returns', href: '/dashboard/procurement/returns' },
+        ],
+      },
+    ],
+  },
+  {
+    header: 'FINANCE, TREASURY & ANALYTICS',
+    modules: [
+      {
+        name: 'Treasury & Payments',
+        allowedRoles: [
+          'BUSINESS_OWNER',
+          'BUSINESS_ADMIN',
+          'ADMIN',
+          'BRANCH_MANAGER',
+          'MANAGER',
+          'ACCOUNTANT',
+        ],
+        subItems: [
+          { name: 'Cash Registers & Tills', href: '/dashboard/tills' },
+          { name: 'M-Pesa & Digital Payments', href: '/dashboard/payments/mpesa' },
+          { name: 'Bank Reconciliation', href: '/dashboard/payments/reconciliation' },
+          { name: 'Operational Expenses', href: '/dashboard/expenses' },
+          { name: 'Tax & KRA eTIMS', href: '/dashboard/payments/etims' },
+        ],
+      },
+      {
+        name: 'Executive Analytics & BI',
+        allowedRoles: [
+          'BUSINESS_OWNER',
+          'BUSINESS_ADMIN',
+          'ADMIN',
+          'BRANCH_MANAGER',
+          'MANAGER',
+          'ACCOUNTANT',
+          'AUDITOR',
+        ],
+        subItems: [
+          { name: 'Analytics Control Tower', href: '/dashboard/analytics' },
+          { name: 'Sales & Revenue Reports', href: '/dashboard/reports' },
+          { name: 'Product Margin Analysis', href: '/dashboard/analytics/margins' },
+          { name: 'Inventory Valuation', href: '/dashboard/analytics/inventory' },
+          { name: 'Report Exports', href: '/dashboard/analytics/export' },
+        ],
+      },
+    ],
+  },
+  {
+    header: 'SOKOPOINT INTELLIGENCE AI',
+    modules: [
+      {
+        name: 'SokoPoint Intelligence AI',
+        allowedRoles: [
+          'BUSINESS_OWNER',
+          'BUSINESS_ADMIN',
+          'ADMIN',
+          'BRANCH_MANAGER',
+          'MANAGER',
+          'INVENTORY_MANAGER',
+        ],
+        subItems: [
+          { name: 'AI Business Copilot', href: '/dashboard/ai' },
+          { name: 'Demand & Reorder Forecast', href: '/dashboard/ai/forecasting' },
+          { name: 'Slow-Mover & Anomaly Alerts', href: '/dashboard/ai/anomalies' },
+        ],
+      },
+    ],
+  },
+  {
+    header: 'HUMAN CAPITAL & SYSTEM SETTINGS',
+    modules: [
+      {
+        name: 'Staff & Shift Management',
+        allowedRoles: ['BUSINESS_OWNER', 'BUSINESS_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'MANAGER'],
+        subItems: [
+          { name: 'Employee Directory & Roster', href: '/dashboard/staff/employees' },
+          { name: 'Role-Based Access Control', href: '/dashboard/staff/roles' },
+          { name: 'Weekly Shift Schedule', href: '/dashboard/staff/planner' },
+          { name: 'Biometric Clock-In', href: '/dashboard/staff/attendance' },
+          { name: 'Shift Handover Notes', href: '/dashboard/staff/handovers' },
+          { name: 'Cash Drawer Custodians', href: '/dashboard/staff/cash-drawers' },
+          { name: 'Cashier Performance Metrics', href: '/dashboard/staff/performance' },
+        ],
+      },
+      {
+        name: 'Branches & Warehouses',
+        href: '/dashboard/settings/branches',
+        allowedRoles: ['BUSINESS_OWNER', 'BUSINESS_ADMIN', 'ADMIN'],
+      },
+      { name: 'Notifications', href: '/dashboard/notifications' },
+      {
+        name: 'Audit Log & Security',
+        href: '/dashboard/audit',
+        allowedRoles: ['BUSINESS_OWNER', 'BUSINESS_ADMIN', 'ADMIN', 'AUDITOR'],
+      },
+      {
+        name: 'Organization & Settings',
+        href: '/dashboard/settings',
+        allowedRoles: ['BUSINESS_OWNER', 'BUSINESS_ADMIN', 'ADMIN'],
+      },
+    ],
+  },
+];
+
 export default function Sidebar({
   isSidebarOpen,
   setSidebarOpen,
@@ -221,7 +409,7 @@ export default function Sidebar({
       case 'Slow-Mover & Anomaly Alerts':
         return <Bot className="w-4 h-4 shrink-0" />;
 
-      // HR & Staff
+      // Staff & Shift Management
       case 'Employee Directory & Roster':
         return <Users className="w-4 h-4 shrink-0" />;
       case 'Role-Based Access Control':
@@ -234,157 +422,18 @@ export default function Sidebar({
         return <ClipboardList className="w-4 h-4 shrink-0" />;
       case 'Cash Drawer Custodians':
         return <Wallet className="w-4 h-4 shrink-0" />;
+      case 'Cashier Performance Metrics':
+        return <BarChart4 className="w-4 h-4 shrink-0" />;
 
       default:
         return <ChevronRight className="w-4 h-4 shrink-0" />;
     }
   };
 
-  const sidebarSegments: SidebarSegment[] = [
-    {
-      header: 'RETAIL, SUPERMARKET & WHOLESALE',
-      modules: [
-        { name: 'Overview Dashboard', href: '/dashboard' },
-        { name: 'POS Terminal', href: '/dashboard/pos' },
-        {
-          name: 'Sales & Wholesale',
-          subItems: [
-            { name: 'Sales Ledger', href: '/dashboard/sales' },
-            { name: 'Retail & POS Orders', href: '/dashboard/orders' },
-            { name: 'Wholesale Orders', href: '/dashboard/wholesale' },
-            { name: 'Quotations & Invoices', href: '/dashboard/quotations' },
-            { name: 'Returns & Refunds', href: '/dashboard/returns' },
-          ],
-        },
-        {
-          name: 'Customers & Credit',
-          subItems: [
-            { name: 'Customer Directory', href: '/dashboard/customers' },
-            { name: 'Credit Accounts & Tabs', href: '/dashboard/credit' },
-            { name: 'Loyalty & Rewards', href: '/dashboard/loyalty' },
-          ],
-        },
-      ],
-    },
-    {
-      header: 'CATALOGUE, INVENTORY & SUPPLY CHAIN',
-      modules: [
-        {
-          name: 'Product Catalogue',
-          allowedRoles: ['BUSINESS_OWNER', 'BUSINESS_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'MANAGER', 'INVENTORY_MANAGER', 'WHOLESALE_MANAGER'],
-          subItems: [
-            { name: 'Products & SKUs', href: '/dashboard/products' },
-            { name: 'Categories & Brands', href: '/dashboard/categories' },
-            { name: 'Barcodes & Labels', href: '/dashboard/barcodes' },
-            { name: 'Price Lists & Promotions', href: '/dashboard/pricing' },
-          ],
-        },
-        {
-          name: 'Inventory & Warehouses',
-          allowedRoles: ['BUSINESS_OWNER', 'BUSINESS_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'MANAGER', 'INVENTORY_MANAGER', 'WAREHOUSE_MANAGER'],
-          subItems: [
-            { name: 'Inventory Central', href: '/dashboard/inventory' },
-            { name: 'Stock Movements & Bin Cards', href: '/dashboard/inventory/movements' },
-            { name: 'Physical Stock Audits', href: '/dashboard/inventory/audits' },
-            { name: 'Inter-Branch Transfers', href: '/dashboard/inventory/transfers' },
-            { name: 'Reorder Suggestions', href: '/dashboard/inventory/reorder' },
-            { name: 'Wastage & Write-Offs', href: '/dashboard/inventory/wastage' },
-          ],
-        },
-        {
-          name: 'Procurement & Suppliers',
-          allowedRoles: ['BUSINESS_OWNER', 'BUSINESS_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'MANAGER', 'INVENTORY_MANAGER', 'PROCUREMENT_OFFICER'],
-          subItems: [
-            { name: 'Approved Suppliers', href: '/dashboard/suppliers' },
-            { name: 'Purchase Requests', href: '/dashboard/procurement/requests' },
-            { name: 'Purchase Orders (PO)', href: '/dashboard/purchasing' },
-            { name: 'Goods Inward (GRN)', href: '/dashboard/procurement/grn' },
-            { name: 'Supplier Invoices (A/P)', href: '/dashboard/purchases' },
-            { name: 'Supplier Returns', href: '/dashboard/procurement/returns' },
-          ],
-        },
-      ],
-    },
-    {
-      header: 'FINANCE, TREASURY & ANALYTICS',
-      modules: [
-        {
-          name: 'Treasury & Payments',
-          allowedRoles: ['BUSINESS_OWNER', 'BUSINESS_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'MANAGER', 'ACCOUNTANT'],
-          subItems: [
-            { name: 'Cash Registers & Tills', href: '/dashboard/tills' },
-            { name: 'M-Pesa & Digital Payments', href: '/dashboard/payments/mpesa' },
-            { name: 'Bank Reconciliation', href: '/dashboard/payments/reconciliation' },
-            { name: 'Operational Expenses', href: '/dashboard/expenses' },
-            { name: 'Tax & KRA eTIMS', href: '/dashboard/payments/etims' },
-          ],
-        },
-        {
-          name: 'Executive Analytics & BI',
-          allowedRoles: ['BUSINESS_OWNER', 'BUSINESS_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'MANAGER', 'ACCOUNTANT', 'AUDITOR'],
-          subItems: [
-            { name: 'Analytics Control Tower', href: '/dashboard/analytics' },
-            { name: 'Sales & Revenue Reports', href: '/dashboard/reports' },
-            { name: 'Product Margin Analysis', href: '/dashboard/analytics/margins' },
-            { name: 'Inventory Valuation', href: '/dashboard/analytics/inventory' },
-            { name: 'Report Exports', href: '/dashboard/analytics/export' },
-          ],
-        },
-      ],
-    },
-    {
-      header: 'SOKOPOINT INTELLIGENCE AI',
-      modules: [
-        {
-          name: 'SokoPoint Intelligence AI',
-          allowedRoles: ['BUSINESS_OWNER', 'BUSINESS_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'MANAGER', 'INVENTORY_MANAGER'],
-          subItems: [
-            { name: 'AI Business Copilot', href: '/dashboard/ai' },
-            { name: 'Demand & Reorder Forecast', href: '/dashboard/ai/forecasting' },
-            { name: 'Slow-Mover & Anomaly Alerts', href: '/dashboard/ai/anomalies' },
-          ],
-        },
-      ],
-    },
-    {
-      header: 'HUMAN CAPITAL & SYSTEM SETTINGS',
-      modules: [
-        {
-          name: 'Staff & Shift Management',
-          allowedRoles: ['BUSINESS_OWNER', 'BUSINESS_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'MANAGER'],
-          subItems: [
-            { name: 'Employee Directory & Roster', href: '/dashboard/hr/employees' },
-            { name: 'Role-Based Access Control', href: '/dashboard/hr/roles' },
-            { name: 'Weekly Shift Schedule', href: '/dashboard/hr/schedule' },
-            { name: 'Biometric Clock-In', href: '/dashboard/hr/attendance' },
-            { name: 'Shift Handover Notes', href: '/dashboard/hr/handover' },
-            { name: 'Cash Drawer Custodians', href: '/dashboard/hr/drawers' },
-          ],
-        },
-        {
-          name: 'Branches & Warehouses',
-          href: '/dashboard/settings/branches',
-          allowedRoles: ['BUSINESS_OWNER', 'BUSINESS_ADMIN', 'ADMIN'],
-        },
-        { name: 'Notifications', href: '/dashboard/notifications' },
-        {
-          name: 'Audit Log & Security',
-          href: '/dashboard/audit',
-          allowedRoles: ['BUSINESS_OWNER', 'BUSINESS_ADMIN', 'ADMIN', 'AUDITOR'],
-        },
-        {
-          name: 'Organization & Settings',
-          href: '/dashboard/settings',
-          allowedRoles: ['BUSINESS_OWNER', 'BUSINESS_ADMIN', 'ADMIN'],
-        },
-      ],
-    },
-  ];
-
   // Auto-open the parent module matching the active route
   useEffect(() => {
     if (!pathname) return;
-    sidebarSegments.forEach((segment) => {
+    SIDEBAR_SEGMENTS.forEach((segment) => {
       segment.modules.forEach((mod) => {
         if (mod.subItems?.some((sub) => pathname === sub.href || pathname.startsWith(`${sub.href}/`))) {
           setOpenModules((prev) => ({ ...prev, [mod.name]: true }));
@@ -397,15 +446,13 @@ export default function Sidebar({
   const normalizedRole = (userRole || 'CASHIER').toUpperCase();
   const isFullAccess = ['BUSINESS_OWNER', 'BUSINESS_ADMIN', 'ADMIN'].includes(normalizedRole);
 
-  const filteredSegments = sidebarSegments
-    .map((segment) => ({
-      ...segment,
-      modules: segment.modules.filter((mod) => {
-        if (isFullAccess || !mod.allowedRoles) return true;
-        return mod.allowedRoles.includes(normalizedRole);
-      }),
-    }))
-    .filter((segment) => segment.modules.length > 0);
+  const filteredSegments = SIDEBAR_SEGMENTS.map((segment) => ({
+    ...segment,
+    modules: segment.modules.filter((mod) => {
+      if (isFullAccess || !mod.allowedRoles) return true;
+      return mod.allowedRoles.includes(normalizedRole);
+    }),
+  })).filter((segment) => segment.modules.length > 0);
 
   return (
     <>
@@ -534,7 +581,7 @@ export default function Sidebar({
                       {!isCollapsed && hasSubItems && isModuleOpen && (
                         <div className="pl-7 py-1 space-y-0.5 border-l border-[#176E84]/50 ml-[1.125rem] mt-1 mb-2">
                           {mod.subItems!.map((sub, subIndex) => {
-                            const isSubActive = pathname === sub.href;
+                            const isSubActive = pathname === sub.href || !!pathname?.startsWith(`${sub.href}/`);
                             return (
                               <Link
                                 key={`sub-${subIndex}`}
