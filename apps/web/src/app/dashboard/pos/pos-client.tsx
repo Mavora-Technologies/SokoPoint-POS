@@ -17,7 +17,10 @@ import {
   X,
   ChevronUp,
   User,
+  UserPlus,
   LogIn,
+  Store,
+  Truck,
 } from 'lucide-react';
 import api from '../../../lib/api';
 
@@ -34,6 +37,14 @@ interface Product {
   minimumStock?: number;
   reorderLevel?: number;
   imageUrl?: string;
+}
+
+interface Customer {
+  id: string;
+  name: string;
+  phone?: string | null;
+  email?: string | null;
+  creditBalance?: string | number;
 }
 
 interface CartItem {
@@ -55,12 +66,14 @@ interface ReceiptData {
   taxableBase: number;
   tax: number;
   method: string;
+  saleChannel: string;
   amountTendered?: number;
   change?: number;
   date: string;
   time: string;
   cashierName: string;
   customerName: string;
+  customerPhone?: string | null;
   isRefund: boolean;
   businessName: string;
   branchName: string;
@@ -70,16 +83,26 @@ interface ReceiptData {
 export default function POSClient() {
   const [isMounted, setIsMounted] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [saleChannel, setSaleChannel] = useState<'Over The Counter' | 'Delivery'>('Over The Counter');
   const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'M-Pesa' | 'Card'>('Cash');
   const [amountTendered, setAmountTendered] = useState('');
   const [isRefundMode, setIsRefundMode] = useState(false);
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
+
+  // Customer linking & Quick Add Customer modal
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
+  const [customerName, setCustomerName] = useState('Walk-in Customer');
+  const [customerPhone, setCustomerPhone] = useState<string | null>(null);
+  const [isAddCustomerOpen, setIsAddCustomerOpen] = useState(false);
+  const [savingCustomer, setSavingCustomer] = useState(false);
+  const [newCustomerForm, setNewCustomerForm] = useState({ name: '', phone: '', email: '' });
 
   const [receipt, setReceipt] = useState<ReceiptData | null>(null);
   const [paperSize, setPaperSize] = useState<'80mm' | '58mm'>('80mm');
@@ -88,7 +111,6 @@ export default function POSClient() {
   const [businessName, setBusinessName] = useState('SokoPoint Retail');
   const [branchName, setBranchName] = useState('Main Branch');
   const [currency, setCurrency] = useState('KES');
-  const [customerName, setCustomerName] = useState('Walk-in Customer');
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -107,7 +129,11 @@ export default function POSClient() {
       setLoading(true);
       setAuthError(null);
 
-      const meRes = await api.get('/auth/me').catch(() => null);
+      const [meRes, customersRes] = await Promise.all([
+        api.get('/auth/me').catch(() => null),
+        api.get('/customers').catch(() => ({ data: { data: [] } })),
+      ]);
+
       const profile = meRes?.data?.data;
       if (profile) {
         if (profile.name) setCashierName(profile.name);
@@ -115,6 +141,13 @@ export default function POSClient() {
         if (profile.branchName) setBranchName(profile.branchName);
         if (profile.currency) setCurrency(profile.currency);
       }
+
+      const rawCustomers = Array.isArray(customersRes?.data?.data)
+        ? customersRes.data.data
+        : Array.isArray(customersRes?.data)
+        ? customersRes.data
+        : [];
+      setCustomers(rawCustomers);
 
       const productsRes = await api.get('/products');
       const rawList = Array.isArray(productsRes.data?.data)
@@ -154,6 +187,46 @@ export default function POSClient() {
       </div>
     );
   }
+
+  const handleSelectCustomer = (customerId: string) => {
+    setSelectedCustomerId(customerId);
+    if (!customerId) {
+      setCustomerName('Walk-in Customer');
+      setCustomerPhone(null);
+      return;
+    }
+    const found = customers.find((c) => c.id === customerId);
+    if (found) {
+      setCustomerName(found.name);
+      setCustomerPhone(found.phone || null);
+    }
+  };
+
+  const handleQuickAddCustomer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCustomerForm.name.trim()) return;
+    try {
+      setSavingCustomer(true);
+      const res = await api.post('/customers', {
+        name: newCustomerForm.name.trim(),
+        phone: newCustomerForm.phone.trim() || undefined,
+        email: newCustomerForm.email.trim() || undefined,
+      });
+      const created: Customer | undefined = res.data?.data || res.data;
+      if (created?.id) {
+        setCustomers((prev) => [created, ...prev]);
+        setSelectedCustomerId(created.id);
+        setCustomerName(created.name);
+        setCustomerPhone(created.phone || null);
+      }
+      setNewCustomerForm({ name: '', phone: '', email: '' });
+      setIsAddCustomerOpen(false);
+    } catch (err: any) {
+      alert(err?.response?.data?.message || 'Failed to add customer.');
+    } finally {
+      setSavingCustomer(false);
+    }
+  };
 
   const getUnitPrice = (product: Product): number =>
     Number(product.sellingPrice ?? product.price ?? 0);
@@ -265,10 +338,13 @@ export default function POSClient() {
       const receiptNum = `SOKO-${Math.floor(Math.random() * 900000) + 100000}`;
       const normalizedMethod =
         paymentMethod === 'M-Pesa' ? 'mpesa' : paymentMethod.toLowerCase();
+      const resolvedCustomerName = customerName.trim() || 'Walk-in Customer';
 
       const payload = {
         orderNum: receiptNum,
-        customer: customerName.trim() || 'Walk-in Customer',
+        customerId: selectedCustomerId || null,
+        customer: resolvedCustomerName,
+        saleChannel,
         method: normalizedMethod,
         isRefund: isRefundMode,
         items: cart.map((item) => ({
@@ -298,12 +374,14 @@ export default function POSClient() {
         taxableBase: serverBase,
         tax: serverTax,
         method: paymentMethod,
+        saleChannel,
         amountTendered: tendered,
         change: serverChange,
         date: now.toLocaleDateString('en-GB'),
         time: now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }),
         cashierName,
-        customerName: customerName.trim() || 'Walk-in Customer',
+        customerName: resolvedCustomerName,
+        customerPhone,
         isRefund: isRefundMode,
         businessName,
         branchName,
@@ -312,6 +390,9 @@ export default function POSClient() {
 
       setCart([]);
       setAmountTendered('');
+      setSelectedCustomerId('');
+      setCustomerName('Walk-in Customer');
+      setCustomerPhone(null);
       setIsRefundMode(false);
       setIsMobileCartOpen(false);
       await loadPosContext();
@@ -536,7 +617,7 @@ export default function POSClient() {
         <div
           className={`
             fixed lg:static inset-x-0 bottom-0 z-50 lg:z-20
-            w-full lg:w-[380px] xl:w-[420px]
+            w-full lg:w-[390px] xl:w-[430px]
             h-[85vh] lg:h-full
             bg-white lg:shadow-2xl flex flex-col shrink-0
             transition-transform duration-300 ease-in-out
@@ -571,17 +652,46 @@ export default function POSClient() {
             </div>
           </div>
 
-          <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 flex items-center gap-2 shrink-0">
-            <User className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-            <input
-              type="text"
-              value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
-              placeholder="Walk-in Customer / Account Name"
-              className="w-full bg-transparent text-xs font-semibold text-slate-700 outline-none placeholder:text-slate-400"
-            />
+          {/* Linked Customer Selector + Quick Add Customer */}
+          <div className="p-3 bg-slate-50 border-b border-slate-200 space-y-2 shrink-0">
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <User className="h-3.5 w-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <select
+                  value={selectedCustomerId}
+                  onChange={(e) => handleSelectCustomer(e.target.value)}
+                  className="w-full pl-8 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-[#0554F4]"
+                >
+                  <option value="">Walk-in Customer</option>
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} {c.phone ? `(${c.phone})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddCustomerOpen(true)}
+                title="Add new customer"
+                className="px-2.5 py-2 bg-[#0554F4] hover:bg-[#041F56] text-white rounded-xl text-xs font-bold flex items-center gap-1 shrink-0 transition-colors"
+              >
+                <UserPlus className="h-3.5 w-3.5" /> Add
+              </button>
+            </div>
+
+            {!selectedCustomerId && (
+              <input
+                type="text"
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                placeholder="Customer Name (prints on receipt)"
+                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-700 outline-none focus:ring-1 focus:ring-[#0554F4]"
+              />
+            )}
           </div>
 
+          {/* Cart Items */}
           <div className="flex-1 overflow-y-auto p-3 custom-scrollbar bg-slate-50/50 space-y-2">
             {cart.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-slate-400 py-10">
@@ -630,10 +740,39 @@ export default function POSClient() {
             )}
           </div>
 
+          {/* Payment & Fulfillment Footer */}
           <div className="p-3 sm:p-4 bg-white border-t border-slate-200 shrink-0 shadow-[0_-4px_20px_rgba(0,0,0,0.03)] z-10">
+            {/* Fulfillment Channel: Over The Counter vs Delivery */}
             {!isRefundMode && (
-              <div className="mb-3 lg:mb-4">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 lg:mb-2">
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                <button
+                  type="button"
+                  onClick={() => setSaleChannel('Over The Counter')}
+                  className={`py-2 px-2.5 rounded-xl border text-[11px] font-bold inline-flex items-center justify-center gap-1.5 transition-all ${
+                    saleChannel === 'Over The Counter'
+                      ? 'border-[#0554F4] bg-[#0554F4]/10 text-[#0554F4]'
+                      : 'border-slate-200 text-slate-500 hover:bg-slate-50'
+                  }`}
+                >
+                  <Store className="w-3.5 h-3.5" /> Over The Counter
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSaleChannel('Delivery')}
+                  className={`py-2 px-2.5 rounded-xl border text-[11px] font-bold inline-flex items-center justify-center gap-1.5 transition-all ${
+                    saleChannel === 'Delivery'
+                      ? 'border-[#0554F4] bg-[#0554F4]/10 text-[#0554F4]'
+                      : 'border-slate-200 text-slate-500 hover:bg-slate-50'
+                  }`}
+                >
+                  <Truck className="w-3.5 h-3.5" /> Delivery
+                </button>
+              </div>
+            )}
+
+            {!isRefundMode && (
+              <div className="mb-3">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
                   Payment Method
                 </p>
                 <div className="grid grid-cols-3 gap-2">
@@ -662,7 +801,7 @@ export default function POSClient() {
             )}
 
             {!isRefundMode && paymentMethod === 'Cash' && (
-              <div className="flex gap-2 mb-3 lg:mb-4">
+              <div className="flex gap-2 mb-3">
                 <div className="flex-1 relative">
                   <span className="absolute left-3 top-1.5 text-[9px] font-bold text-slate-400 uppercase">
                     Tendered
@@ -686,7 +825,7 @@ export default function POSClient() {
               </div>
             )}
 
-            <div className="space-y-1 mb-3 lg:mb-4 text-xs lg:text-sm">
+            <div className="space-y-1 mb-3 text-xs lg:text-sm">
               <div className="flex justify-between text-slate-500 font-medium">
                 <span>Taxable Base Net</span>
                 <span>
@@ -720,6 +859,74 @@ export default function POSClient() {
           </div>
         </div>
       </div>
+
+      {/* QUICK ADD CUSTOMER MODAL */}
+      {isAddCustomerOpen && (
+        <div className="fixed inset-0 z-[9998] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h2 className="text-lg font-black text-[#041F56]">Add New Customer</h2>
+              <button
+                type="button"
+                onClick={() => setIsAddCustomerOpen(false)}
+                className="text-slate-400 hover:text-slate-700 p-1"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <form onSubmit={handleQuickAddCustomer} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Full Name / Business Name *</label>
+                <input
+                  required
+                  type="text"
+                  value={newCustomerForm.name}
+                  onChange={(e) => setNewCustomerForm({ ...newCustomerForm, name: e.target.value })}
+                  placeholder="e.g. Jane Wanjiku or Kilimani Mart"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#0554F4]"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Phone Number</label>
+                <input
+                  type="text"
+                  value={newCustomerForm.phone}
+                  onChange={(e) => setNewCustomerForm({ ...newCustomerForm, phone: e.target.value })}
+                  placeholder="e.g. 0712 345 678"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#0554F4]"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Email (Optional)</label>
+                <input
+                  type="email"
+                  value={newCustomerForm.email}
+                  onChange={(e) => setNewCustomerForm({ ...newCustomerForm, email: e.target.value })}
+                  placeholder="customer@example.com"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#0554F4]"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddCustomerOpen(false)}
+                  className="px-4 py-2.5 bg-slate-100 text-slate-700 text-xs font-bold rounded-xl"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingCustomer}
+                  className="px-5 py-2.5 bg-[#0554F4] hover:bg-[#041F56] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {savingCustomer && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  Save & Select
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* DYNAMIC TENANT RECEIPT OVERLAY */}
       {receipt && (
@@ -764,17 +971,19 @@ export default function POSClient() {
                 <p className="font-bold text-[10px]">{receipt.branchName}</p>
                 <p className="font-bold text-[11px] mt-3">{receipt.receiptNumber}</p>
                 <p className="font-medium text-[10px]">
-                  {receipt.date} {receipt.time} | POS Terminal
+                  {receipt.date} {receipt.time} &bull; {receipt.saleChannel}
                 </p>
               </div>
 
               <div className="flex justify-between font-medium text-[10px] border-b border-dashed border-black pb-2 mb-2">
                 <div className="flex flex-col">
                   <span>Customer:</span>
+                  {receipt.customerPhone && <span>Phone:</span>}
                   <span>Cashier:</span>
                 </div>
                 <div className="flex flex-col text-right font-bold">
                   <span>{receipt.customerName}</span>
+                  {receipt.customerPhone && <span>{receipt.customerPhone}</span>}
                   <span>{receipt.cashierName}</span>
                 </div>
               </div>
