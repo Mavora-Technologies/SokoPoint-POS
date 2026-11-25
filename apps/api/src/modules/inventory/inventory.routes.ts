@@ -10,6 +10,7 @@ import { requisitionsRoutes } from './requisitions.routes';
 import { procurementOrdersRoutes } from './orders.routes';
 import { grnRoutes } from './grn.routes';
 import { supplierInvoicesRoutes } from './invoices.routes';
+import { supplierReturnsRoutes } from './returns.routes';
 
 const router = Router();
 router.use(requireAuth);
@@ -26,6 +27,6 @@ router.use('/orders', procurementOrdersRoutes);
 router.patch('/batches/:id/quarantine', InventoryController.quarantineBatch);
 router.use('/grn', grnRoutes);
 router.use('/invoices', supplierInvoicesRoutes);
-
+router.use('/returns', supplierReturnsRoutes);
 export const inventoryRoutes = router;
 export default router;
