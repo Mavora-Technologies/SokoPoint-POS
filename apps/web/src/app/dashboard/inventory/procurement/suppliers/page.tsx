@@ -10,12 +10,11 @@ import {
   Mail,
   FileText,
   Smartphone,
-  Package,
+  Boxes,
   Power,
   Pencil,
   X,
   Loader2,
-  RefreshCw,
   AlertCircle,
   LogIn,
 } from 'lucide-react';
@@ -62,7 +61,6 @@ export default function SuppliersRegistryPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'DISABLED'>('ALL');
 
-  // Create / Edit Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -125,7 +123,7 @@ export default function SuppliersRegistryPage() {
       setSaving(true);
       const payload = {
         ...form,
-        leadTimeDays: Number(form.leadTimeDays) || 2,
+        leadTimeDays: Math.max(0, Number(form.leadTimeDays) || 2),
       };
       if (editingId) {
         await api.put(`/inventory/suppliers/${editingId}`, payload);
@@ -169,33 +167,24 @@ export default function SuppliersRegistryPage() {
   }, [suppliers, statusFilter, search]);
 
   return (
-    <div className="w-full min-h-[100dvh] bg-[#f8fafc] px-4 sm:px-6 lg:px-8 py-6 space-y-6 font-sans">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 sm:p-8 rounded-3xl shadow-sm border border-slate-100">
+    <div className="w-full min-h-[100dvh] bg-[#f4f7fb] px-4 sm:px-6 lg:px-8 py-6 space-y-5 font-sans">
+      {/* Header Card */}
+      <div className="bg-white rounded-2xl border border-slate-200/70 px-6 py-5 shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-[#041F56] tracking-tight">
+          <h1 className="text-xl font-extrabold text-[#041F56] tracking-tight">
             Approved Suppliers &amp; Vendor Registry
           </h1>
-          <p className="text-[#176E84] text-xs sm:text-sm mt-1">
+          <p className="text-xs text-[#176E84] mt-1">
             Configure wholesale distributors, lead times, credit payment terms, KRA fiscal PINs, and M-Pesa B2B channels.
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
-          <button
-            onClick={loadSuppliers}
-            className="p-2.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl"
-            title="Refresh"
-          >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          </button>
-          <button
-            onClick={openCreateModal}
-            className="px-5 py-2.5 bg-[#0554F4] hover:bg-[#041F56] text-white text-xs font-bold rounded-xl shadow-md inline-flex items-center gap-1.5"
-          >
-            <Plus className="h-4 w-4" /> Add Vendor Profile
-          </button>
-        </div>
+        <button
+          onClick={openCreateModal}
+          className="px-4 py-2.5 bg-[#0554F4] hover:bg-[#0441c4] text-white text-xs font-bold rounded-xl shadow-xs inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+        >
+          <Plus className="h-4 w-4" /> Add Vendor Profile
+        </button>
       </div>
 
       {error && (
@@ -211,8 +200,8 @@ export default function SuppliersRegistryPage() {
         </div>
       )}
 
-      {/* Search & Status Tabs */}
-      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
+      {/* Search & Segmented Filter Bar */}
+      <div className="bg-white rounded-2xl border border-slate-200/70 px-4 py-3 shadow-xs flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
         <div className="relative flex-1">
           <Search className="h-4 w-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
@@ -220,11 +209,11 @@ export default function SuppliersRegistryPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search vendor name, contact person, phone, or KRA PIN..."
-            className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-[#0554F4]"
+            className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 outline-none focus:border-[#0554F4] focus:ring-1 focus:ring-[#0554F4]"
           />
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="inline-flex items-center bg-slate-100/80 p-1 rounded-xl self-end sm:self-auto">
           {[
             { key: 'ALL', label: `All (${suppliers.length})` },
             { key: 'ACTIVE', label: 'Active' },
@@ -233,8 +222,10 @@ export default function SuppliersRegistryPage() {
             <button
               key={tab.key}
               onClick={() => setStatusFilter(tab.key as any)}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold ${
-                statusFilter === tab.key ? 'bg-[#041F56] text-white' : 'bg-slate-100 text-slate-600'
+              className={`px-3.5 py-1.5 rounded-lg text-xs transition-all cursor-pointer ${
+                statusFilter === tab.key
+                  ? 'bg-white text-[#041F56] font-bold shadow-xs'
+                  : 'text-slate-500 font-medium hover:text-slate-800'
               }`}
             >
               {tab.label}
@@ -246,58 +237,58 @@ export default function SuppliersRegistryPage() {
       {/* Vendor Cards Grid */}
       {loading ? (
         <div className="py-20 flex justify-center">
-          <Loader2 className="h-9 w-9 animate-spin text-[#0554F4]" />
+          <Loader2 className="h-8 w-8 animate-spin text-[#0554F4]" />
         </div>
       ) : filtered.length === 0 ? (
-        <div className="bg-white rounded-3xl p-16 text-center border border-slate-100 text-slate-400">
+        <div className="bg-white rounded-2xl p-16 text-center border border-slate-200/70 text-slate-400">
           <Building2 className="h-10 w-10 mx-auto mb-2 text-slate-300" />
           <p className="font-bold text-slate-700">No supplier profiles found</p>
-          <p className="text-xs mt-1">Click Add Vendor Profile to register your first wholesale distributor.</p>
+          <p className="text-xs mt-1">Click &quot;+ Add Vendor Profile&quot; to register your first wholesale supplier.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filtered.map((s) => (
             <div
               key={s.id}
-              className={`bg-white rounded-3xl p-5 shadow-sm border transition-all flex flex-col justify-between gap-4 ${
-                s.isActive ? 'border-slate-100' : 'border-slate-200 opacity-75'
+              className={`bg-white rounded-2xl border p-5 shadow-xs flex flex-col justify-between min-h-[230px] transition-all ${
+                s.isActive ? 'border-slate-200/70' : 'border-slate-200 opacity-70'
               }`}
             >
-              <div className="space-y-3">
+              <div>
                 {/* Top Badges */}
                 <div className="flex justify-between items-center">
-                  <span className="px-2.5 py-0.5 rounded-md bg-blue-50 text-[#0554F4] text-[10px] font-black uppercase">
+                  <span className="px-2.5 py-0.5 rounded-md bg-blue-50 text-[#0554F4] text-[10px] font-bold uppercase tracking-wide">
                     {(s.paymentTerms || 'NET_30').replace('_', ' ')}
                   </span>
                   <span
-                    className={`px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase ${
-                      s.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'
+                    className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide ${
+                      s.isActive ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'
                     }`}
                   >
                     {s.isActive ? 'ACTIVE' : 'DISABLED'}
                   </span>
                 </div>
 
-                {/* Title & Contact */}
-                <div>
-                  <h2 className="text-sm font-black text-[#041F56]">{s.name}</h2>
+                {/* Business Name & Contact */}
+                <div className="mt-3">
+                  <h2 className="text-sm font-bold text-[#041F56] leading-snug">{s.name}</h2>
                   <p className="text-xs text-slate-500 mt-0.5">
                     Contact: {s.contactPerson || 'Not specified'}
                   </p>
                 </div>
 
-                {/* Details */}
-                <div className="pt-3 border-t border-slate-100 space-y-1.5 text-xs text-slate-600">
+                {/* Contact & Fiscal Details */}
+                <div className="border-t border-slate-100 mt-3.5 pt-3.5 space-y-1.5 text-xs text-slate-500 min-h-[82px]">
                   {s.phone && (
                     <p className="flex items-center gap-2">
                       <Phone className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                      <span className="font-mono">{s.phone}</span>
+                      <span className="font-mono text-[11px]">{s.phone}</span>
                     </p>
                   )}
                   {s.email && (
                     <p className="flex items-center gap-2 truncate">
                       <Mail className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                      <span className="truncate">{s.email}</span>
+                      <span className="truncate text-[11px]">{s.email}</span>
                     </p>
                   )}
                   {s.kraPin && (
@@ -307,7 +298,7 @@ export default function SuppliersRegistryPage() {
                     </p>
                   )}
                   {s.mpesaPaybill && (
-                    <p className="flex items-center gap-2 text-emerald-700 font-semibold">
+                    <p className="flex items-center gap-2 text-emerald-600 font-medium">
                       <Smartphone className="h-3.5 w-3.5 shrink-0" />
                       <span className="font-mono text-[11px]">Paybill / Till: {s.mpesaPaybill}</span>
                     </p>
@@ -315,22 +306,22 @@ export default function SuppliersRegistryPage() {
                 </div>
               </div>
 
-              {/* Card Footer */}
-              <div className="pt-3 border-t border-slate-100 flex justify-between items-center text-xs">
+              {/* Footer */}
+              <div className="border-t border-slate-100 pt-3 mt-3 flex justify-between items-center text-xs">
                 <div className="flex items-center gap-2 text-slate-500">
                   <span className="inline-flex items-center gap-1 font-bold text-[#041F56]">
-                    <Package className="h-3.5 w-3.5 text-[#0554F4]" /> {s.skuCount} SKUs
+                    <Boxes className="h-3.5 w-3.5 text-[#0554F4]" /> {s.skuCount} SKUs
                   </span>
-                  <span>|</span>
-                  <span>{s.leadTimeDays}d lead</span>
+                  <span className="text-slate-300">|</span>
+                  <span className="text-[11px]">{s.leadTimeDays}d lead</span>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                   <button
                     type="button"
                     onClick={() => handleToggle(s)}
                     disabled={togglingId === s.id}
-                    className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg"
+                    className="text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
                     title={s.isActive ? 'Disable supplier' : 'Activate supplier'}
                   >
                     {togglingId === s.id ? (
@@ -342,7 +333,7 @@ export default function SuppliersRegistryPage() {
                   <button
                     type="button"
                     onClick={() => openEditModal(s)}
-                    className="inline-flex items-center gap-1 text-xs font-bold text-[#0554F4] hover:underline"
+                    className="inline-flex items-center gap-1 text-xs font-bold text-[#0554F4] hover:underline cursor-pointer"
                   >
                     <Pencil className="h-3.5 w-3.5" /> Edit
                   </button>
@@ -355,91 +346,100 @@ export default function SuppliersRegistryPage() {
 
       {/* NEW / EDIT SUPPLIER PROFILE MODAL */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
-            <div className="flex justify-between items-start pb-3 border-b border-slate-100">
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-[2px] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-[540px] w-full p-6 sm:p-7 shadow-2xl max-h-[92vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex justify-between items-start pb-4 border-b border-slate-100">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-blue-50 rounded-xl text-[#0554F4]">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#0554F4] flex items-center justify-center shrink-0">
                   <Building2 className="h-5 w-5" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-black text-[#041F56]">
+                  <h2 className="text-base font-extrabold text-[#041F56]">
                     {editingId ? 'Edit Supplier Profile' : 'New Supplier Profile'}
                   </h2>
-                  <p className="text-xs text-[#176E84]">Wholesale vendor details and payment credentials</p>
+                  <p className="text-xs text-[#176E84]">
+                    Wholesale vendor details and payment credentials
+                  </p>
                 </div>
               </div>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-700">
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
+              >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSave} className="space-y-3.5">
+            {/* Modal Form */}
+            <form onSubmit={handleSave} className="space-y-4 mt-4">
               <div>
-                <label className="block text-xs font-black text-[#041F56] mb-1">Supplier Business Name *</label>
+                <label className="block text-xs font-bold text-[#041F56] mb-1.5">
+                  Supplier Business Name *
+                </label>
                 <input
                   required
                   type="text"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   placeholder="e.g. Unga & Millers Wholesale Distributors Ltd"
-                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-[#0554F4]"
+                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#0554F4] focus:ring-1 focus:ring-[#0554F4]"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
-                  <label className="block text-xs font-black text-[#041F56] mb-1">Contact Representative</label>
+                  <label className="block text-xs font-bold text-[#041F56] mb-1.5">Contact Representative</label>
                   <input
                     type="text"
                     value={form.contactPerson}
                     onChange={(e) => setForm({ ...form, contactPerson: e.target.value })}
                     placeholder="e.g. Jane Kariuki"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs"
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#0554F4]"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-black text-[#041F56] mb-1">KRA Tax PIN</label>
+                  <label className="block text-xs font-bold text-[#041F56] mb-1.5">KRA Tax PIN</label>
                   <input
                     type="text"
                     value={form.kraPin}
                     onChange={(e) => setForm({ ...form, kraPin: e.target.value })}
                     placeholder="P051234567Z"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono uppercase"
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs font-mono uppercase text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#0554F4]"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
-                  <label className="block text-xs font-black text-[#041F56] mb-1">Phone Number</label>
+                  <label className="block text-xs font-bold text-[#041F56] mb-1.5">Phone Number</label>
                   <input
                     type="text"
                     value={form.phone}
                     onChange={(e) => setForm({ ...form, phone: e.target.value })}
                     placeholder="+254 700 000000"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono"
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs font-mono text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#0554F4]"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-black text-[#041F56] mb-1">Orders Email</label>
+                  <label className="block text-xs font-bold text-[#041F56] mb-1.5">Orders Email</label>
                   <input
                     type="email"
                     value={form.email}
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
                     placeholder="orders@vendor.co.ke"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs"
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#0554F4]"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
-                  <label className="block text-xs font-black text-[#041F56] mb-1">Payment Terms *</label>
+                  <label className="block text-xs font-bold text-[#041F56] mb-1.5">Payment Terms *</label>
                   <select
                     value={form.paymentTerms}
                     onChange={(e) => setForm({ ...form, paymentTerms: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold bg-white"
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs font-bold text-[#041F56] bg-white outline-none focus:border-[#0554F4]"
                   >
                     <option value="NET_30">Net 30 Days Credit</option>
                     <option value="NET_14">Net 14 Days Credit</option>
@@ -448,23 +448,23 @@ export default function SuppliersRegistryPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-black text-[#041F56] mb-1">Lead Time (Days)</label>
+                  <label className="block text-xs font-bold text-[#041F56] mb-1.5">Lead Time (Days)</label>
                   <input
                     type="number"
                     min="0"
                     value={form.leadTimeDays}
                     onChange={(e) => setForm({ ...form, leadTimeDays: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono font-bold"
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs font-mono font-bold text-[#041F56] outline-none focus:border-[#0554F4]"
                   />
                 </div>
               </div>
 
-              {/* Disbursement Credentials Box */}
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
-                <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
+              {/* Disbursement Credentials */}
+              <div className="rounded-2xl border border-slate-200/80 bg-slate-50/40 p-4 space-y-3">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                   DISBURSEMENT CREDENTIALS (B2B &amp; BANKING)
                 </p>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 mb-1">M-Pesa Paybill / Till</label>
                     <input
@@ -472,7 +472,7 @@ export default function SuppliersRegistryPage() {
                       value={form.mpesaPaybill}
                       onChange={(e) => setForm({ ...form, mpesaPaybill: e.target.value })}
                       placeholder="e.g. 522522"
-                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono bg-white"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono bg-white placeholder:text-slate-400 outline-none focus:border-[#0554F4]"
                     />
                   </div>
                   <div>
@@ -481,8 +481,8 @@ export default function SuppliersRegistryPage() {
                       type="text"
                       value={form.bankName}
                       onChange={(e) => setForm({ ...form, bankName: e.target.value })}
-                      placeholder="e.g. KCB Bank Industrial Area"
-                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-white"
+                      placeholder="e.g. KCB Bank Kipande"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-white placeholder:text-slate-400 outline-none focus:border-[#0554F4]"
                     />
                   </div>
                 </div>
@@ -493,44 +493,44 @@ export default function SuppliersRegistryPage() {
                     value={form.bankAccount}
                     onChange={(e) => setForm({ ...form, bankAccount: e.target.value })}
                     placeholder="e.g. 1100223344"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono bg-white"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono bg-white placeholder:text-slate-400 outline-none focus:border-[#0554F4]"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-black text-[#041F56] mb-1">Physical Warehouse / Depot</label>
+                <label className="block text-xs font-bold text-[#041F56] mb-1.5">Physical Warehouse / Depot</label>
                 <input
                   type="text"
                   value={form.address}
                   onChange={(e) => setForm({ ...form, address: e.target.value })}
                   placeholder="e.g. Enterprise Road, Industrial Area, Nairobi"
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs"
+                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#0554F4]"
                 />
               </div>
 
-              <label className="flex items-center gap-2 text-xs font-bold text-[#041F56] cursor-pointer pt-1">
+              <label className="flex items-center gap-2.5 text-xs font-bold text-[#041F56] cursor-pointer pt-1">
                 <input
                   type="checkbox"
                   checked={form.isActive}
                   onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
-                  className="accent-[#0554F4] h-4 w-4"
+                  className="accent-[#0554F4] h-4 w-4 rounded"
                 />
                 <span>Active Supplier (Available for PO requisitions)</span>
               </label>
 
-              <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
+              <div className="flex justify-end items-center gap-4 pt-4 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl"
+                  className="text-xs font-bold text-slate-500 hover:text-slate-800 px-3 py-2 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-5 py-2.5 bg-[#0554F4] hover:bg-[#041F56] text-white text-xs font-bold rounded-xl shadow-md inline-flex items-center gap-1.5 disabled:opacity-50"
+                  className="px-5 py-2.5 bg-[#0554F4] hover:bg-[#0441c4] text-white text-xs font-bold rounded-xl shadow-xs inline-flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
                 >
                   {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                   {editingId ? 'Save Changes' : 'Create Vendor Profile'}
