@@ -106,7 +106,7 @@ export default function PhysicalAuditsPage() {
       setNotes('');
       setSelectedProductIds([]);
       if (createdId) {
-        router.push(`/dashboard/inventory/audits/${createdId}`);
+        router.push(`/dashboard/inventory/audits/sheet?id=${createdId}`);
       } else {
         await fetchAudits();
       }
@@ -151,9 +151,14 @@ export default function PhysicalAuditsPage() {
 
       {error && (
         <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-xs font-bold text-rose-700 flex justify-between items-center">
-          <span className="inline-flex items-center gap-2"><AlertCircle className="h-4 w-4" /> {error}</span>
+          <span className="inline-flex items-center gap-2">
+            <AlertCircle className="h-4 w-4" /> {error}
+          </span>
           {isUnauthorized && (
-            <Link href="/login" className="px-3 py-1.5 bg-[#0554F4] text-white rounded-lg inline-flex items-center gap-1">
+            <Link
+              href="/login"
+              className="px-3 py-1.5 bg-[#0554F4] text-white rounded-lg inline-flex items-center gap-1"
+            >
               <LogIn className="h-3.5 w-3.5" /> Sign In
             </Link>
           )}
@@ -170,14 +175,20 @@ export default function PhysicalAuditsPage() {
               <th className="px-6 py-4 text-[10px] font-black text-[#176E84] uppercase">STATUS</th>
               <th className="px-6 py-4 text-[10px] font-black text-[#176E84] uppercase">CREATED DATE</th>
               <th className="px-6 py-4 text-[10px] font-black text-[#176E84] uppercase">AUDITOR</th>
-              <th className="px-6 py-4 text-[10px] font-black text-[#176E84] uppercase text-right">NET FINANCIAL VARIANCE</th>
+              <th className="px-6 py-4 text-[10px] font-black text-[#176E84] uppercase text-right">
+                NET FINANCIAL VARIANCE
+              </th>
               <th className="px-6 py-4 text-[10px] font-black text-[#176E84] uppercase">RECONCILED AT</th>
               <th className="px-6 py-4 text-[10px] font-black text-[#176E84] uppercase text-right">ACTION</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-xs font-medium">
             {loading ? (
-              <tr><td colSpan={8} className="px-6 py-16 text-center"><Loader2 className="h-8 w-8 animate-spin text-[#0554F4] mx-auto" /></td></tr>
+              <tr>
+                <td colSpan={8} className="px-6 py-16 text-center">
+                  <Loader2 className="h-8 w-8 animate-spin text-[#0554F4] mx-auto" />
+                </td>
+              </tr>
             ) : audits.length === 0 ? (
               <tr>
                 <td colSpan={8} className="px-6 py-16 text-center text-slate-400">
@@ -193,7 +204,9 @@ export default function PhysicalAuditsPage() {
                     <td className="px-6 py-4 font-mono font-bold text-[#041F56]">{a.reference}</td>
                     <td className="px-6 py-4">
                       <p className="font-bold text-slate-900">
-                        {a.auditType === 'SPOT_CHECK' ? `SPOT_CHECK (${a.totalItemsCounted} SKU${a.totalItemsCounted !== 1 ? 's' : ''})` : `FULL (${a.totalItemsCounted} SKUs)`}
+                        {a.auditType === 'SPOT_CHECK'
+                          ? `SPOT_CHECK (${a.totalItemsCounted} SKU${a.totalItemsCounted !== 1 ? 's' : ''})`
+                          : `FULL (${a.totalItemsCounted} SKUs)`}
                       </p>
                       {a.blindMode && <p className="text-[10px] font-bold text-purple-600 mt-0.5">Blind Counting</p>}
                     </td>
@@ -216,7 +229,11 @@ export default function PhysicalAuditsPage() {
                       {!isReconciled ? (
                         <span className="text-slate-400 font-semibold">Pending</span>
                       ) : (
-                        <span className={val < 0 ? 'text-rose-600' : val > 0 ? 'text-emerald-600' : 'text-slate-700'}>
+                        <span
+                          className={
+                            val < 0 ? 'text-rose-600' : val > 0 ? 'text-emerald-600' : 'text-slate-700'
+                          }
+                        >
                           KES {val.toLocaleString('en-KE', { minimumFractionDigits: 2 })}
                         </span>
                       )}
@@ -226,7 +243,7 @@ export default function PhysicalAuditsPage() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <Link
-                        href={`/dashboard/inventory/audits/${a.id}`}
+                        href={`/dashboard/inventory/audits/sheet?id=${a.id}`}
                         className="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-xl text-[11px] font-bold bg-blue-50 hover:bg-blue-100 text-[#0554F4]"
                       >
                         {isReconciled ? 'View Sheet' : 'Audit Sheet'} <ArrowRight className="h-3 w-3" />
@@ -247,9 +264,15 @@ export default function PhysicalAuditsPage() {
             <div className="flex justify-between items-start pb-3 border-b border-slate-100">
               <div>
                 <h2 className="text-xl font-black text-[#041F56]">Initiate Stock Take Audit</h2>
-                <p className="text-xs text-[#176E84] mt-0.5">Snapshots live system balances for physical verification</p>
+                <p className="text-xs text-[#176E84] mt-0.5">
+                  Snapshots live system balances for physical verification
+                </p>
               </div>
-              <button type="button" onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-700">
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700"
+              >
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -269,15 +292,22 @@ export default function PhysicalAuditsPage() {
 
               {auditType === 'SPOT_CHECK' && (
                 <div className="max-h-40 overflow-y-auto border border-slate-200 rounded-xl p-3 space-y-2">
-                  <p className="text-[11px] font-bold text-slate-500 uppercase">Select Products ({selectedProductIds.length})</p>
+                  <p className="text-[11px] font-bold text-slate-500 uppercase">
+                    Select Products ({selectedProductIds.length})
+                  </p>
                   {products.map((p) => (
-                    <label key={p.id} className="flex items-center gap-2 text-xs font-semibold text-slate-800 cursor-pointer">
+                    <label
+                      key={p.id}
+                      className="flex items-center gap-2 text-xs font-semibold text-slate-800 cursor-pointer"
+                    >
                       <input
                         type="checkbox"
                         checked={selectedProductIds.includes(p.id)}
                         onChange={() => toggleProduct(p.id)}
                       />
-                      <span>{p.name} {p.sku ? `(${p.sku})` : ''}</span>
+                      <span>
+                        {p.name} {p.sku ? `(${p.sku})` : ''}
+                      </span>
                     </label>
                   ))}
                 </div>
@@ -286,7 +316,9 @@ export default function PhysicalAuditsPage() {
               <label className="flex items-center justify-between p-4 rounded-2xl bg-purple-50/70 border border-purple-200 cursor-pointer">
                 <div>
                   <p className="text-sm font-black text-purple-900">Blind Counting Mode</p>
-                  <p className="text-xs text-purple-700">Hides theoretical system quantities from floor staff</p>
+                  <p className="text-xs text-purple-700">
+                    Hides theoretical system quantities from floor staff
+                  </p>
                 </div>
                 <input
                   type="checkbox"
