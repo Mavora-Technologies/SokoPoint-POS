@@ -14,7 +14,7 @@ import {
   AlertCircle,
   LogIn,
 } from 'lucide-react';
-import api from '../../../../lib/api';
+import api from '../../../../../lib/api';
 
 interface WastageRecord {
   id: string;
@@ -136,7 +136,7 @@ export default function WastageAndSpoilagePage() {
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
           <Link
-            href="/dashboard/inventory/wastage/new"
+            href="/dashboard/inventory/procurement/wastage/new"
             className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-md inline-flex items-center gap-1.5"
           >
             <Trash2 className="h-4 w-4" /> Log Waste Incident
