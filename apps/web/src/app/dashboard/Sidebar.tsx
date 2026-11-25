@@ -50,6 +50,10 @@ import {
   Award,
   Contact2,
   Warehouse,
+  Smartphone,
+  Clock,
+  SlidersHorizontal,
+  HandCoins,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -65,6 +69,7 @@ interface SidebarProps {
 interface SubNavItem {
   name: string;
   href: string;
+  badge?: string;
 }
 
 interface SubGroup {
@@ -182,11 +187,18 @@ const SIDEBAR_SEGMENTS: SidebarSegment[] = [
           'ACCOUNTANT',
         ],
         subItems: [
-          { name: 'Cash Registers & Tills', href: '/dashboard/tills' },
-          { name: 'M-Pesa & Digital Payments', href: '/dashboard/payments/mpesa' },
+          { name: 'Tender Settlement', href: '/dashboard/finance/tender-settlement' },
+          { name: 'M-Pesa Express', href: '/dashboard/payments/mpesa', badge: 'M-PESA' },
           { name: 'Bank Reconciliation', href: '/dashboard/payments/reconciliation' },
-          { name: 'Operational Expenses', href: '/dashboard/expenses' },
-          { name: 'Tax & KRA eTIMS', href: '/dashboard/payments/etims' },
+          { name: 'Refunds Approvals', href: '/dashboard/finance/refunds' },
+          { name: 'Cash Drawer', href: '/dashboard/finance/cash-drawer' },
+          { name: 'Cashier Till', href: '/dashboard/tills' },
+          { name: 'Z-Report Reconciliation', href: '/dashboard/finance/z-reports' },
+          { name: 'Financial Control', href: '/dashboard/finance/control' },
+          { name: 'Operational Ledger', href: '/dashboard/expenses' },
+          { name: 'Accounts Payable (AP)', href: '/dashboard/inventory/procurement/invoices' },
+          { name: 'Tax Compliance Ledger', href: '/dashboard/payments/etims' },
+          { name: 'General Journal', href: '/dashboard/finance/journal' },
         ],
       },
       {
@@ -385,16 +397,30 @@ export default function Sidebar({
         return <RefreshCcw className="w-4 h-4 shrink-0" />;
 
       // Treasury & Payments
-      case 'Cash Registers & Tills':
-        return <Inbox className="w-4 h-4 shrink-0" />;
-      case 'M-Pesa & Digital Payments':
-        return <Banknote className="w-4 h-4 shrink-0" />;
+      case 'Tender Settlement':
+        return <CreditCard className="w-4 h-4 shrink-0" />;
+      case 'M-Pesa Express':
+        return <Smartphone className="w-4 h-4 shrink-0" />;
       case 'Bank Reconciliation':
+        return <RefreshCcw className="w-4 h-4 shrink-0" />;
+      case 'Refunds Approvals':
+        return <HandCoins className="w-4 h-4 shrink-0" />;
+      case 'Cash Drawer':
+        return <Wallet className="w-4 h-4 shrink-0" />;
+      case 'Cashier Till':
+        return <Clock className="w-4 h-4 shrink-0" />;
+      case 'Z-Report Reconciliation':
+        return <ClipboardList className="w-4 h-4 shrink-0" />;
+      case 'Financial Control':
         return <Landmark className="w-4 h-4 shrink-0" />;
-      case 'Operational Expenses':
-        return <Calculator className="w-4 h-4 shrink-0" />;
-      case 'Tax & KRA eTIMS':
-        return <ShieldCheck className="w-4 h-4 shrink-0" />;
+      case 'Operational Ledger':
+        return <Receipt className="w-4 h-4 shrink-0" />;
+      case 'Accounts Payable (AP)':
+        return <HandCoins className="w-4 h-4 shrink-0" />;
+      case 'Tax Compliance Ledger':
+        return <FileText className="w-4 h-4 shrink-0" />;
+      case 'General Journal':
+        return <SlidersHorizontal className="w-4 h-4 shrink-0" />;
 
       // Analytics & BI
       case 'Analytics Control Tower':
@@ -605,14 +631,21 @@ export default function Sidebar({
                                 key={`sub-${subIndex}`}
                                 href={sub.href}
                                 onClick={() => setSidebarOpen(false)}
-                                className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-[12px] font-medium transition-colors ${
+                                className={`flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-[12px] font-medium transition-colors ${
                                   isSubActive
                                     ? 'text-white bg-[#0554F4] font-bold shadow-xs'
                                     : 'text-gray-300 hover:text-white hover:bg-white/5'
                                 }`}
                               >
-                                {getSubIcon(sub.name)}
-                                <span className="truncate">{sub.name}</span>
+                                <span className="flex items-center gap-2.5 min-w-0">
+                                  {getSubIcon(sub.name)}
+                                  <span className="truncate">{sub.name}</span>
+                                </span>
+                                {sub.badge && (
+                                  <span className="px-2 py-0.5 rounded-md text-[9px] font-extrabold tracking-wide bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 shrink-0">
+                                    {sub.badge}
+                                  </span>
+                                )}
                               </Link>
                             );
                           })}
