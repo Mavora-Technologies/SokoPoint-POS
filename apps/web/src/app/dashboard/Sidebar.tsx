@@ -24,6 +24,8 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
   UserCheck,
   ShieldCheck,
   CalendarClock,
@@ -46,6 +48,8 @@ import {
   ArrowLeftRight,
   AlertTriangle,
   Award,
+  Contact2,
+  Warehouse,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -63,11 +67,17 @@ interface SubNavItem {
   href: string;
 }
 
+interface SubGroup {
+  name: string;
+  items: SubNavItem[];
+}
+
 interface NavModule {
   name: string;
   href?: string;
   subItems?: SubNavItem[];
-  allowedRoles?: string[]; // Omit to allow all authenticated roles
+  subGroups?: SubGroup[];
+  allowedRoles?: string[];
 }
 
 interface SidebarSegment {
@@ -141,12 +151,19 @@ const SIDEBAR_SEGMENTS: SidebarSegment[] = [
           { name: 'Inter-Branch Transfers', href: '/dashboard/inventory/transfers' },
           { name: 'Reorder Suggestions', href: '/dashboard/inventory/procurement/reorder' },
           { name: 'Wastage & Write-Offs', href: '/dashboard/inventory/procurement/wastage' },
-          { name: 'Approved Suppliers', href: '/dashboard/inventory/procurement/suppliers' },
-          { name: 'Purchase Requests', href: '/dashboard/inventory/procurement/requests' },
-          { name: 'Purchase Orders (PO)', href: '/dashboard/inventory/procurement/orders' },
-          { name: 'Goods Inward (GRN)', href: '/dashboard/inventory/procurement/grn' },
-          { name: 'Supplier Invoices (A/P)', href: '/dashboard/inventory/procurement/invoices' },
-          { name: 'Supplier Returns', href: '/dashboard/inventory/procurement/returns' },
+        ],
+        subGroups: [
+          {
+            name: 'Procurement & Vendors',
+            items: [
+              { name: 'Supplier Directory', href: '/dashboard/inventory/procurement/suppliers' },
+              { name: 'Purchase Requisitions', href: '/dashboard/inventory/procurement/requests' },
+              { name: 'Purchase Orders (PO)', href: '/dashboard/inventory/procurement/orders' },
+              { name: 'Goods Received (GRN)', href: '/dashboard/inventory/procurement/grn' },
+              { name: 'Supplier Invoices', href: '/dashboard/inventory/procurement/invoices' },
+              { name: 'Vendor Returns', href: '/dashboard/inventory/procurement/returns' },
+            ],
+          },
         ],
       },
     ],
@@ -261,10 +278,17 @@ export default function Sidebar({
 }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [openModules, setOpenModules] = useState<Record<string, boolean>>({});
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
+    'Procurement & Vendors': true,
+  });
 
   const toggleModule = (moduleName: string) => {
     if (isCollapsed) setIsCollapsed(false);
     setOpenModules((prev) => ({ ...prev, [moduleName]: !prev[moduleName] }));
+  };
+
+  const toggleGroup = (groupName: string) => {
+    setOpenGroups((prev) => ({ ...prev, [groupName]: !(prev[groupName] ?? true) }));
   };
 
   const getMainIcon = (name: string) => {
@@ -347,17 +371,17 @@ export default function Sidebar({
         return <TrendingUp className="w-4 h-4 shrink-0" />;
       case 'Wastage & Write-Offs':
         return <AlertTriangle className="w-4 h-4 shrink-0" />;
-      case 'Approved Suppliers':
-        return <Users className="w-4 h-4 shrink-0" />;
-      case 'Purchase Requests':
-        return <FileText className="w-4 h-4 shrink-0" />;
+      case 'Supplier Directory':
+        return <Contact2 className="w-4 h-4 shrink-0" />;
+      case 'Purchase Requisitions':
+        return <ClipboardList className="w-4 h-4 shrink-0" />;
       case 'Purchase Orders (PO)':
         return <FileSpreadsheet className="w-4 h-4 shrink-0" />;
-      case 'Goods Inward (GRN)':
-        return <Boxes className="w-4 h-4 shrink-0" />;
-      case 'Supplier Invoices (A/P)':
+      case 'Goods Received (GRN)':
+        return <Warehouse className="w-4 h-4 shrink-0" />;
+      case 'Supplier Invoices':
         return <Receipt className="w-4 h-4 shrink-0" />;
-      case 'Supplier Returns':
+      case 'Vendor Returns':
         return <RefreshCcw className="w-4 h-4 shrink-0" />;
 
       // Treasury & Payments
@@ -413,14 +437,24 @@ export default function Sidebar({
     }
   };
 
-  // Auto-open the parent module matching the active route
+  const isHrefActive = (href: string) =>
+    pathname === href || (href !== '/dashboard' && !!pathname?.startsWith(`${href}/`));
+
+  // Auto-open the parent module and nested sub-group matching the active route
   useEffect(() => {
     if (!pathname) return;
     SIDEBAR_SEGMENTS.forEach((segment) => {
       segment.modules.forEach((mod) => {
-        if (mod.subItems?.some((sub) => pathname === sub.href || pathname.startsWith(`${sub.href}/`))) {
+        const matchesSub = mod.subItems?.some((sub) => isHrefActive(sub.href));
+        const matchesGroup = mod.subGroups?.some((grp) => grp.items.some((it) => isHrefActive(it.href)));
+        if (matchesSub || matchesGroup) {
           setOpenModules((prev) => ({ ...prev, [mod.name]: true }));
         }
+        mod.subGroups?.forEach((grp) => {
+          if (grp.items.some((it) => isHrefActive(it.href))) {
+            setOpenGroups((prev) => ({ ...prev, [grp.name]: true }));
+          }
+        });
       });
     });
   }, [pathname]);
@@ -516,30 +550,31 @@ export default function Sidebar({
 
               <div className="space-y-1">
                 {segment.modules.map((mod, moduleIndex) => {
-                  const hasSubItems = !!mod.subItems;
+                  const hasChildren = !!(mod.subItems?.length || mod.subGroups?.length);
                   const isModuleOpen = !!openModules[mod.name];
 
                   const isActive = mod.href
-                    ? pathname === mod.href || (mod.href !== '/dashboard' && !!pathname?.startsWith(`${mod.href}/`))
-                    : mod.subItems?.some((sub) => pathname === sub.href || !!pathname?.startsWith(`${sub.href}/`));
+                    ? isHrefActive(mod.href)
+                    : mod.subItems?.some((sub) => isHrefActive(sub.href)) ||
+                      mod.subGroups?.some((grp) => grp.items.some((it) => isHrefActive(it.href)));
 
                   return (
                     <div key={`module-${moduleIndex}`} className="relative group">
                       <Link
                         href={mod.href || '#'}
                         onClick={(e) => {
-                          if (hasSubItems) {
+                          if (hasChildren) {
                             e.preventDefault();
                             toggleModule(mod.name);
                           } else {
                             setSidebarOpen(false);
                           }
                         }}
-                        className={`flex items-center px-3 py-2.5 rounded-lg text-[13px] font-medium transition-colors ${
-                          isActive && !hasSubItems
+                        className={`flex items-center px-3 py-2.5 rounded-xl text-[13px] font-medium transition-colors ${
+                          isActive && !hasChildren
                             ? 'bg-[#0554F4] text-white shadow-md font-bold'
-                            : isActive && hasSubItems
-                            ? 'bg-[#176E84]/30 text-white font-semibold'
+                            : isActive && hasChildren
+                            ? 'bg-[#0554F4]/25 text-white font-semibold ring-1 ring-[#0554F4]/70'
                             : 'text-[#8BCBF0] hover:bg-white/10 hover:text-white'
                         } ${isCollapsed ? 'justify-center' : 'justify-between'}`}
                         title={isCollapsed ? mod.name : undefined}
@@ -549,36 +584,82 @@ export default function Sidebar({
                           {!isCollapsed && <span className="truncate">{mod.name}</span>}
                         </div>
 
-                        {!isCollapsed && hasSubItems && (
-                          <span className="text-gray-400 shrink-0">
-                            <ChevronRight
-                              className={`w-4 h-4 transition-transform duration-200 ${
-                                isModuleOpen ? 'rotate-90 text-white' : ''
-                              }`}
-                            />
+                        {!isCollapsed && hasChildren && (
+                          <span className="text-[#8BCBF0] shrink-0">
+                            {isModuleOpen ? (
+                              <ChevronUp className="w-4 h-4 text-white" />
+                            ) : (
+                              <ChevronDown className="w-4 h-4" />
+                            )}
                           </span>
                         )}
                       </Link>
 
-                      {/* Expandable Sub-Items */}
-                      {!isCollapsed && hasSubItems && isModuleOpen && (
-                        <div className="pl-7 py-1 space-y-0.5 border-l border-[#176E84]/50 ml-[1.125rem] mt-1 mb-2">
-                          {mod.subItems!.map((sub, subIndex) => {
-                            const isSubActive = pathname === sub.href || !!pathname?.startsWith(`${sub.href}/`);
+                      {/* Expandable Sub-Items & Nested Sub-Groups */}
+                      {!isCollapsed && hasChildren && isModuleOpen && (
+                        <div className="pl-5 py-1 space-y-1 border-l border-[#176E84]/50 ml-[1.125rem] mt-1 mb-2">
+                          {mod.subItems?.map((sub, subIndex) => {
+                            const isSubActive = isHrefActive(sub.href);
                             return (
                               <Link
                                 key={`sub-${subIndex}`}
                                 href={sub.href}
                                 onClick={() => setSidebarOpen(false)}
-                                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-[12px] font-medium transition-colors ${
+                                className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-[12px] font-medium transition-colors ${
                                   isSubActive
-                                    ? 'text-white bg-[#0554F4]/30 font-bold'
+                                    ? 'text-white bg-[#0554F4] font-bold shadow-xs'
                                     : 'text-gray-300 hover:text-white hover:bg-white/5'
                                 }`}
                               >
                                 {getSubIcon(sub.name)}
                                 <span className="truncate">{sub.name}</span>
                               </Link>
+                            );
+                          })}
+
+                          {mod.subGroups?.map((grp, grpIndex) => {
+                            const isGroupOpen = openGroups[grp.name] ?? true;
+                            return (
+                              <div key={`grp-${grpIndex}`} className="pt-1 space-y-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => toggleGroup(grp.name)}
+                                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-[12px] font-semibold text-[#8BCBF0] hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+                                >
+                                  <span className="flex items-center gap-2.5 min-w-0">
+                                    <Warehouse className="w-4 h-4 shrink-0 text-[#05BBBB]" />
+                                    <span className="truncate">{grp.name}</span>
+                                  </span>
+                                  {isGroupOpen ? (
+                                    <ChevronUp className="w-3.5 h-3.5 shrink-0 text-gray-400" />
+                                  ) : (
+                                    <ChevronDown className="w-3.5 h-3.5 shrink-0 text-gray-400" />
+                                  )}
+                                </button>
+
+                                {isGroupOpen && (
+                                  <div className="pl-4 space-y-0.5 border-l border-[#176E84]/40 ml-4">
+                                    {grp.items.map((item, itemIndex) => {
+                                      const isItemActive = isHrefActive(item.href);
+                                      return (
+                                        <Link
+                                          key={`grp-item-${itemIndex}`}
+                                          href={item.href}
+                                          onClick={() => setSidebarOpen(false)}
+                                          className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-[12px] font-medium transition-colors ${
+                                            isItemActive
+                                              ? 'text-white bg-[#0554F4] font-bold shadow-xs'
+                                              : 'text-gray-300 hover:text-white hover:bg-white/5'
+                                          }`}
+                                        >
+                                          {getSubIcon(item.name)}
+                                          <span className="truncate">{item.name}</span>
+                                        </Link>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
                             );
                           })}
                         </div>
