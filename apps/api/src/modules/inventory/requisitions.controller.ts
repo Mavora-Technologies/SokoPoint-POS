@@ -49,7 +49,7 @@ export class RequisitionsController {
                i.subtotal::float AS "subtotal",
                p.name AS "productName",
                COALESCE(p.sku, 'NO-SKU') AS "sku",
-               COALESCE(p.stock, p.reorder_level, 0)::int AS "currentOnHand"
+               COALESCE(p.reorder_level, p.minimum_stock, 0)::int AS "currentOnHand"
         FROM purchase_requisition_items i
         JOIN products p
           ON p.id = i.product_id
