@@ -7,6 +7,7 @@ import { wastageRoutes } from './wastage.routes';
 import { inventorySuppliersRoutes } from './suppliers.routes';
 import { requireAuth } from '../../middleware/requireAuth';
 import { requisitionsRoutes } from './requisitions.routes';
+import { procurementOrdersRoutes } from './orders.routes';
 
 const router = Router();
 router.use(requireAuth);
@@ -19,6 +20,7 @@ router.use('/wastage', wastageRoutes);
 router.use('/requisitions', requisitionsRoutes);
 router.use('/suppliers', inventorySuppliersRoutes);
 router.get('/batches', InventoryController.getBatches);
+router.use('/orders', procurementOrdersRoutes);
 router.patch('/batches/:id/quarantine', InventoryController.quarantineBatch);
 
 export const inventoryRoutes = router;
