@@ -27,10 +27,10 @@ export class ProcurementOrdersController {
                COALESCE(s.name, po.supplier_name, 'Unassigned Supplier') AS "supplierName",
                COALESCE(s.payment_terms, po.payment_terms, 'NET_30') AS "paymentTerms",
                po.status,
-               po.net_subtotal::float AS "netSubtotal",
-               po.vat_amount::float AS "vatAmount",
-               po.total_amount::float AS "totalAmount",
-               po.expected_delivery AS "expectedDelivery",
+               COALESCE(po.net_subtotal, 0)::float AS "netSubtotal",
+               COALESCE(po.vat_amount, 0)::float AS "vatAmount",
+               COALESCE(po.total_amount, 0)::float AS "totalAmount",
+               COALESCE(po.expected_delivery, po.expected_date::date) AS "expectedDelivery",
                po.created_at AS "dateRaised",
                po.notes
         FROM purchase_orders po
@@ -47,10 +47,10 @@ export class ProcurementOrdersController {
         SELECT poi.id,
                poi.purchase_order_id AS "purchaseOrderId",
                poi.product_id AS "productId",
-               poi.ordered_qty::float AS "orderedQty",
+               COALESCE(poi.ordered_qty, 0)::float AS "orderedQty",
                COALESCE(poi.received_qty, 0)::float AS "receivedQty",
-               poi.unit_price::float AS "unitPrice",
-               poi.subtotal::float AS "subtotal",
+               COALESCE(poi.unit_price, 0)::float AS "unitPrice",
+               COALESCE(poi.subtotal, 0)::float AS "subtotal",
                p.name AS "productName",
                COALESCE(p.sku, 'NO-SKU') AS "sku"
         FROM purchase_order_items poi
@@ -116,6 +116,11 @@ export class ProcurementOrdersController {
         return res.status(404).json({ success: false, message: 'Supplier not found in tenant registry.' });
       }
 
+      const branchRes = await db.execute(sql`
+        SELECT id FROM branches WHERE tenant_id = ${tenantId} LIMIT 1
+      `);
+      const branchId = rowsOf(branchRes)[0]?.id || null;
+
       const productIds = Array.from(new Set(items.map((i: any) => String(i.productId))));
       const dbProducts = await db
         .select()
@@ -148,11 +153,12 @@ export class ProcurementOrdersController {
       const created = await db.transaction(async (tx) => {
         const poInsert = await tx.execute(sql`
           INSERT INTO purchase_orders (
-            tenant_id, po_number, supplier_id, supplier_name, payment_terms,
+            tenant_id, branch_id, po_number, supplier_id, supplier_name, payment_terms,
             status, net_subtotal, vat_amount, total_amount, expected_delivery, notes
           )
           VALUES (
             ${tenantId},
+            ${branchId},
             ${poNumber},
             ${supplier.id},
             ${supplier.name},
