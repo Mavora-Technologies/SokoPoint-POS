@@ -1,13 +1,13 @@
 import { Router } from 'express';
 import { InventoryController } from './inventory.controller';
+import { auditsRoutes } from './audits.routes';
 import { requireAuth } from '../../middleware/requireAuth';
 
 const router = Router();
 router.use(requireAuth);
 
 router.get('/movements', InventoryController.getMovements);
-router.get('/audits', InventoryController.getAudits);
-router.post('/audits', InventoryController.createAudit);
+router.use('/audits', auditsRoutes);
 router.get('/batches', InventoryController.getBatches);
 router.patch('/batches/:id/quarantine', InventoryController.quarantineBatch);
 router.get('/transfers', InventoryController.getTransfers);

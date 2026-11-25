@@ -24,6 +24,7 @@ import loyaltyRoutes from './modules/loyalty/loyalty.routes';
 import barcodeRoutes from './modules/barcodes/barcodes.routes';
 import pricingRoutes from './modules/pricing/pricing.routes';
 
+
 export const createApp = () => {
   const app = express();
 
