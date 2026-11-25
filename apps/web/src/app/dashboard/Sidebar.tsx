@@ -132,34 +132,21 @@ const SIDEBAR_SEGMENTS: SidebarSegment[] = [
           'MANAGER',
           'INVENTORY_MANAGER',
           'WAREHOUSE_MANAGER',
+          'PROCUREMENT_OFFICER',
         ],
         subItems: [
           { name: 'Inventory Central', href: '/dashboard/inventory' },
           { name: 'Stock Movements & Bin Cards', href: '/dashboard/inventory/movements' },
           { name: 'Physical Stock Audits', href: '/dashboard/inventory/audits' },
           { name: 'Inter-Branch Transfers', href: '/dashboard/inventory/transfers' },
-          { name: 'Reorder Suggestions', href: '/dashboard/inventory/reorder' },
-          { name: 'Wastage & Write-Offs', href: '/dashboard/inventory/wastage' },
-        ],
-      },
-      {
-        name: 'Procurement & Suppliers',
-        allowedRoles: [
-          'BUSINESS_OWNER',
-          'BUSINESS_ADMIN',
-          'ADMIN',
-          'BRANCH_MANAGER',
-          'MANAGER',
-          'INVENTORY_MANAGER',
-          'PROCUREMENT_OFFICER',
-        ],
-        subItems: [
-          { name: 'Approved Suppliers', href: '/dashboard/suppliers' },
-          { name: 'Purchase Requests', href: '/dashboard/procurement/requests' },
-          { name: 'Purchase Orders (PO)', href: '/dashboard/purchasing' },
-          { name: 'Goods Inward (GRN)', href: '/dashboard/procurement/grn' },
-          { name: 'Supplier Invoices (A/P)', href: '/dashboard/purchases' },
-          { name: 'Supplier Returns', href: '/dashboard/procurement/returns' },
+          { name: 'Reorder Suggestions', href: '/dashboard/inventory/procurement/reorder' },
+          { name: 'Wastage & Write-Offs', href: '/dashboard/inventory/procurement/wastage' },
+          { name: 'Approved Suppliers', href: '/dashboard/inventory/procurement/suppliers' },
+          { name: 'Purchase Requests', href: '/dashboard/inventory/procurement/requests' },
+          { name: 'Purchase Orders (PO)', href: '/dashboard/inventory/procurement/orders' },
+          { name: 'Goods Inward (GRN)', href: '/dashboard/inventory/procurement/grn' },
+          { name: 'Supplier Invoices (A/P)', href: '/dashboard/inventory/procurement/invoices' },
+          { name: 'Supplier Returns', href: '/dashboard/inventory/procurement/returns' },
         ],
       },
     ],
@@ -294,8 +281,6 @@ export default function Sidebar({
         return <Tag className="w-5 h-5 shrink-0" />;
       case 'Inventory & Warehouses':
         return <Boxes className="w-5 h-5 shrink-0" />;
-      case 'Procurement & Suppliers':
-        return <Truck className="w-5 h-5 shrink-0" />;
       case 'Treasury & Payments':
         return <Wallet className="w-5 h-5 shrink-0" />;
       case 'Executive Analytics & BI':
@@ -349,7 +334,7 @@ export default function Sidebar({
       case 'Price Lists & Promotions':
         return <Tag className="w-4 h-4 shrink-0" />;
 
-      // Inventory & Warehouses
+      // Inventory, Warehouses & Procurement
       case 'Inventory Central':
         return <Boxes className="w-4 h-4 shrink-0" />;
       case 'Stock Movements & Bin Cards':
@@ -362,8 +347,6 @@ export default function Sidebar({
         return <TrendingUp className="w-4 h-4 shrink-0" />;
       case 'Wastage & Write-Offs':
         return <AlertTriangle className="w-4 h-4 shrink-0" />;
-
-      // Procurement & Suppliers
       case 'Approved Suppliers':
         return <Users className="w-4 h-4 shrink-0" />;
       case 'Purchase Requests':
