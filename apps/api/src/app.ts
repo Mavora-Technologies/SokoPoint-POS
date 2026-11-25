@@ -11,6 +11,7 @@ import { customerRoutes } from './modules/customers/customers.routes';
 import { supplierRoutes } from './modules/purchasing/suppliers.routes';
 import { purchasingRoutes } from './modules/purchasing/purchasing.routes';
 import { expenseRoutes } from './modules/finance/expenses.routes';
+import { financeRoutes } from './modules/finance/finance.routes';
 import branchRoutes from './modules/branches/branches.routes';
 import { tillRoutes } from './modules/tills/tills.routes';
 import shiftsRoutes from './modules/shifts/shifts.routes';
@@ -23,7 +24,6 @@ import quotationsRoutes from './modules/quotations/quotations.routes';
 import loyaltyRoutes from './modules/loyalty/loyalty.routes';
 import barcodeRoutes from './modules/barcodes/barcodes.routes';
 import pricingRoutes from './modules/pricing/pricing.routes';
-
 
 export const createApp = () => {
   const app = express();
@@ -72,6 +72,7 @@ export const createApp = () => {
   app.use('/api/v1/suppliers', supplierRoutes);
   app.use('/api/v1/purchase-orders', purchasingRoutes);
   app.use('/api/v1/expenses', expenseRoutes);
+  app.use('/api/v1/finance', financeRoutes);
   app.use('/api/v1/branches', branchRoutes);
   app.use('/api/v1/tills', tillRoutes);
   app.use('/api/v1/shifts', shiftsRoutes);
