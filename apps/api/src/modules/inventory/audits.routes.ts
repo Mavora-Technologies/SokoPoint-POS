@@ -6,8 +6,9 @@ const router = Router();
 router.use(requireAuth);
 
 router.get('/', AuditsController.getAll);
-router.get('/:id', AuditsController.getById);
 router.post('/', AuditsController.create);
+router.get('/:id', AuditsController.getById);
+router.patch('/:id/reconcile', AuditsController.reconcile);
 
 export const auditsRoutes = router;
 export default router;
