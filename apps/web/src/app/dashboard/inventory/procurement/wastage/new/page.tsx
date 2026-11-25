@@ -4,8 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Loader2, Trash2 } from 'lucide-react';
-import api from '../../../../../lib/api';
-
+import api from '../../../../../../lib/api';
 interface ProductStock {
   id: string;
   name: string;

@@ -18,8 +18,7 @@ import {
   LogIn,
   X,
 } from 'lucide-react';
-import api from '../../../../lib/api';
-
+import api from '../../../../../lib/api';
 interface ReorderRow {
   productId: string;
   name: string;
