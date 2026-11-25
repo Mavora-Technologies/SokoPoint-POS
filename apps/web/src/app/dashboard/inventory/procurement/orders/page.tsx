@@ -35,7 +35,7 @@ interface PurchaseOrder {
   supplierId: string;
   supplierName: string;
   paymentTerms: string;
-  status: 'DRAFT_PO' | 'SENT_TO_VENDOR' | 'PARTIAL_INWARD' | 'FULLY_RECEIVED' | 'CANCELLED' | string;
+  status: 'DRAFT_PO' | 'SENT_TO_VENDOR' | 'PARTIAL_INWARD' | 'FULLY_RECEIVED' | 'COMPLETED' | 'CANCELLED' | string;
   netSubtotal: number;
   vatAmount: number;
   totalAmount: number;
@@ -70,23 +70,21 @@ export default function PurchaseOrdersPage() {
   const [draftItems, setDraftItems] = useState<{ productId: string; orderedQty: number; unitPrice: number }[]>([]);
 
   const loadData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      setIsUnauthorized(false);
+    setLoading(true);
+    setError(null);
+    setIsUnauthorized(false);
 
-      const [poRes, supRes, prodRes] = await Promise.all([
-        api.get('/inventory/orders'),
-        api.get('/inventory/suppliers').catch(() => ({ data: { data: [] } })),
-        api.get('/products').catch(() => ({ data: { data: [] } })),
-      ]);
+    const [poResult, supResult, prodResult] = await Promise.allSettled([
+      api.get('/inventory/orders'),
+      api.get('/inventory/suppliers').catch(() => api.get('/suppliers')),
+      api.get('/products'),
+    ]);
 
-      setOrders(Array.isArray(poRes.data?.data) ? poRes.data.data : []);
-      const sList = Array.isArray(supRes.data?.data) ? supRes.data.data : [];
-      setSuppliers(sList);
-      if (sList[0]?.id && !supplierId) setSupplierId(sList[0].id);
-      setProducts(Array.isArray(prodRes.data?.data) ? prodRes.data.data : []);
-    } catch (err: any) {
+    if (poResult.status === 'fulfilled') {
+      const poData = poResult.value.data?.data ?? poResult.value.data;
+      setOrders(Array.isArray(poData) ? poData : []);
+    } else {
+      const err: any = poResult.reason;
       if (err?.response?.status === 401) {
         setIsUnauthorized(true);
         setError('Invalid or expired authentication token. Please sign in again.');
@@ -94,10 +92,24 @@ export default function PurchaseOrdersPage() {
         setError(err?.response?.data?.message || 'Failed to load purchase orders.');
       }
       setOrders([]);
-    } finally {
-      setLoading(false);
     }
-  }, [supplierId]);
+
+    if (supResult.status === 'fulfilled') {
+      const sData = supResult.value.data?.data ?? supResult.value.data;
+      const sList = Array.isArray(sData) ? sData : [];
+      setSuppliers(sList);
+      if (sList[0]?.id) {
+        setSupplierId((prev) => prev || sList[0].id);
+      }
+    }
+
+    if (prodResult.status === 'fulfilled') {
+      const pData = prodResult.value.data?.data ?? prodResult.value.data;
+      setProducts(Array.isArray(pData) ? pData : []);
+    }
+
+    setLoading(false);
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -148,43 +160,45 @@ export default function PurchaseOrdersPage() {
 
   const filtered = useMemo(() => {
     return orders.filter((po) => {
-      if (statusTab === 'DRAFT' && po.status !== 'DRAFT_PO') return false;
-      if (statusTab === 'ISSUED' && po.status !== 'SENT_TO_VENDOR') return false;
-      if (statusTab === 'PARTIAL' && po.status !== 'PARTIAL_INWARD') return false;
-      if (statusTab === 'COMPLETED' && po.status !== 'FULLY_RECEIVED') return false;
+      const st = (po.status || '').toUpperCase();
+      if (statusTab === 'DRAFT' && st !== 'DRAFT_PO' && st !== 'DRAFT') return false;
+      if (statusTab === 'ISSUED' && st !== 'SENT_TO_VENDOR' && st !== 'ISSUED') return false;
+      if (statusTab === 'PARTIAL' && st !== 'PARTIAL_INWARD' && st !== 'PARTIALLY_RECEIVED') return false;
+      if (statusTab === 'COMPLETED' && st !== 'FULLY_RECEIVED' && st !== 'COMPLETED') return false;
 
       const q = search.trim().toLowerCase();
       if (!q) return true;
       return (
-        po.poNumber.toLowerCase().includes(q) ||
-        po.supplierName.toLowerCase().includes(q)
+        (po.poNumber || '').toLowerCase().includes(q) ||
+        (po.supplierName || '').toLowerCase().includes(q)
       );
     });
   }, [orders, statusTab, search]);
 
   const renderStatusBadge = (status: string) => {
-    if (status === 'DRAFT_PO') {
+    const st = (status || '').toUpperCase();
+    if (st === 'DRAFT_PO' || st === 'DRAFT') {
       return (
         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
           <Clock className="h-3 w-3" /> DRAFT PO
         </span>
       );
     }
-    if (status === 'SENT_TO_VENDOR') {
+    if (st === 'SENT_TO_VENDOR' || st === 'ISSUED') {
       return (
         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-50 text-[#0554F4] border border-blue-200">
           <Send className="h-3 w-3" /> SENT TO VENDOR
         </span>
       );
     }
-    if (status === 'PARTIAL_INWARD') {
+    if (st === 'PARTIAL_INWARD' || st === 'PARTIALLY_RECEIVED') {
       return (
         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
           <PackageCheck className="h-3 w-3" /> PARTIAL INWARD
         </span>
       );
     }
-    if (status === 'FULLY_RECEIVED') {
+    if (st === 'FULLY_RECEIVED' || st === 'COMPLETED') {
       return (
         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
           <CheckCircle2 className="h-3 w-3" /> FULLY RECEIVED
@@ -193,7 +207,7 @@ export default function PurchaseOrdersPage() {
     }
     return (
       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-        {status.replaceAll('_', ' ')}
+        {st.replaceAll('_', ' ')}
       </span>
     );
   };
@@ -408,26 +422,34 @@ export default function PurchaseOrdersPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {inspecting.items.map((line) => (
-                      <tr key={line.id}>
-                        <td className="px-4 py-3">
-                          <p className="font-bold text-[#041F56]">{line.productName}</p>
-                          <p className="text-[10px] font-mono text-slate-400 uppercase">{line.sku}</p>
-                        </td>
-                        <td className="px-4 py-3 text-right font-mono font-bold text-[#041F56]">
-                          {line.orderedQty} pcs
-                        </td>
-                        <td className="px-4 py-3 text-right font-mono font-bold text-emerald-600">
-                          {line.receivedQty} pcs
-                        </td>
-                        <td className="px-4 py-3 text-right font-mono text-slate-600">
-                          KES {Number(line.unitPrice || 0).toLocaleString('en-KE', { minimumFractionDigits: 2 })}
-                        </td>
-                        <td className="px-4 py-3 text-right font-mono font-bold text-[#041F56]">
-                          KES {Number(line.subtotal || 0).toLocaleString('en-KE', { minimumFractionDigits: 2 })}
+                    {inspecting.items.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="px-4 py-6 text-center text-slate-400">
+                          No line items recorded for this purchase order.
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      inspecting.items.map((line) => (
+                        <tr key={line.id}>
+                          <td className="px-4 py-3">
+                            <p className="font-bold text-[#041F56]">{line.productName}</p>
+                            <p className="text-[10px] font-mono text-slate-400 uppercase">{line.sku}</p>
+                          </td>
+                          <td className="px-4 py-3 text-right font-mono font-bold text-[#041F56]">
+                            {line.orderedQty} pcs
+                          </td>
+                          <td className="px-4 py-3 text-right font-mono font-bold text-emerald-600">
+                            {line.receivedQty} pcs
+                          </td>
+                          <td className="px-4 py-3 text-right font-mono text-slate-600">
+                            KES {Number(line.unitPrice || 0).toLocaleString('en-KE', { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className="px-4 py-3 text-right font-mono font-bold text-[#041F56]">
+                            KES {Number(line.subtotal || 0).toLocaleString('en-KE', { minimumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -467,7 +489,7 @@ export default function PurchaseOrdersPage() {
                 Close
               </button>
 
-              {inspecting.status === 'DRAFT_PO' && (
+              {(inspecting.status === 'DRAFT_PO' || inspecting.status === 'DRAFT') && (
                 <div className="flex items-center gap-3">
                   <button
                     type="button"
