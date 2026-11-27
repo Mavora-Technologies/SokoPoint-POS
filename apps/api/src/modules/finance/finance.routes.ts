@@ -3,6 +3,7 @@ import { TreasuryController } from './treasury.controller';
 import { MpesaGatewayController } from './mpesa.controller';
 import { ReconciliationController } from './reconciliation.controller';
 import { EtimsController } from './etims.controller';
+import { FinanceOperationsController } from './operations.controller';
 import { requireAuth } from '../../middleware/requireAuth';
 
 const router = Router();
@@ -29,6 +30,27 @@ router.post('/reconciliation/auto-match', ReconciliationController.autoMatch);
 // KRA eTIMS & Statutory Tax Ledger
 router.get('/etims', EtimsController.getDashboard);
 router.put('/etims/settings', EtimsController.saveSettings);
+
+// Refunds & Credit Memos
+router.get('/refunds', FinanceOperationsController.getRefunds);
+router.post('/refunds', FinanceOperationsController.createRefund);
+
+// Cash Drawer
+router.get('/cash-drawer', FinanceOperationsController.getCashDrawer);
+router.post('/cash-drawer/movement', FinanceOperationsController.recordDrawerMovement);
+
+// Z-Reports & Till Shifts
+router.get('/z-reports', FinanceOperationsController.getZReports);
+router.post('/z-reports/open-shift', FinanceOperationsController.openTillShift);
+router.patch('/z-reports/:id/close', FinanceOperationsController.closeTillShift);
+
+// Financial Control
+router.get('/control', FinanceOperationsController.getFinancialControl);
+router.put('/control/periods', FinanceOperationsController.upsertPeriodLock);
+
+// General Journal
+router.get('/journal', FinanceOperationsController.getJournal);
+router.post('/journal', FinanceOperationsController.createJournalEntry);
 
 export const financeRoutes = router;
 export default router;
