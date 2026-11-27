@@ -18,5 +18,10 @@ router.patch('/margins/sku/:productId', AnalyticsController.updateSkuPricing);
 router.get('/inventory', AnalyticsController.getInventoryAnalytics);
 router.patch('/inventory/:productId', AnalyticsController.adjustInventoryStock);
 
+// Enterprise Data Exports & File Center
+router.get('/exports', AnalyticsController.getExports);
+router.post('/exports', AnalyticsController.queueExport);
+router.get('/exports/:id/download', AnalyticsController.downloadExport);
+
 export const analyticsRoutes = router;
 export default router;
