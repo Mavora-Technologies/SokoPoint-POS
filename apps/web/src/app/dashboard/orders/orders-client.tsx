@@ -54,10 +54,18 @@ interface OrderRow {
 }
 
 const SERVICE_CHANNELS = [
-  'Over The Counter',
+  'Retail Checkout',
   'Wholesale Dispatch',
   'Delivery',
   'Click & Collect',
+];
+
+const FULFILLMENT_STEPS = [
+  { key: 'pending', label: 'Pending' },
+  { key: 'packing', label: 'Packing' },
+  { key: 'dispatched', label: 'Dispatched' },
+  { key: 'completed', label: 'Completed' },
+  { key: 'cancelled', label: 'Cancelled' },
 ];
 
 export default function OrdersClient() {
@@ -192,8 +200,12 @@ export default function OrdersClient() {
     try {
       setUpdatingStatus(true);
       await api.patch(`/orders/${orderId}/status`, { status: nextStatus });
-      await fetchOrders();
-      setInspectingOrder((prev) => (prev && prev.id === orderId ? { ...prev, status: nextStatus } : prev));
+      setOrders((prev) =>
+        prev.map((o) => (o.id === orderId ? { ...o, status: nextStatus } : o))
+      );
+      setInspectingOrder((prev) =>
+        prev && prev.id === orderId ? { ...prev, status: nextStatus } : prev
+      );
     } catch (err: any) {
       alert(err?.response?.data?.message || 'Failed to update order status.');
     } finally {
@@ -202,7 +214,19 @@ export default function OrdersClient() {
   };
 
   const handleExportCsv = () => {
-    const header = ['Order #', 'Date', 'Branch', 'Cashier', 'Channel', 'Customer', 'KRA PIN', 'Status', 'Tender', 'VAT (KES)', 'Total (KES)'];
+    const header = [
+      'Order #',
+      'Date',
+      'Branch',
+      'Cashier',
+      'Channel',
+      'Customer',
+      'KRA PIN',
+      'Status',
+      'Tender',
+      'VAT (KES)',
+      'Total (KES)',
+    ];
     const rows = filteredOrders.map((o) => [
       o.orderNum,
       new Date(o.createdAt).toISOString(),
@@ -216,7 +240,9 @@ export default function OrdersClient() {
       Number(o.tax || 0).toFixed(2),
       Number(o.total || 0).toFixed(2),
     ]);
-    const csv = [header, ...rows].map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const csv = [header, ...rows]
+      .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -597,100 +623,142 @@ export default function OrdersClient() {
         </table>
       </div>
 
-      {/* INSPECT ORDER MODAL (Itemized SKU Drill-Down) */}
+      {/* INSPECT ORDER MODAL */}
       {inspectingOrder && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-[2px] flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-7 shadow-2xl max-h-[90vh] overflow-y-auto space-y-5">
-            <div className="flex justify-between items-start pb-3 border-b border-slate-100">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl max-h-[90vh] overflow-y-auto space-y-5">
+            {/* Modal Header */}
+            <div className="flex justify-between items-start gap-3">
               <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h2 className="text-lg font-extrabold text-[#041F56] font-mono">{inspectingOrder.orderNum}</h2>
-                  {renderStatusBadge(inspectingOrder.status)}
-                </div>
-                <p className="text-xs text-[#176E84] mt-1">
-                  {inspectingOrder.branchName} &bull; {inspectingOrder.saleChannel} &bull; {inspectingOrder.customer}
+                <h2 className="text-base font-extrabold text-[#041F56] font-mono">
+                  {inspectingOrder.orderNum}
+                </h2>
+                <p className="text-xs text-[#176E84] mt-0.5 leading-relaxed">
+                  {inspectingOrder.branchName} &bull; Channel:{' '}
+                  <strong className="text-[#041F56]">{inspectingOrder.saleChannel}</strong> &bull; Cashier:{' '}
+                  <strong className="text-[#041F56]">{inspectingOrder.custodianName}</strong>
                 </p>
               </div>
-              <button onClick={() => setInspectingOrder(null)} className="text-slate-400 p-1 cursor-pointer">
+              <button
+                onClick={() => setInspectingOrder(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+              >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            {/* Line Items */}
-            <div className="rounded-2xl border border-slate-200/80 overflow-hidden">
-              <table className="w-full text-left text-xs divide-y divide-slate-100">
-                <thead className="bg-slate-50">
-                  <tr>
-                    <th className="px-4 py-2.5 text-[10px] font-bold text-slate-500 uppercase">ITEM / SKU</th>
-                    <th className="px-3 py-2.5 text-[10px] font-bold text-slate-500 uppercase text-right">QTY</th>
-                    <th className="px-3 py-2.5 text-[10px] font-bold text-slate-500 uppercase text-right">UNIT PRICE</th>
-                    <th className="px-4 py-2.5 text-[10px] font-bold text-slate-500 uppercase text-right">SUBTOTAL</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {inspectingOrder.items.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="px-4 py-6 text-center text-slate-400">
-                        No itemized line items recorded.
-                      </td>
-                    </tr>
-                  ) : (
-                    inspectingOrder.items.map((it, idx) => (
-                      <tr key={idx}>
-                        <td className="px-4 py-2.5">
-                          <p className="font-bold text-[#041F56]">{it.productName}</p>
-                          {it.sku && <p className="text-[10px] font-mono text-slate-400">{it.sku}</p>}
-                        </td>
-                        <td className="px-3 py-2.5 text-right font-mono font-bold">{it.quantity}</td>
-                        <td className="px-3 py-2.5 text-right font-mono">
-                          KES {Number(it.unitPrice).toLocaleString('en-KE', { minimumFractionDigits: 2 })}
-                        </td>
-                        <td className="px-4 py-2.5 text-right font-mono font-bold text-[#041F56]">
-                          KES {Number(it.subtotal).toLocaleString('en-KE', { minimumFractionDigits: 2 })}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+            {/* 2x2 Summary Box */}
+            <div className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4 grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">GRAND TOTAL</p>
+                <p className="text-lg font-mono font-black text-[#041F56] mt-0.5">
+                  KES {Number(inspectingOrder.total || 0).toLocaleString('en-KE', { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">PAYMENT SETTLEMENT</p>
+                <p className="text-sm font-extrabold text-emerald-600 mt-1">
+                  Paid ({formatTender(inspectingOrder.method)})
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">VAT &amp; TAX (16%)</p>
+                <p className="text-xs font-mono font-bold text-[#041F56] mt-0.5">
+                  VAT: KES {Number(inspectingOrder.tax || 0).toLocaleString('en-KE', { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">CUSTOMER / KRA PIN</p>
+                <p className="text-xs font-bold text-[#041F56] mt-0.5">
+                  {inspectingOrder.customer}
+                  {inspectingOrder.customerPin ? ` (${inspectingOrder.customerPin})` : ''}
+                </p>
+              </div>
             </div>
 
-            {/* Totals & Fulfillment Controls */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50 rounded-2xl p-4 border border-slate-200/70 text-xs">
-              <div className="space-y-1">
-                <p className="text-slate-500">
-                  Taxable Base: <strong className="font-mono text-[#041F56]">KES {Number(inspectingOrder.subtotal).toFixed(2)}</strong>
-                </p>
-                <p className="text-slate-500">
-                  Output VAT (16%): <strong className="font-mono text-purple-600">KES {Number(inspectingOrder.tax).toFixed(2)}</strong>
-                </p>
-                <p className="text-sm font-black text-[#041F56]">
-                  Grand Total: <span className="font-mono">KES {Number(inspectingOrder.total).toLocaleString('en-KE', { minimumFractionDigits: 2 })}</span>
-                </p>
-              </div>
+            {/* Ordered Line Items */}
+            <div className="space-y-2.5">
+              <p className="text-xs font-extrabold text-[#041F56]">Ordered Line Items:</p>
+              {inspectingOrder.items.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400">
+                  No itemized line items recorded.
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {inspectingOrder.items.map((it, idx) => (
+                    <div
+                      key={idx}
+                      className="rounded-2xl border border-slate-200/80 px-4 py-3 flex justify-between items-center gap-3"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-[#041F56] truncate">
+                          {it.quantity}x {it.productName}
+                        </p>
+                        <p className="text-[10px] font-mono text-slate-400 mt-0.5">
+                          SKU: {it.sku || 'N/A'}
+                        </p>
+                      </div>
+                      <span className="font-mono text-xs font-extrabold text-[#041F56] shrink-0">
+                        KES {Number(it.subtotal || 0).toLocaleString('en-KE', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                {inspectingOrder.status !== 'completed' && inspectingOrder.status !== 'refunded' && (
-                  <button
-                    disabled={updatingStatus}
-                    onClick={() => handleStatusUpdate(inspectingOrder.id, 'completed')}
-                    className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer"
-                  >
-                    Mark Completed
-                  </button>
-                )}
-                {inspectingOrder.status !== 'refunded' && (
-                  <button
-                    onClick={() => {
-                      setOrderToRefund(inspectingOrder);
-                      setInspectingOrder(null);
-                    }}
-                    className="px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-xs font-bold inline-flex items-center gap-1 cursor-pointer"
-                  >
-                    <RotateCcw className="h-3.5 w-3.5" /> Issue Refund
-                  </button>
-                )}
+            {/* Advance Fulfillment Status */}
+            <div className="space-y-2.5">
+              <p className="text-xs font-extrabold text-[#041F56]">Advance Fulfillment Status:</p>
+              <div className="grid grid-cols-3 gap-2">
+                {FULFILLMENT_STEPS.map((step) => {
+                  const isActive = (inspectingOrder.status || '').toLowerCase() === step.key;
+                  const isCancel = step.key === 'cancelled';
+                  return (
+                    <button
+                      key={step.key}
+                      type="button"
+                      disabled={updatingStatus}
+                      onClick={() => handleStatusUpdate(inspectingOrder.id, step.key)}
+                      className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all cursor-pointer disabled:opacity-50 ${
+                        isActive
+                          ? 'bg-[#041F56] text-white border-[#041F56] shadow-xs'
+                          : isCancel
+                            ? 'bg-rose-50/70 text-rose-600 border-rose-200 hover:bg-rose-100'
+                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      {step.label}
+                    </button>
+                  );
+                })}
               </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="pt-3 border-t border-slate-100 flex justify-between items-center">
+              {(inspectingOrder.status || '').toLowerCase() !== 'refunded' ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOrderToRefund(inspectingOrder);
+                    setInspectingOrder(null);
+                  }}
+                  className="text-xs font-bold text-rose-600 hover:underline inline-flex items-center gap-1 cursor-pointer"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" /> Issue Refund
+                </button>
+              ) : (
+                <span className="text-[11px] font-bold text-rose-500">Order Refunded</span>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setInspectingOrder(null)}
+                className="text-xs font-bold text-slate-600 hover:text-slate-900 px-3 py-1.5 cursor-pointer"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

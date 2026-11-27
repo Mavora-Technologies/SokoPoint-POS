@@ -22,9 +22,9 @@ const createOrderSchema = z.object({
   customer: z.string().min(1).default('Walk-in Customer'),
   customerPin: z.string().max(40).nullable().optional(),
   saleChannel: z
-    .enum(['Over The Counter', 'Wholesale Dispatch', 'Delivery', 'Click & Collect', 'Wholesale'])
+    .enum(['Retail Checkout', 'Wholesale Dispatch', 'Delivery', 'Click & Collect', 'Wholesale'])
     .optional()
-    .default('Over The Counter'),
+    .default('Retail Checkout'),
   method: z.enum(['cash', 'mpesa', 'card', 'credit', 'bank']).default('cash'),
   isRefund: z.boolean().optional().default(false),
   items: z.array(orderItemSchema).min(1, 'At least one item is required'),
@@ -52,7 +52,11 @@ export class OrdersController {
                  ) AS "custodianName",
                  COALESCE(NULLIF(TRIM(o.customer_name), ''), 'Walk-in Customer') AS customer,
                  o.customer_pin AS "customerPin",
-                 COALESCE(NULLIF(TRIM(o.sale_channel), ''), 'Over The Counter') AS "saleChannel",
+                 CASE
+                   WHEN NULLIF(TRIM(o.sale_channel), '') IS NULL OR o.sale_channel = 'Over The Counter'
+                     THEN 'Retail Checkout'
+                   ELSE o.sale_channel
+                 END AS "saleChannel",
                  COALESCE(o.status, 'completed') AS status,
                  COALESCE(o.payment_method, 'cash') AS method,
                  COALESCE(o.subtotal, 0)::float AS subtotal,
@@ -134,6 +138,7 @@ export class OrdersController {
       }
 
       const { orderNum, customerId, customer, customerPin, saleChannel, method, isRefund, items } = parsed.data;
+      const normalizedChannel = saleChannel === 'Wholesale' ? 'Wholesale Dispatch' : saleChannel;
 
       let branchId = req.auth?.branchId || req.user?.branchId || null;
       if (!branchId) {
@@ -199,10 +204,9 @@ export class OrdersController {
           })
           .returning();
 
-        // Persist retail/wholesale metadata columns
         await tx.execute(sql`
           UPDATE orders
-          SET sale_channel = ${saleChannel},
+          SET sale_channel = ${normalizedChannel},
               customer_name = ${customer.trim()},
               customer_pin = ${customerPin ? customerPin.trim().toUpperCase() : null}
           WHERE id = ${insertedOrder.id} AND tenant_id = ${tenantId}
@@ -235,7 +239,7 @@ export class OrdersController {
         data: {
           ...createdOrder,
           customerName: customer.trim(),
-          saleChannel,
+          saleChannel: normalizedChannel,
           total: Number(createdOrder.total),
           tax: Number(createdOrder.tax),
           subtotal: Number(createdOrder.subtotal),
