@@ -10,5 +10,9 @@ router.post('/run', AnalyticsController.runReport);
 router.post('/schedules', AnalyticsController.createSchedule);
 router.delete('/schedules/:id', AnalyticsController.deleteSchedule);
 
+// Gross Margin & Profitability Intelligence
+router.get('/margins', AnalyticsController.getMargins);
+router.patch('/margins/sku/:productId', AnalyticsController.updateSkuPricing);
+
 export const analyticsRoutes = router;
 export default router;

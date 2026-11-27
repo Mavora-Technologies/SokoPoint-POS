@@ -348,4 +348,211 @@ export class AnalyticsController {
       });
     }
   }
+
+  // =========================================================================
+  // GROSS MARGIN & PROFITABILITY INTELLIGENCE (/api/v1/analytics/margins)
+  // =========================================================================
+  static async getMargins(req: AuthRequest, res: Response) {
+    try {
+      const tenantId = req.auth?.tenantId || req.user?.tenantId;
+      if (!tenantId) return res.status(401).json({ success: false, message: 'Unauthorized' });
+
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const startDate = String(req.query.startDate || todayStr).slice(0, 10);
+      const endDate = String(req.query.endDate || todayStr).slice(0, 10);
+      const branchId = String(req.query.branchId || 'ALL');
+
+      const startTs = `${startDate} 00:00:00`;
+      const endTs = `${endDate} 23:59:59`;
+      const hasBranch = branchId !== 'ALL' && branchId.trim() !== '';
+
+      const [branchesRes, trendRes, categoryRes, branchMarginRes, skuRes] = await Promise.all([
+        db.execute(sql`
+          SELECT id, name FROM branches WHERE tenant_id = ${tenantId} ORDER BY name ASC
+        `),
+
+        // Daily Revenue vs COGS vs Gross Profit
+        db.execute(sql`
+          SELECT
+            TO_CHAR(DATE(o.created_at), 'YYYY-MM-DD') AS period,
+            COALESCE(SUM(oi.subtotal), 0)::float AS revenue,
+            COALESCE(SUM(oi.quantity * COALESCE(p.cost_price, 0)), 0)::float AS cogs,
+            COALESCE(SUM(oi.subtotal - (oi.quantity * COALESCE(p.cost_price, 0))), 0)::float AS "grossProfit"
+          FROM order_items oi
+          INNER JOIN orders o ON o.id = oi.order_id
+          LEFT JOIN products p ON p.id = oi.product_id AND p.tenant_id = o.tenant_id
+          WHERE o.tenant_id = ${tenantId}
+            AND LOWER(COALESCE(o.status, 'completed')) NOT IN ('cancelled', 'refunded')
+            AND o.created_at >= ${startTs}::timestamp
+            AND o.created_at <= ${endTs}::timestamp
+            ${hasBranch ? sql`AND o.branch_id = ${branchId}` : sql``}
+          GROUP BY DATE(o.created_at)
+          ORDER BY DATE(o.created_at) ASC
+        `),
+
+        // Category Profitability
+        db.execute(sql`
+          SELECT
+            COALESCE(NULLIF(TRIM(c.name), ''), 'General Merchandise') AS category,
+            COALESCE(SUM(oi.quantity), 0)::int AS "unitsSold",
+            COALESCE(SUM(oi.subtotal), 0)::float AS revenue,
+            COALESCE(SUM(oi.quantity * COALESCE(p.cost_price, 0)), 0)::float AS cogs
+          FROM order_items oi
+          INNER JOIN orders o ON o.id = oi.order_id
+          LEFT JOIN products p ON p.id = oi.product_id AND p.tenant_id = o.tenant_id
+          LEFT JOIN categories c ON c.id = p.category_id AND c.tenant_id = o.tenant_id
+          WHERE o.tenant_id = ${tenantId}
+            AND LOWER(COALESCE(o.status, 'completed')) NOT IN ('cancelled', 'refunded')
+            AND o.created_at >= ${startTs}::timestamp
+            AND o.created_at <= ${endTs}::timestamp
+            ${hasBranch ? sql`AND o.branch_id = ${branchId}` : sql``}
+          GROUP BY COALESCE(NULLIF(TRIM(c.name), ''), 'General Merchandise')
+          ORDER BY revenue DESC
+          LIMIT 10
+        `),
+
+        // Branch Margin Comparison
+        db.execute(sql`
+          SELECT
+            COALESCE(b.name, 'Main Branch') AS "branchName",
+            COALESCE(SUM(oi.subtotal), 0)::float AS revenue,
+            COALESCE(SUM(oi.quantity * COALESCE(p.cost_price, 0)), 0)::float AS cogs
+          FROM order_items oi
+          INNER JOIN orders o ON o.id = oi.order_id
+          LEFT JOIN branches b ON b.id = o.branch_id AND b.tenant_id = o.tenant_id
+          LEFT JOIN products p ON p.id = oi.product_id AND p.tenant_id = o.tenant_id
+          WHERE o.tenant_id = ${tenantId}
+            AND LOWER(COALESCE(o.status, 'completed')) NOT IN ('cancelled', 'refunded')
+            AND o.created_at >= ${startTs}::timestamp
+            AND o.created_at <= ${endTs}::timestamp
+            ${hasBranch ? sql`AND o.branch_id = ${branchId}` : sql``}
+          GROUP BY b.name
+          ORDER BY revenue DESC
+          LIMIT 8
+        `),
+
+        // SKU-Level Margin Breakdown
+        db.execute(sql`
+          SELECT
+            p.id AS "productId",
+            COALESCE(p.name, 'SKU Item') AS "productName",
+            COALESCE(p.sku, 'N/A') AS sku,
+            COALESCE(NULLIF(TRIM(c.name), ''), 'General Merchandise') AS category,
+            COALESCE(p.cost_price, 0)::float AS "unitCost",
+            COALESCE(p.selling_price, 0)::float AS "unitPrice",
+            COALESCE(SUM(oi.quantity), 0)::int AS "unitsSold",
+            COALESCE(SUM(oi.subtotal), 0)::float AS revenue,
+            COALESCE(SUM(oi.quantity * COALESCE(p.cost_price, 0)), 0)::float AS cogs
+          FROM order_items oi
+          INNER JOIN orders o ON o.id = oi.order_id
+          INNER JOIN products p ON p.id = oi.product_id AND p.tenant_id = o.tenant_id
+          LEFT JOIN categories c ON c.id = p.category_id AND c.tenant_id = o.tenant_id
+          WHERE o.tenant_id = ${tenantId}
+            AND LOWER(COALESCE(o.status, 'completed')) NOT IN ('cancelled', 'refunded')
+            AND o.created_at >= ${startTs}::timestamp
+            AND o.created_at <= ${endTs}::timestamp
+            ${hasBranch ? sql`AND o.branch_id = ${branchId}` : sql``}
+          GROUP BY p.id, p.name, p.sku, c.name, p.cost_price, p.selling_price
+          ORDER BY revenue DESC
+          LIMIT 100
+        `),
+      ]);
+
+      const skuMargins = rowsOf(skuRes).map((s: any) => {
+        const rev = Number(s.revenue || 0);
+        const cogs = Number(s.cogs || 0);
+        const profit = Number((rev - cogs).toFixed(2));
+        const marginPct = rev > 0 ? Number(((profit / rev) * 100).toFixed(1)) : 0;
+        return { ...s, grossProfit: profit, marginPct };
+      });
+
+      const categoryMargins = rowsOf(categoryRes).map((c: any) => {
+        const rev = Number(c.revenue || 0);
+        const cogs = Number(c.cogs || 0);
+        const profit = Number((rev - cogs).toFixed(2));
+        const marginPct = rev > 0 ? Number(((profit / rev) * 100).toFixed(1)) : 0;
+        return { ...c, grossProfit: profit, marginPct };
+      });
+
+      const branchMargins = rowsOf(branchMarginRes).map((b: any) => {
+        const rev = Number(b.revenue || 0);
+        const cogs = Number(b.cogs || 0);
+        const profit = Number((rev - cogs).toFixed(2));
+        const marginPct = rev > 0 ? Number(((profit / rev) * 100).toFixed(1)) : 0;
+        return { ...b, grossProfit: profit, marginPct };
+      });
+
+      const totalRevenue = skuMargins.reduce((acc, s) => acc + Number(s.revenue || 0), 0);
+      const totalCogs = skuMargins.reduce((acc, s) => acc + Number(s.cogs || 0), 0);
+      const grossProfit = Number((totalRevenue - totalCogs).toFixed(2));
+      const blendedMarginPct = totalRevenue > 0 ? Number(((grossProfit / totalRevenue) * 100).toFixed(1)) : 0;
+      const lowMarginSkuCount = skuMargins.filter((s) => s.marginPct < 15).length;
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          branches: rowsOf(branchesRes),
+          kpis: {
+            totalRevenue,
+            totalCogs,
+            grossProfit,
+            blendedMarginPct,
+            lowMarginSkuCount,
+            trackedSkuCount: skuMargins.length,
+          },
+          trend: rowsOf(trendRes),
+          categoryMargins,
+          branchMargins,
+          skuMargins,
+        },
+      });
+    } catch (error: any) {
+      console.error('[ANALYTICS MARGINS ERROR]', error);
+      return res.status(500).json({
+        success: false,
+        message: error?.cause?.message || error?.message || 'Failed to compute margin intelligence',
+      });
+    }
+  }
+
+  // PATCH /api/v1/analytics/margins/sku/:productId (Bidirectional Cost / Selling Price Sync)
+  static async updateSkuPricing(req: AuthRequest, res: Response) {
+    try {
+      const tenantId = req.auth?.tenantId || req.user?.tenantId;
+      if (!tenantId) return res.status(401).json({ success: false, message: 'Unauthorized' });
+
+      const productId = String(req.params.productId);
+      const costPrice = Number(req.body?.costPrice);
+      const sellingPrice = Number(req.body?.sellingPrice);
+
+      if (!Number.isFinite(costPrice) || costPrice < 0 || !Number.isFinite(sellingPrice) || sellingPrice <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Enter valid non-negative cost price and positive selling price.',
+        });
+      }
+
+      const updRes = await db.execute(sql`
+        UPDATE products
+        SET cost_price = ${costPrice.toFixed(2)},
+            selling_price = ${sellingPrice.toFixed(2)},
+            updated_at = NOW()
+        WHERE id = ${productId} AND tenant_id = ${tenantId}
+        RETURNING id, name, cost_price::float AS "costPrice", selling_price::float AS "sellingPrice"
+      `);
+
+      const updated = rowsOf(updRes)[0];
+      if (!updated) {
+        return res.status(404).json({ success: false, message: 'Product not found in tenant catalog.' });
+      }
+
+      return res.status(200).json({ success: true, data: updated });
+    } catch (error: any) {
+      console.error('[ANALYTICS SKU PRICING ERROR]', error);
+      return res.status(400).json({
+        success: false,
+        message: error?.cause?.message || error?.message || 'Failed to update SKU pricing',
+      });
+    }
+  }
 }
