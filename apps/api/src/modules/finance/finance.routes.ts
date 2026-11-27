@@ -5,6 +5,7 @@ import { ReconciliationController } from './reconciliation.controller';
 import { EtimsController } from './etims.controller';
 import { FinanceOperationsController } from './operations.controller';
 import { requireAuth } from '../../middleware/requireAuth';
+import { FinanceAdjustmentsController } from './adjustments.controller';
 
 const router = Router();
 router.use(requireAuth);
@@ -51,6 +52,11 @@ router.put('/control/periods', FinanceOperationsController.upsertPeriodLock);
 // General Journal
 router.get('/journal', FinanceOperationsController.getJournal);
 router.post('/journal', FinanceOperationsController.createJournalEntry);
+
+// Financial Adjustments & Maker-Checker GL Audit
+router.get('/adjustments', FinanceAdjustmentsController.getAll);
+router.post('/adjustments', FinanceAdjustmentsController.create);
+router.patch('/adjustments/:id/review', FinanceAdjustmentsController.review);
 
 export const financeRoutes = router;
 export default router;
