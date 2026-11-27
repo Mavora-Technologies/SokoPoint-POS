@@ -27,6 +27,7 @@ import barcodeRoutes from './modules/barcodes/barcodes.routes';
 import pricingRoutes from './modules/pricing/pricing.routes';
 import { analyticsRoutes } from './modules/analytics/analytics.routes';
 import { settingsRoutes } from './modules/settings/settings.routes';
+import { auditRoutes } from './modules/audit/audit.routes';
 export const createApp = () => {
   const app = express();
 
@@ -89,6 +90,7 @@ export const createApp = () => {
   app.use('/api/v1/pricing', pricingRoutes);
   app.use('/api/v1/analytics', analyticsRoutes);
   app.use('/api/v1/settings', settingsRoutes);
+  app.use('/api/v1/audit', auditRoutes);
 
   // Aliases
   app.use('/api/v1/ai', aiRoutes);
