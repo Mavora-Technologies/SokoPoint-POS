@@ -9,6 +9,18 @@ type AuthRequest = Request & {
 
 const rowsOf = (result: any): any[] => (Array.isArray(result) ? result : result?.rows || []);
 
+const getStaffTableName = async (): Promise<'employees' | 'staff' | null> => {
+  const res = await db.execute(sql`
+    SELECT table_name
+    FROM information_schema.tables
+    WHERE table_schema = 'public'
+      AND table_name IN ('employees', 'staff')
+    LIMIT 1
+  `);
+  const name = rowsOf(res)[0]?.table_name;
+  return name === 'employees' || name === 'staff' ? name : null;
+};
+
 // GET /api/v1/tills
 export const getTills = async (req: AuthRequest, res: Response) => {
   try {
@@ -17,7 +29,7 @@ export const getTills = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ success: false, message: 'Unauthorized: missing tenant context' });
     }
 
-    const [shiftsRes, staffRes, registersRes, branchesRes] = await Promise.all([
+    const [shiftsRes, usersRes, registersRes, branchesRes, staffTable] = await Promise.all([
       db.execute(sql`
         SELECT s.id,
                s.shift_seq AS "shiftSeq",
@@ -27,12 +39,12 @@ export const getTills = async (req: AuthRequest, res: Response) => {
                COALESCE(s.cashier_role, 'CASHIER') AS "cashierRole",
                COALESCE(s.shift_rotation, 'Morning Shift') AS "shiftRotation",
                COALESCE(b.name, 'Main Branch') AS "branchName",
-               s.opening_float::float AS "openingFloat",
-               s.cash_sales::float AS "cashSales",
-               s.expected_drawer::float AS "expectedCash",
+               COALESCE(s.opening_float, 0)::float AS "openingFloat",
+               COALESCE(s.cash_sales, 0)::float AS "cashSales",
+               COALESCE(s.expected_drawer, 0)::float AS "expectedCash",
                s.physical_count::float AS "countedCash",
                COALESCE(s.cash_variance, 0)::float AS variance,
-               s.status,
+               COALESCE(s.status, 'OPEN') AS status,
                s.supervisor_signoff AS "supervisorSignoff",
                s.handover_notes AS "handoverNotes",
                s.opened_at AS "openedAt",
@@ -49,7 +61,7 @@ export const getTills = async (req: AuthRequest, res: Response) => {
         SELECT id,
                TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')) AS name,
                email,
-               'STAFF' AS role
+               'ADMIN' AS role
         FROM users
         WHERE tenant_id = ${tenantId}
           AND is_active = TRUE
@@ -74,20 +86,67 @@ export const getTills = async (req: AuthRequest, res: Response) => {
         WHERE tenant_id = ${tenantId}
         ORDER BY name ASC
       `),
+      getStaffTableName(),
     ]);
+
+    // Merge users + employees/staff table without duplicates
+    const staffMap = new Map<string, { id: string; name: string; email: string; role: string }>();
+
+    for (const u of rowsOf(usersRes)) {
+      const key = (u.email || u.id).toLowerCase();
+      staffMap.set(key, {
+        id: `user:${u.id}`,
+        name: u.name || u.email,
+        email: u.email || '',
+        role: u.role || 'ADMIN',
+      });
+    }
+
+    if (staffTable) {
+      try {
+        const empRes = await db.execute(sql`
+          SELECT id,
+                 COALESCE(
+                   NULLIF(TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')), ''),
+                   NULLIF(TRIM(COALESCE(full_name, '')), ''),
+                   NULLIF(TRIM(COALESCE(name, '')), ''),
+                   email
+                 ) AS name,
+                 COALESCE(email, '') AS email,
+                 COALESCE(role, 'CASHIER') AS role
+          FROM ${sql.raw(staffTable)}
+          WHERE tenant_id = ${tenantId}
+          ORDER BY name ASC
+        `);
+        for (const e of rowsOf(empRes)) {
+          const key = (e.email || e.id).toLowerCase();
+          staffMap.set(key, {
+            id: `staff:${e.id}`,
+            name: e.name || e.email || 'Staff Member',
+            email: e.email || '',
+            role: String(e.role || 'CASHIER').toUpperCase(),
+          });
+        }
+      } catch (staffErr) {
+        console.warn('[TILLS STAFF MERGE WARNING]', staffErr);
+      }
+    }
 
     return res.status(200).json({
       success: true,
       data: {
         shifts: rowsOf(shiftsRes),
-        staff: rowsOf(staffRes),
+        staff: Array.from(staffMap.values()),
         registers: rowsOf(registersRes),
         branches: rowsOf(branchesRes),
       },
     });
   } catch (error: any) {
     console.error('[TILLS GET ERROR]', error);
-    return res.status(500).json({ success: false, message: error?.message || 'Failed to load cashier shifts' });
+    return res.status(500).json({
+      success: false,
+      message: error?.cause?.message || error?.message || 'Failed to load cashier shifts',
+    });
   }
 };
 
@@ -118,29 +177,67 @@ export const createTill = async (req: AuthRequest, res: Response) => {
     const safeRotation = String(shiftRotation || 'Morning Shift').trim();
     const safeNotes = handoverNotes ? String(handoverNotes).trim() : null;
 
-    // Resolve cashier custodian from tenant users
-    let resolvedUserId: string | null = authUserId;
+    let resolvedUserId: string | null = null;
     let resolvedName = authEmail;
     let resolvedEmail = authEmail;
     let resolvedRole = authRole;
 
-    const targetUserId = cashierUserId ? String(cashierUserId) : authUserId;
-    if (targetUserId) {
-      const uRes = await db.execute(sql`
-        SELECT id, first_name AS "firstName", last_name AS "lastName", email
-        FROM users
-        WHERE id = ${targetUserId} AND tenant_id = ${tenantId}
-        LIMIT 1
-      `);
-      const u = rowsOf(uRes)[0];
-      if (u) {
-        resolvedUserId = u.id;
-        resolvedName = `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email;
-        resolvedEmail = u.email;
+    const rawSelection = String(cashierUserId || '').trim();
+
+    if (rawSelection.startsWith('staff:')) {
+      const empId = rawSelection.slice(6);
+      const staffTable = await getStaffTableName();
+      if (staffTable) {
+        const eRes = await db.execute(sql`
+          SELECT COALESCE(
+                   NULLIF(TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')), ''),
+                   NULLIF(TRIM(COALESCE(full_name, '')), ''),
+                   NULLIF(TRIM(COALESCE(name, '')), ''),
+                   email
+                 ) AS name,
+                 COALESCE(email, '') AS email,
+                 COALESCE(role, 'CASHIER') AS role
+          FROM ${sql.raw(staffTable)}
+          WHERE id = ${empId} AND tenant_id = ${tenantId}
+          LIMIT 1
+        `);
+        const emp = rowsOf(eRes)[0];
+        if (emp) {
+          resolvedName = emp.name || emp.email || 'Staff Member';
+          resolvedEmail = emp.email || '';
+          resolvedRole = String(emp.role || 'CASHIER').toUpperCase();
+        }
+      }
+    } else {
+      const targetUserId = rawSelection.startsWith('user:')
+        ? rawSelection.slice(5)
+        : rawSelection || authUserId;
+
+      if (targetUserId) {
+        const uRes = await db.execute(sql`
+          SELECT id, first_name AS "firstName", last_name AS "lastName", email
+          FROM users
+          WHERE id = ${targetUserId} AND tenant_id = ${tenantId}
+          LIMIT 1
+        `);
+        const u = rowsOf(uRes)[0];
+        if (u) {
+          resolvedUserId = u.id;
+          resolvedName = `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email;
+          resolvedEmail = u.email;
+        }
       }
     }
 
-    const resolvedBranchId = branchId ? String(branchId) : authBranchId;
+    // Verify branchId belongs to this tenant before inserting
+    let resolvedBranchId: string | null = null;
+    const candidateBranch = branchId ? String(branchId) : authBranchId;
+    if (candidateBranch) {
+      const bRes = await db.execute(sql`
+        SELECT id FROM branches WHERE id = ${candidateBranch} AND tenant_id = ${tenantId} LIMIT 1
+      `);
+      if (rowsOf(bRes)[0]?.id) resolvedBranchId = rowsOf(bRes)[0].id;
+    }
 
     const inserted = await db.execute(sql`
       INSERT INTO finance_till_shifts (
@@ -159,7 +256,10 @@ export const createTill = async (req: AuthRequest, res: Response) => {
     return res.status(201).json({ success: true, data: rowsOf(inserted)[0] });
   } catch (error: any) {
     console.error('[TILLS CREATE ERROR]', error);
-    return res.status(400).json({ success: false, message: error?.message || 'Failed to open cashier shift' });
+    return res.status(400).json({
+      success: false,
+      message: error?.cause?.message || error?.message || 'Failed to open cashier shift',
+    });
   }
 };
 
@@ -197,11 +297,14 @@ export const updateTillStatus = async (req: AuthRequest, res: Response) => {
     return res.status(200).json({ success: true, data: updated });
   } catch (error: any) {
     console.error('[TILLS CLOSE ERROR]', error);
-    return res.status(400).json({ success: false, message: error?.message || 'Failed to close cashier shift' });
+    return res.status(400).json({
+      success: false,
+      message: error?.cause?.message || error?.message || 'Failed to close cashier shift',
+    });
   }
 };
 
-// POST /api/v1/tills/registers (Provision a physical POS register for this tenant)
+// POST /api/v1/tills/registers
 export const createRegister = async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.auth?.tenantId || req.user?.tenantId;
@@ -212,7 +315,9 @@ export const createRegister = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ success: false, message: 'Register name is required.' });
     }
 
-    const code = String(terminalCode || `POS-TERM-${Math.floor(10 + Math.random() * 89)}`).trim().toUpperCase();
+    const code = String(terminalCode || `POS-TERM-${Math.floor(10 + Math.random() * 89)}`)
+      .trim()
+      .toUpperCase();
     const safeBranch = branchId ? String(branchId) : req.auth?.branchId || req.user?.branchId || null;
 
     const inserted = await db.execute(sql`
@@ -224,6 +329,9 @@ export const createRegister = async (req: AuthRequest, res: Response) => {
     return res.status(201).json({ success: true, data: rowsOf(inserted)[0] });
   } catch (error: any) {
     console.error('[TILLS REGISTER ERROR]', error);
-    return res.status(400).json({ success: false, message: error?.message || 'Failed to create register' });
+    return res.status(400).json({
+      success: false,
+      message: error?.cause?.message || error?.message || 'Failed to create register',
+    });
   }
 };
