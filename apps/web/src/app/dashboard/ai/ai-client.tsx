@@ -1,161 +1,386 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { Bot, Send, User, Loader2, Sparkles } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import {
+  BrainCircuit,
+  Plus,
+  SlidersHorizontal,
+  Boxes,
+  Users,
+  DollarSign,
+  Send,
+  Loader2,
+  Trash2,
+  User,
+  MessageSquare,
+} from 'lucide-react';
+import api from '../../../lib/api';
+
+type DomainKey = 'GENERAL_OPS' | 'INVENTORY_STOCK' | 'CUSTOMER_WHOLESALE' | 'TREASURY_MARGINS';
+
+interface AdvisorySession {
+  id: string;
+  domain: DomainKey;
+  title: string;
+  updatedAt: string;
+}
+
+interface AdvisoryMessage {
+  id?: string;
+  role: 'user' | 'assistant';
+  content: string;
+  createdAt?: string;
+}
+
+const DOMAINS: Array<{
+  key: DomainKey;
+  label: string;
+  short: string;
+  icon: any;
+  prompts: string[];
+}> = [
+  {
+    key: 'GENERAL_OPS',
+    label: 'Cross-Operational Strategy',
+    short: 'GENERAL OPS',
+    icon: SlidersHorizontal,
+    prompts: [
+      'Summarize store operations telemetry',
+      'What are my top-selling SKUs over the last 30 days?',
+      'Highlight today’s revenue and order velocity',
+    ],
+  },
+  {
+    key: 'INVENTORY_STOCK',
+    label: 'Inventory & Restock Intelligence',
+    short: 'INVENTORY',
+    icon: Boxes,
+    prompts: [
+      'Which SKUs are out of stock or below par level?',
+      'Summarize total inventory asset valuation',
+      'Recommend immediate restock priorities',
+    ],
+  },
+  {
+    key: 'CUSTOMER_WHOLESALE',
+    label: 'Customer & Wholesale Retention',
+    short: 'WHOLESALE & CRM',
+    icon: Users,
+    prompts: [
+      'Analyze average ticket size and order frequency',
+      'Summarize retail vs. wholesale turnover',
+      'Identify top revenue-driving products',
+    ],
+  },
+  {
+    key: 'TREASURY_MARGINS',
+    label: 'Treasury & Margin Analytics',
+    short: 'TREASURY & MARGINS',
+    icon: DollarSign,
+    prompts: [
+      'Audit net treasury liquidity and unreconciled payments',
+      'Summarize cashier shift drift and open tills',
+      'Review cash inflow vs. supplier outflow',
+    ],
+  },
+];
 
 export default function AIClient() {
-  const [isMounted, setIsMounted] = useState(false);
-  const [messages, setMessages] = useState([
-    { role: 'assistant', content: 'Hello Valary! I am your SokoPoint-POS AI Copilot. I can help you analyze sales trends, predict inventory needs, or generate reports. What would you like to know today?' }
-  ]);
+  const [domain, setDomain] = useState<DomainKey>('GENERAL_OPS');
+  const [sessions, setSessions] = useState<AdvisorySession[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<AdvisoryMessage[]>([]);
   const [input, setInput] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [loadingSessions, setLoadingSessions] = useState(true);
+  const [sending, setSending] = useState(false);
 
-  useEffect(() => {
-    setIsMounted(true);
+  const endRef = useRef<HTMLDivElement>(null);
+
+  const currentDomain = DOMAINS.find((d) => d.key === domain) || DOMAINS[0];
+
+  const loadSessions = useCallback(async () => {
+    setLoadingSessions(true);
+    try {
+      const res = await api.get('/ai/sessions');
+      setSessions(Array.isArray(res.data?.data) ? res.data.data : []);
+    } catch (err) {
+      console.error('Failed to load AI sessions', err);
+    } finally {
+      setLoadingSessions(false);
+    }
   }, []);
 
-  // Auto-scroll to bottom of chat
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isTyping]);
+    loadSessions();
+  }, [loadSessions]);
 
-  if (!isMounted) {
-    return (
-      <div className="flex justify-center items-center h-[100dvh] w-full bg-slate-50">
-        <Loader2 className="h-10 w-10 animate-spin text-green-600" />
-      </div>
-    );
-  }
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, sending]);
 
-  const handleSend = () => {
-    if (!input.trim()) return;
-    
-    const newMsg = { role: 'user', content: input };
-    setMessages(prev => [...prev, newMsg]);
+  const handleSelectSession = async (session: AdvisorySession) => {
+    setActiveSessionId(session.id);
+    setDomain(session.domain || 'GENERAL_OPS');
+    try {
+      const res = await api.get(`/ai/sessions/${session.id}/messages`);
+      setMessages(Array.isArray(res.data?.data) ? res.data.data : []);
+    } catch (err) {
+      console.error('Failed to load messages', err);
+    }
+  };
+
+  const handleNewSession = () => {
+    setActiveSessionId(null);
+    setMessages([]);
     setInput('');
-    setIsTyping(true);
+  };
 
-    // Mock AI response
-    setTimeout(() => {
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
-        content: 'I am currently running in demo mode. Once fully connected to the backend, I will query your PostgreSQL database to provide real-time insights on those metrics!' 
-      }]);
-      setIsTyping(false);
-    }, 1500);
+  const handleDeleteSession = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    try {
+      await api.delete(`/ai/sessions/${id}`);
+      if (activeSessionId === id) {
+        setActiveSessionId(null);
+        setMessages([]);
+      }
+      await loadSessions();
+    } catch (err) {
+      console.error('Failed to delete session', err);
+    }
+  };
+
+  const handleAsk = async (promptOverride?: string) => {
+    const text = (promptOverride ?? input).trim();
+    if (!text || sending) return;
+
+    setInput('');
+    setMessages((prev) => [...prev, { role: 'user', content: text }]);
+    setSending(true);
+
+    try {
+      const res = await api.post('/ai/ask', {
+        sessionId: activeSessionId,
+        domain,
+        prompt: text,
+      });
+      const d = res.data?.data;
+      if (d?.sessionId && !activeSessionId) {
+        setActiveSessionId(d.sessionId);
+        loadSessions();
+      }
+      if (d?.message) {
+        setMessages((prev) => [...prev, d.message]);
+      }
+    } catch (err: any) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: err?.response?.data?.message || 'Unable to query live telemetry right now. Please try again.',
+        },
+      ]);
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
-    <>
-      <style dangerouslySetInnerHTML={{
-        __html: `
-          .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
-          .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-          .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-          .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-        `
-      }} />
+    <div className="w-full min-h-[100dvh] bg-[#f4f7fb] px-4 sm:px-6 lg:px-8 py-6 space-y-5 font-sans flex flex-col">
+      {/* Header Card */}
+      <div className="bg-white rounded-2xl border border-slate-200/70 px-6 py-5 shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0">
+        <div>
+          <p className="text-[11px] font-bold text-[#0554F4] mb-1">
+            Enterprise Control &rsaquo; Copilot Strategic AI
+          </p>
+          <h1 className="text-xl sm:text-2xl font-extrabold text-[#041F56] tracking-tight inline-flex items-center gap-2.5">
+            <BrainCircuit className="h-6 w-6 text-[#0554F4]" />
+            SokoPoint Copilot &amp; Enterprise AI Advisory
+          </h1>
+          <p className="text-xs text-[#176E84] mt-1">
+            Agentic multi-domain reasoning: live inventory restock intelligence, cashier custody audits, and retail/wholesale revenue telemetry.
+          </p>
+        </div>
 
-      {/* Flush edge-to-edge application layout using dynamic viewport height */}
-      <div className="flex flex-col h-[100dvh] w-full bg-slate-50 overflow-hidden relative">
-        
-        {/* Edge-to-Edge Header */}
-        <div className="w-full bg-white border-b border-slate-200 px-4 sm:px-6 lg:px-8 xl:px-12 py-4 sm:py-5 lg:py-6 shrink-0 z-20 shadow-sm transition-all">
-          <div className="max-w-7xl mx-auto flex items-center gap-3 sm:gap-4 lg:gap-5">
-            <div className="p-2.5 sm:p-3 lg:p-3.5 bg-green-50 rounded-xl lg:rounded-2xl text-green-600 shrink-0 shadow-inner border border-green-100/50">
-              <Bot className="h-6 w-6 sm:h-8 sm:w-8 lg:h-9 lg:w-9" />
+        <button
+          onClick={handleNewSession}
+          className="px-4 py-2.5 bg-[#0554F4] hover:bg-[#0441c4] text-white text-xs font-bold rounded-xl shadow-xs inline-flex items-center gap-1.5 cursor-pointer"
+        >
+          <Plus className="h-4 w-4" /> New Advisory Session
+        </button>
+      </div>
+
+      {/* Main Split Workspace */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 flex-1 min-h-[600px]">
+        {/* Left Sidebar */}
+        <div className="lg:col-span-4 space-y-5 flex flex-col">
+          {/* Strategic Reasoning Domain */}
+          <div className="bg-white rounded-2xl border border-slate-200/70 p-4 shadow-xs space-y-2.5">
+            <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider px-1">
+              STRATEGIC REASONING DOMAIN
+            </p>
+            <div className="space-y-1.5">
+              {DOMAINS.map((d) => {
+                const Icon = d.icon;
+                const active = domain === d.key;
+                return (
+                  <button
+                    key={d.key}
+                    type="button"
+                    onClick={() => setDomain(d.key)}
+                    className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer text-left ${
+                      active
+                        ? 'bg-[#0554F4] text-white shadow-xs'
+                        : 'bg-slate-50/80 text-[#041F56] hover:bg-slate-100'
+                    }`}
+                  >
+                    <Icon className={`h-4 w-4 shrink-0 ${active ? 'text-white' : 'text-[#0554F4]'}`} />
+                    <span className="truncate">{d.label}</span>
+                  </button>
+                );
+              })}
             </div>
-            <div className="min-w-0">
-              <h2 className="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-slate-900 flex items-center gap-2 lg:gap-3 truncate">
-                SokoPoint AI Copilot <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 lg:h-7 lg:w-7 text-amber-500 shrink-0" />
-              </h2>
-              <p className="text-xs sm:text-sm lg:text-base text-slate-500 font-medium truncate mt-0.5 lg:mt-1">
-                Your intelligent assistant for retail analytics and store management
+          </div>
+
+          {/* Advisory Sessions History */}
+          <div className="bg-white rounded-2xl border border-slate-200/70 p-4 shadow-xs flex-1 flex flex-col min-h-[220px]">
+            <div className="flex justify-between items-center px-1 mb-3">
+              <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+                ADVISORY SESSIONS HISTORY
               </p>
+              <span className="text-[11px] font-mono font-bold text-slate-400">{sessions.length}</span>
             </div>
+
+            {loadingSessions ? (
+              <div className="flex-1 flex items-center justify-center">
+                <Loader2 className="h-5 w-5 animate-spin text-[#0554F4]" />
+              </div>
+            ) : sessions.length === 0 ? (
+              <div className="flex-1 flex items-center justify-center text-xs text-slate-400 italic">
+                No previous sessions found.
+              </div>
+            ) : (
+              <div className="space-y-1.5 overflow-y-auto max-h-72 pr-1">
+                {sessions.map((s) => (
+                  <div
+                    key={s.id}
+                    onClick={() => handleSelectSession(s)}
+                    className={`group flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-xs cursor-pointer transition-colors ${
+                      activeSessionId === s.id
+                        ? 'bg-blue-50 text-[#0554F4] font-bold border border-blue-200'
+                        : 'hover:bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <MessageSquare className="h-3.5 w-3.5 shrink-0 opacity-60" />
+                      <span className="truncate">{s.title}</span>
+                    </div>
+                    <button
+                      onClick={(e) => handleDeleteSession(e, s.id)}
+                      className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-600 p-1 cursor-pointer"
+                      title="Delete Session"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Fluid Chat Scroll Area */}
-        <div className="flex-1 overflow-y-auto w-full bg-slate-50/80 custom-scrollbar scroll-smooth">
-          {/* Constrained readable width for chat bubbles, adapting to ultra-wide */}
-          <div className="max-w-5xl xl:max-w-6xl mx-auto w-full p-4 sm:p-6 lg:p-8 xl:p-10 space-y-6 lg:space-y-8 pb-8">
-            {messages.map((msg, idx) => (
-              <div key={idx} className={`flex gap-3 sm:gap-4 lg:gap-5 w-full ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                
-                {/* Assistant Avatar */}
-                {msg.role === 'assistant' && (
-                  <div className="shrink-0 h-8 w-8 sm:h-10 sm:w-10 lg:h-12 lg:w-12 rounded-full bg-white shadow-sm border border-slate-200 text-green-600 flex items-center justify-center">
-                    <Bot className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" />
-                  </div>
-                )}
-
-                {/* Message Bubble */}
-                <div className={`relative max-w-[85%] sm:max-w-[80%] lg:max-w-[70%] p-4 sm:p-5 lg:p-6 text-[15px] sm:text-base lg:text-lg leading-relaxed shadow-sm ${
-                  msg.role === 'user' 
-                    ? 'bg-green-600 text-white rounded-2xl rounded-tr-sm shadow-green-600/20' 
-                    : 'bg-white border border-slate-200 text-slate-800 rounded-2xl rounded-tl-sm shadow-slate-200/50'
-                }`}>
-                  {msg.content}
+        {/* Right Chat Workspace */}
+        <div className="lg:col-span-8 bg-white rounded-2xl border border-slate-200/70 shadow-xs flex flex-col overflow-hidden min-h-[560px]">
+          {/* Messages or Empty State */}
+          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            {messages.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-center max-w-xl mx-auto py-12 space-y-4">
+                <div className="w-12 h-12 rounded-2xl bg-blue-50 text-[#0554F4] flex items-center justify-center">
+                  <BrainCircuit className="h-6 w-6" />
                 </div>
-
-                {/* User Avatar */}
-                {msg.role === 'user' && (
-                  <div className="shrink-0 h-8 w-8 sm:h-10 sm:w-10 lg:h-12 lg:w-12 rounded-full bg-slate-900 shadow-md text-white flex items-center justify-center">
-                    <User className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" />
-                  </div>
-                )}
+                <div>
+                  <h2 className="text-base font-extrabold text-[#041F56]">
+                    SokoPoint Enterprise Copilot Ready
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Ask strategic inquiries regarding inventory depletion, cashier shift custody, treasury liquidity, or branch revenue attribution.
+                  </p>
+                </div>
+                <div className="flex flex-wrap justify-center gap-2 pt-2">
+                  {currentDomain.prompts.map((p, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => handleAsk(p)}
+                      className="px-3.5 py-2 rounded-xl border border-slate-200 hover:border-[#0554F4] hover:bg-blue-50/40 text-xs font-medium text-slate-700 transition-all cursor-pointer"
+                    >
+                      &ldquo;{p}&rdquo;
+                    </button>
+                  ))}
+                </div>
               </div>
-            ))}
-
-            {/* Typing Indicator */}
-            {isTyping && (
-              <div className="flex gap-3 sm:gap-4 lg:gap-5 w-full justify-start animate-in fade-in duration-300">
-                <div className="shrink-0 h-8 w-8 sm:h-10 sm:w-10 lg:h-12 lg:w-12 rounded-full bg-white shadow-sm border border-slate-200 text-green-600 flex items-center justify-center">
-                  <Bot className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" />
+            ) : (
+              messages.map((m, idx) => (
+                <div
+                  key={m.id || idx}
+                  className={`flex items-start gap-3 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  {m.role === 'assistant' && (
+                    <div className="w-8 h-8 rounded-xl bg-blue-50 text-[#0554F4] flex items-center justify-center shrink-0 mt-0.5">
+                      <BrainCircuit className="h-4 w-4" />
+                    </div>
+                  )}
+                  <div
+                    className={`max-w-[82%] rounded-2xl px-4 py-3 text-xs leading-relaxed whitespace-pre-wrap ${
+                      m.role === 'user'
+                        ? 'bg-[#0554F4] text-white font-medium rounded-tr-sm'
+                        : 'bg-slate-50 border border-slate-200/80 text-slate-800 rounded-tl-sm'
+                    }`}
+                  >
+                    {m.content}
+                  </div>
+                  {m.role === 'user' && (
+                    <div className="w-8 h-8 rounded-xl bg-[#041F56] text-white flex items-center justify-center shrink-0 mt-0.5">
+                      <User className="h-4 w-4" />
+                    </div>
+                  )}
                 </div>
-                <div className="p-4 sm:p-5 lg:p-6 rounded-2xl bg-white border border-slate-200 rounded-tl-sm flex items-center gap-1.5 sm:gap-2 shadow-sm h-[52px] sm:h-[60px] lg:h-[72px]">
-                  <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 lg:w-3 lg:h-3 bg-green-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-                  <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 lg:w-3 lg:h-3 bg-green-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                  <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 lg:w-3 lg:h-3 bg-green-400 rounded-full animate-bounce"></div>
+              ))
+            )}
+
+            {sending && (
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-blue-50 text-[#0554F4] flex items-center justify-center shrink-0">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                </div>
+                <div className="px-4 py-2.5 rounded-2xl bg-slate-50 border border-slate-200/80 text-xs text-slate-500">
+                  Querying live tenant telemetry...
                 </div>
               </div>
             )}
-            
-            {/* Invisible div to target for auto-scrolling */}
-            <div ref={messagesEndRef} />
+            <div ref={endRef} />
           </div>
-        </div>
 
-        {/* Edge-to-Edge Sticky Input Area */}
-        <div className="w-full bg-white border-t border-slate-200 p-4 sm:p-6 lg:p-8 shrink-0 z-20 shadow-[0_-4px_20px_rgba(0,0,0,0.03)] pb-safe transition-all">
-          <div className="max-w-5xl xl:max-w-6xl mx-auto relative flex items-center group">
+          {/* Bottom Ask Bar */}
+          <div className="p-4 border-t border-slate-100 bg-white flex items-center gap-2.5">
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-              placeholder="Ask SokoPoint AI about sales, inventory, or daily reports..."
-              className="w-full pl-6 sm:pl-8 lg:pl-10 pr-16 sm:pr-20 lg:pr-24 py-4 sm:py-5 lg:py-6 bg-slate-50 border border-slate-200 rounded-full focus:ring-4 focus:ring-green-600/10 focus:border-green-600 focus:bg-white transition-all text-base sm:text-lg lg:text-xl outline-none placeholder:text-slate-400 shadow-sm"
+              onKeyDown={(e) => e.key === 'Enter' && handleAsk()}
+              placeholder={`Ask Copilot regarding ${currentDomain.short}...`}
+              className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:border-[#0554F4] focus:bg-white"
             />
             <button
-              onClick={handleSend}
-              disabled={!input.trim() || isTyping}
-              className="absolute right-2 sm:right-3 lg:right-4 p-3 sm:p-3.5 lg:p-4 bg-green-600 hover:bg-green-700 disabled:bg-slate-300 text-white rounded-full transition-all active:scale-95 shadow-md shadow-green-600/20 disabled:shadow-none flex items-center justify-center touch-manipulation"
+              type="button"
+              onClick={() => handleAsk()}
+              disabled={!input.trim() || sending}
+              className="px-4 py-2.5 bg-[#0554F4] hover:bg-[#0441c4] disabled:bg-slate-300 text-white text-xs font-bold rounded-xl inline-flex items-center gap-1.5 cursor-pointer transition-all"
             >
-              <Send className="h-5 w-5 sm:h-6 sm:w-6 lg:h-7 lg:w-7 ml-0.5 sm:ml-1 lg:ml-1.5" />
+              <Send className="h-3.5 w-3.5" /> Ask
             </button>
           </div>
-          <div className="max-w-5xl xl:max-w-6xl mx-auto mt-3 sm:mt-4 lg:mt-5 text-center">
-            <p className="text-[11px] sm:text-xs lg:text-sm text-slate-400 font-medium tracking-wide">
-              AI Copilot can make mistakes. Verify important financial data against your ledger.
-            </p>
-          </div>
         </div>
-        
       </div>
-    </>
+    </div>
   );
 }

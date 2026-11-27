@@ -2,6 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 
+import { aiRoutes } from './modules/ai/ai.routes';
 import { authRoutes } from './modules/auth/auth.routes';
 import productRoutes from './modules/products/products.routes';
 import { ordersRoutes } from './modules/orders/orders.routes';
@@ -88,6 +89,7 @@ export const createApp = () => {
   app.use('/api/v1/analytics', analyticsRoutes);
 
   // Aliases
+  app.use('/api/v1/ai', aiRoutes);
   app.use('/auth', authRoutes);
   app.use('/api/auth', authRoutes);
 
