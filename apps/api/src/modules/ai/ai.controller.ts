@@ -118,6 +118,10 @@ function buildDataGroundedReply(domain: string, prompt: string, t: Awaited<Retur
 }
 
 export class AiAdvisoryController {
+  // =========================================================================
+  // COPILOT ADVISORY SESSIONS & LIVE TELEMETRY (/api/v1/ai/*)
+  // =========================================================================
+
   // GET /api/v1/ai/sessions
   static async getSessions(req: AuthRequest, res: Response) {
     try {
@@ -459,6 +463,168 @@ export class AiAdvisoryController {
       return res.status(400).json({
         success: false,
         message: error?.cause?.message || error?.message || 'Failed to save forecast settings',
+      });
+    }
+  }
+
+  // =========================================================================
+  // SKU PERFORMANCE MATRIX & MARGIN ANOMALIES (/api/v1/ai/anomalies)
+  // =========================================================================
+  static async getAnomaliesMatrix(req: AuthRequest, res: Response) {
+    try {
+      const tenantId = req.auth?.tenantId || req.user?.tenantId;
+      if (!tenantId) return res.status(401).json({ success: false, message: 'Unauthorized' });
+
+      const days = [14, 30, 60, 90].includes(Number(req.query.days)) ? Number(req.query.days) : 30;
+
+      const skuRes = await db.execute(sql`
+        SELECT
+          p.id AS "productId",
+          p.name AS "productName",
+          COALESCE(NULLIF(TRIM(p.sku), ''), 'N/A') AS sku,
+          COALESCE(NULLIF(TRIM(c.name), ''), 'General Merchandise') AS category,
+          COALESCE(p.selling_price, 0)::float AS "sellingPrice",
+          COALESCE(p.cost_price, 0)::float AS "unitCost",
+          COALESCE(SUM(oi.quantity), 0)::int AS "unitsSold",
+          COALESCE(SUM(oi.subtotal), 0)::float AS "grossRevenue"
+        FROM order_items oi
+        INNER JOIN orders o ON o.id = oi.order_id
+        INNER JOIN products p ON p.id = oi.product_id AND p.tenant_id = o.tenant_id
+        LEFT JOIN categories c ON c.id = p.category_id AND c.tenant_id = p.tenant_id
+        WHERE o.tenant_id = ${tenantId}
+          AND o.created_at >= NOW() - (${days} * INTERVAL '1 day')
+          AND LOWER(COALESCE(o.status, 'completed')) NOT IN ('cancelled', 'refunded')
+        GROUP BY p.id, p.name, p.sku, c.name, p.selling_price, p.cost_price
+        ORDER BY "grossRevenue" DESC
+        LIMIT 150
+      `);
+
+      const rawSkus = rowsOf(skuRes);
+      const totalUnitsSold = rawSkus.reduce((acc, s) => acc + Number(s.unitsSold || 0), 0);
+
+      const totalContribution = rawSkus.reduce((acc, s) => {
+        const margin = Number(s.sellingPrice || 0) - Number(s.unitCost || 0);
+        return acc + margin * Number(s.unitsSold || 0);
+      }, 0);
+
+      const avgContributionMargin = totalUnitsSold > 0 ? totalContribution / totalUnitsSold : 0;
+      const popularityThreshold = rawSkus.length > 0 ? (100 / rawSkus.length) * 0.7 : 0;
+
+      const items = rawSkus.map((s: any) => {
+        const sellingPrice = Number(s.sellingPrice || 0);
+        const unitCost = Number(s.unitCost || 0);
+        const contributionMargin = Number((sellingPrice - unitCost).toFixed(2));
+        const costPct = sellingPrice > 0 ? Number(((unitCost / sellingPrice) * 100).toFixed(1)) : 0;
+        const unitsSold = Number(s.unitsSold || 0);
+        const mixPct = totalUnitsSold > 0 ? Number(((unitsSold / totalUnitsSold) * 100).toFixed(1)) : 0;
+        const grossRevenue = Number(s.grossRevenue || 0);
+
+        const highVolume = mixPct >= popularityThreshold;
+        const highMargin = contributionMargin >= avgContributionMargin;
+
+        let quadrant: 'STAR' | 'PLOWHORSE' | 'PUZZLE' | 'DOG' = 'DOG';
+        let aiAction = '';
+        let actionType: 'OPTIMIZED' | 'REPRICE' | 'PROMOTE' | 'REVIEW' = 'OPTIMIZED';
+
+        if (highVolume && highMargin) {
+          quadrant = 'STAR';
+          aiAction = 'Flagship profit driver. Protect stock availability, supplier pricing, and prime shelf placement.';
+          actionType = 'OPTIMIZED';
+        } else if (highVolume && !highMargin) {
+          quadrant = 'PLOWHORSE';
+          aiAction = 'High customer demand but below-average unit margin. Test a modest price increase or negotiate bulk supplier discounts.';
+          actionType = 'REPRICE';
+        } else if (!highVolume && highMargin) {
+          quadrant = 'PUZZLE';
+          aiAction = 'High profitability with lower sales velocity. Bundle with fast-movers or feature in checkout promotions.';
+          actionType = 'PROMOTE';
+        } else {
+          quadrant = 'DOG';
+          aiAction = 'Low velocity and weak contribution margin. Consider clearance discounting, repricing, or SKU rationalization.';
+          actionType = 'REVIEW';
+        }
+
+        return {
+          productId: s.productId,
+          productName: s.productName,
+          sku: s.sku,
+          category: s.category,
+          quadrant,
+          sellingPrice,
+          unitCost,
+          costPct,
+          contributionMargin,
+          unitsSold,
+          mixPct,
+          grossRevenue,
+          aiAction,
+          actionType,
+        };
+      });
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          days,
+          summary: {
+            stars: items.filter((i) => i.quadrant === 'STAR').length,
+            plowhorses: items.filter((i) => i.quadrant === 'PLOWHORSE').length,
+            puzzles: items.filter((i) => i.quadrant === 'PUZZLE').length,
+            dogs: items.filter((i) => i.quadrant === 'DOG').length,
+          },
+          benchmarks: {
+            avgContributionMargin: Number(avgContributionMargin.toFixed(2)),
+            popularityThreshold: Number(popularityThreshold.toFixed(1)),
+          },
+          items,
+        },
+      });
+    } catch (error: any) {
+      console.error('[AI ANOMALIES MATRIX ERROR]', error);
+      return res.status(500).json({
+        success: false,
+        message: error?.cause?.message || error?.message || 'Failed to compute SKU performance matrix',
+      });
+    }
+  }
+
+  // PATCH /api/v1/ai/anomalies/:productId/reprice
+  static async repriceSku(req: AuthRequest, res: Response) {
+    try {
+      const tenantId = req.auth?.tenantId || req.user?.tenantId;
+      if (!tenantId) return res.status(401).json({ success: false, message: 'Unauthorized' });
+
+      const productId = String(req.params.productId);
+      const sellingPrice = Number(req.body?.sellingPrice);
+      const unitCost = Number(req.body?.unitCost);
+
+      if (!Number.isFinite(sellingPrice) || sellingPrice <= 0 || !Number.isFinite(unitCost) || unitCost < 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Enter a valid positive selling price and non-negative unit cost.',
+        });
+      }
+
+      const updRes = await db.execute(sql`
+        UPDATE products
+        SET selling_price = ${sellingPrice.toFixed(2)},
+            cost_price = ${unitCost.toFixed(2)},
+            updated_at = NOW()
+        WHERE id = ${productId} AND tenant_id = ${tenantId}
+        RETURNING id, name, selling_price::float AS "sellingPrice", cost_price::float AS "unitCost"
+      `);
+
+      const updated = rowsOf(updRes)[0];
+      if (!updated) {
+        return res.status(404).json({ success: false, message: 'Product not found in tenant catalog.' });
+      }
+
+      return res.status(200).json({ success: true, data: updated });
+    } catch (error: any) {
+      console.error('[AI ANOMALIES REPRICE ERROR]', error);
+      return res.status(400).json({
+        success: false,
+        message: error?.cause?.message || error?.message || 'Failed to update SKU pricing',
       });
     }
   }
