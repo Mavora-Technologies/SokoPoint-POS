@@ -16,8 +16,7 @@ const cleanToken = (raw?: string | null): string => {
 
 const extractCookieToken = (cookieHeader?: string): string => {
   if (!cookieHeader) return '';
-  const parts = cookieHeader.split(';');
-  for (const part of parts) {
+  for (const part of cookieHeader.split(';')) {
     const [k, ...v] = part.trim().split('=');
     if (k === 'token') {
       return cleanToken(decodeURIComponent(v.join('=')));
@@ -34,15 +33,12 @@ export const requireAuth = (req: Request, res: Response, next: NextFunction): vo
     if (authHeader && authHeader.startsWith('Bearer ')) {
       token = cleanToken(authHeader.slice(7));
     }
-
     if (!token && req.headers['x-auth-token']) {
       token = cleanToken(String(req.headers['x-auth-token']));
     }
-
     if (!token && (req as any).cookies?.token) {
       token = cleanToken((req as any).cookies.token);
     }
-
     if (!token && req.headers.cookie) {
       token = extractCookieToken(req.headers.cookie);
     }
@@ -52,15 +48,18 @@ export const requireAuth = (req: Request, res: Response, next: NextFunction): vo
       return;
     }
 
-    const secret = getJwtSecret();
-    const decoded = jwt.verify(token, secret);
+    const decoded = jwt.verify(token, getJwtSecret()) as Record<string, any>;
+    if (!decoded?.userId || !decoded?.tenantId) {
+      res.status(401).json({ success: false, message: 'Invalid token: missing tenant isolation context.' });
+      return;
+    }
+
     (req as any).user = decoded;
     (req as any).auth = decoded;
     next();
   } catch (error: any) {
     console.error('[AUTH VERIFY FAILED]', error?.name, error?.message);
     res.status(401).json({ success: false, message: 'Invalid or expired authentication token.' });
-    return;
   }
 };
 
@@ -69,7 +68,6 @@ export const requireRole = (...allowedRoles: string[]) => {
 
   return (req: Request, res: Response, next: NextFunction): void => {
     const userRole = ((req as any).auth?.role || (req as any).user?.role || '').toUpperCase();
-
     if (!userRole || !normalizedAllowed.includes(userRole)) {
       res.status(403).json({
         success: false,
@@ -77,7 +75,6 @@ export const requireRole = (...allowedRoles: string[]) => {
       });
       return;
     }
-
     next();
   };
 };
