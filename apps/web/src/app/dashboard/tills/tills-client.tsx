@@ -1,292 +1,606 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Inbox, Plus, Loader2, MoreVertical, Banknote, User, Lock, Unlock, X, Clock, CheckCircle2 } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import {
+  Wallet,
+  Plus,
+  RefreshCw,
+  Loader2,
+  Lock,
+  DollarSign,
+  Coins,
+  ShieldAlert,
+  Search,
+  X,
+  CheckCircle2,
+} from 'lucide-react';
 import api from '../../../lib/api';
 
-interface Till {
+interface ShiftRow {
   id: string;
-  name: string;
-  branch: string;
-  status: 'Open' | 'Closed';
-  floatAmount: number;
-  cashier: string | null;
-  lastOpened: string | null;
+  shiftSeq: number;
+  registerName: string;
+  cashierName: string;
+  cashierEmail: string;
+  cashierRole: string;
+  shiftRotation: string;
+  branchName: string;
+  openingFloat: number;
+  cashSales: number;
+  expectedCash: number;
+  countedCash: number | null;
+  variance: number;
+  status: 'OPEN' | 'CLOSED' | string;
+  supervisorSignoff?: string | null;
+  handoverNotes?: string | null;
+  openedAt: string;
+  closedAt?: string | null;
 }
 
+const ROTATIONS = ['Morning Shift', 'Midday Shift', 'Evening Shift', 'Night Closing'];
+const BREACH_TOLERANCE = 50;
+
 export default function TillsClient() {
-  const [isMounted, setIsMounted] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [tills, setTills] = useState<Till[]>([]);
+  const [shifts, setShifts] = useState<ShiftRow[]>([]);
+  const [staff, setStaff] = useState<{ id: string; name: string; email: string; role: string }[]>([]);
+  const [registers, setRegisters] = useState<{ id: string; name: string; terminalCode: string }[]>([]);
+  const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
 
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [selectedTill, setSelectedTill] = useState<Till | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<'ALL' | 'OPEN' | 'CLOSED'>('ALL');
+  const [search, setSearch] = useState('');
 
-  useEffect(() => { setIsMounted(true); }, []);
+  // Open Shift Modal
+  const [isOpenModal, setIsOpenModal] = useState(false);
+  const [cashierUserId, setCashierUserId] = useState('');
+  const [registerName, setRegisterName] = useState('No Physical Drawer');
+  const [shiftRotation, setShiftRotation] = useState(ROTATIONS[0]);
+  const [openingFloat, setOpeningFloat] = useState('5000');
+  const [branchId, setBranchId] = useState('');
+  const [handoverNotes, setHandoverNotes] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  // Close Shift Modal
+  const [closingShift, setClosingShift] = useState<ShiftRow | null>(null);
+  const [countedCash, setCountedCash] = useState('');
+  const [closingNotes, setClosingNotes] = useState('');
+  const [closing, setClosing] = useState(false);
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.get('/tills');
+      const d = res.data?.data || {};
+      setShifts(Array.isArray(d.shifts) ? d.shifts : []);
+      setStaff(Array.isArray(d.staff) ? d.staff : []);
+      setRegisters(Array.isArray(d.registers) ? d.registers : []);
+      setBranches(Array.isArray(d.branches) ? d.branches : []);
+    } catch (error) {
+      console.error('Failed to load cashier shifts', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const fetchTills = async () => {
-      try {
-        setIsLoading(true);
-        const response = await api.get('/tills');
-        setTills(response.data.data);
-      } catch (error) {
-        console.error('Failed to fetch tills', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    if (isMounted) fetchTills();
-  }, [isMounted]);
+    loadData();
+  }, [loadData]);
 
-  const handleAddTill = async (e: React.FormEvent) => {
+  const kpis = useMemo(() => {
+    const openShifts = shifts.filter((s) => s.status === 'OPEN');
+    const closedShifts = shifts.filter((s) => s.status === 'CLOSED');
+    const reconciledCash = closedShifts.reduce((acc, s) => acc + Number(s.countedCash || 0), 0);
+    const netDrift = closedShifts.reduce((acc, s) => acc + Number(s.variance || 0), 0);
+    const breaches = closedShifts.filter((s) => Math.abs(Number(s.variance || 0)) > BREACH_TOLERANCE).length;
+    return {
+      activeCount: openShifts.length,
+      reconciledCash,
+      netDrift,
+      breaches,
+    };
+  }, [shifts]);
+
+  const filtered = useMemo(() => {
+    return shifts.filter((s) => {
+      if (tab !== 'ALL' && s.status !== tab) return false;
+      const q = search.trim().toLowerCase();
+      if (!q) return true;
+      return (
+        s.cashierName.toLowerCase().includes(q) ||
+        s.cashierEmail.toLowerCase().includes(q) ||
+        s.branchName.toLowerCase().includes(q) ||
+        s.registerName.toLowerCase().includes(q)
+      );
+    });
+  }, [shifts, tab, search]);
+
+  const handleOpenShift = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const payload = {
-        name: `New Register ${tills.length + 1}`,
-        branch: 'Nairobi CBD Flagship',
-        status: 'Closed',
-        floatAmount: 0
-      };
-      const response = await api.post('/tills', payload);
-      setTills([...tills, response.data.data]);
-      setIsAddModalOpen(false);
-    } catch (error) {
-      console.error('Failed to create till', error);
+      setSubmitting(true);
+      await api.post('/tills', {
+        cashierUserId: cashierUserId || undefined,
+        registerName,
+        shiftRotation,
+        openingFloat: Number(openingFloat) || 0,
+        branchId: branchId || undefined,
+        handoverNotes: handoverNotes.trim(),
+      });
+      setIsOpenModal(false);
+      setCashierUserId('');
+      setHandoverNotes('');
+      await loadData();
+    } catch (err: any) {
+      alert(err?.response?.data?.message || 'Failed to open cashier shift.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const toggleTillStatus = async (till: Till) => {
-    const isOpening = till.status === 'Closed';
-    const payload = {
-      status: isOpening ? 'Open' : 'Closed',
-      cashier: isOpening ? 'Valary' : null,
-      floatAmount: isOpening ? 5000 : 0,
-      lastOpened: isOpening ? new Date().toISOString() : null
-    };
-
+  const handleCloseShift = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!closingShift) return;
     try {
-      const response = await api.patch(`/tills/${till.id}/status`, payload);
-      setTills(tills.map(t => t.id === till.id ? response.data.data : t));
-      setSelectedTill(null); 
-    } catch (error) {
-      console.error('Failed to update status', error);
+      setClosing(true);
+      await api.patch(`/tills/${closingShift.id}/status`, {
+        countedCash: Number(countedCash) || 0,
+        closingNotes: closingNotes.trim(),
+      });
+      setClosingShift(null);
+      setCountedCash('');
+      setClosingNotes('');
+      await loadData();
+    } catch (err: any) {
+      alert(err?.response?.data?.message || 'Failed to close cashier shift.');
+    } finally {
+      setClosing(false);
     }
   };
-
-  if (!isMounted) {
-    return (
-      <div className="flex justify-center items-center min-h-[100dvh] w-full bg-slate-50">
-        <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
-      </div>
-    );
-  }
 
   return (
-    <div className="w-full min-h-[100dvh] bg-slate-50 overflow-x-hidden">
-      <div className="max-w-[1920px] mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10 space-y-6 sm:space-y-8 lg:space-y-10">
-        
-        {/* Responsive Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex-1 min-w-0">
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-slate-900 flex items-center gap-3 truncate">
-              <div className="p-2.5 sm:p-3 bg-blue-100 rounded-xl sm:rounded-2xl text-blue-600 shrink-0">
-                <Inbox className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8" />
-              </div>
-              <span className="truncate">Cash Registers (Tills)</span>
-            </h2>
-            <p className="mt-2 text-sm sm:text-base lg:text-lg text-slate-500 font-medium max-w-3xl">
-              Manage daily cash floats, assign cashiers, and monitor register sessions.
-            </p>
+    <div className="w-full min-h-[100dvh] bg-[#f4f7fb] px-4 sm:px-6 lg:px-8 py-6 space-y-5 font-sans">
+      {/* Header Card */}
+      <div className="bg-white rounded-2xl border border-slate-200/70 px-6 py-5 shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <p className="text-[11px] font-bold text-[#0554F4] mb-1">
+            Enterprise Control &rsaquo; Treasury &amp; Workforce Custody
+          </p>
+          <h1 className="text-xl sm:text-2xl font-extrabold text-[#041F56] tracking-tight inline-flex items-center gap-2.5">
+            <Wallet className="h-6 w-6 text-[#0554F4]" />
+            Cashier Shift &amp; Drawer Settlement Cockpit
+          </h1>
+          <p className="text-xs text-[#176E84] mt-1">
+            Multi-cashier POS custody, roster-linked drawer allocation, mid-shift safe drops, and blind Z-report closeouts.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsOpenModal(true)}
+            className="px-4 py-2.5 bg-[#0554F4] hover:bg-[#0441c4] text-white text-xs font-bold rounded-xl shadow-xs inline-flex items-center gap-1.5 cursor-pointer"
+          >
+            <Plus className="h-4 w-4" /> Open Cashier Shift
+          </button>
+          <button
+            onClick={loadData}
+            className="p-2.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-slate-600 cursor-pointer"
+            title="Refresh"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
+      </div>
+
+      {/* 4 KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white rounded-2xl border border-slate-200/70 p-5 shadow-xs flex justify-between items-center">
+          <div>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">ACTIVE SESSIONS</p>
+            <p className="text-xl font-black text-[#041F56] mt-1">{kpis.activeCount}</p>
+            <p className="text-[11px] text-emerald-600 mt-0.5">Concurrent Open Shifts</p>
           </div>
-          <div className="shrink-0 mt-2 sm:mt-0 w-full sm:w-auto">
-            <button 
-              onClick={() => setIsAddModalOpen(true)} 
-              className="flex items-center justify-center w-full sm:w-auto rounded-xl sm:rounded-2xl bg-blue-600 px-5 sm:px-6 py-3.5 sm:py-4 text-sm sm:text-base font-bold text-white shadow-sm hover:bg-blue-500 hover:shadow-md transition-all active:scale-[0.98] touch-manipulation"
-            >
-              <Plus className="mr-2 h-5 w-5" /> Add Register
-            </button>
+          <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#0554F4] flex items-center justify-center shrink-0">
+            <Lock className="h-5 w-5" />
           </div>
         </div>
 
-        {/* Content Area */}
-        {isLoading ? (
-          <div className="flex justify-center items-center h-[50vh] w-full bg-white rounded-2xl lg:rounded-3xl shadow-sm ring-1 ring-slate-200">
-            <Loader2 className="h-10 w-10 lg:h-12 lg:w-12 animate-spin text-blue-600" />
+        <div className="bg-white rounded-2xl border border-slate-200/70 p-5 shadow-xs flex justify-between items-center">
+          <div>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">RECONCILED CASH</p>
+            <p className="text-xl font-black text-emerald-600 font-mono mt-1">
+              KES {kpis.reconciledCash.toLocaleString('en-KE')}
+            </p>
+            <p className="text-[11px] text-slate-500 mt-0.5">Settled to Main Safe</p>
           </div>
-        ) : tills.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-[50vh] bg-white rounded-2xl lg:rounded-3xl shadow-sm ring-1 ring-slate-200 text-slate-500 p-6 text-center">
-            <div className="h-20 w-20 lg:h-24 lg:w-24 bg-slate-50 rounded-full flex items-center justify-center mb-4 lg:mb-6 shadow-inner border border-slate-100">
-              <Inbox className="h-10 w-10 lg:h-12 lg:w-12 text-slate-300" />
-            </div>
-            <p className="text-lg lg:text-xl font-bold text-slate-700">No registers found</p>
-            <p className="mt-2 text-sm lg:text-base text-slate-400">Click the button above to add your first till!</p>
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+            <DollarSign className="h-5 w-5" />
           </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 sm:gap-6 lg:gap-8 w-full">
-            {tills.map((till) => (
-              <div key={till.id} className="bg-white rounded-2xl lg:rounded-3xl shadow-sm ring-1 ring-slate-200 overflow-hidden hover:shadow-lg transition-all flex flex-col h-full group">
-                <div className="p-5 sm:p-6 lg:p-8 flex-1">
-                  <div className="flex justify-between items-start mb-5 sm:mb-6">
-                    <div className={`p-3 sm:p-4 rounded-xl lg:rounded-2xl transition-colors shrink-0 ${
-                      till.status === 'Open' ? 'bg-green-50 text-green-600 group-hover:bg-green-600 group-hover:text-white' : 'bg-slate-100 text-slate-500 group-hover:bg-slate-600 group-hover:text-white'
-                    }`}>
-                      {till.status === 'Open' ? <Unlock className="h-6 w-6 lg:h-7 lg:w-7" /> : <Lock className="h-6 w-6 lg:h-7 lg:w-7" />}
-                    </div>
-                    <span className={`inline-flex items-center rounded-lg px-2.5 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm font-bold ring-1 ring-inset ${
-                      till.status === 'Open' ? 'bg-green-50 text-green-700 ring-green-600/20' : 'bg-slate-100 text-slate-600 ring-slate-500/20'
-                    }`}>
-                      {till.status}
-                    </span>
-                  </div>
-                  
-                  <h3 className="text-lg sm:text-xl font-bold text-slate-900 mb-1.5 truncate">{till.name}</h3>
-                  <div className="text-xs sm:text-sm font-mono text-slate-400 mb-5 line-clamp-2">
-                    {till.id}
-                    <span className="block mt-0.5 text-slate-500 font-sans">{till.branch}</span>
-                  </div>
-                  
-                  <div className="space-y-3.5 sm:space-y-4">
-                    <div className="flex items-center justify-between text-sm sm:text-base">
-                      <span className="flex items-center text-slate-500">
-                        <Banknote className="h-4 w-4 sm:h-5 sm:w-5 mr-2 shrink-0" /> Float
-                      </span>
-                      <span className="font-black text-slate-900 truncate pl-2">KES {till.floatAmount.toLocaleString()}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm sm:text-base">
-                      <span className="flex items-center text-slate-500">
-                        <User className="h-4 w-4 sm:h-5 sm:w-5 mr-2 shrink-0" /> Cashier
-                      </span>
-                      <span className="font-bold text-slate-900 truncate pl-2">{till.cashier || 'None'}</span>
-                    </div>
-                    {till.lastOpened && (
-                      <div className="flex items-center justify-between text-sm sm:text-base">
-                        <span className="flex items-center text-slate-500">
-                          <Clock className="h-4 w-4 sm:h-5 sm:w-5 mr-2 shrink-0" /> Opened
-                        </span>
-                        <span className="font-medium text-slate-900 truncate pl-2">
-                          {new Date(till.lastOpened).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
+        </div>
 
-                <div className="border-t border-slate-100 bg-slate-50/50 p-4 sm:p-5 flex justify-between items-center shrink-0">
-                  <button 
-                    onClick={() => setSelectedTill(till)} 
-                    className="text-sm sm:text-base font-bold text-blue-600 hover:text-blue-800 transition-colors p-1 -ml-1"
-                  >
-                    Manage Till
-                  </button>
-                  <button className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-xl transition-colors -mr-2">
-                    <MoreVertical className="h-5 w-5 sm:h-6 sm:w-6" />
-                  </button>
-                </div>
-              </div>
+        <div className="bg-white rounded-2xl border border-slate-200/70 p-5 shadow-xs flex justify-between items-center">
+          <div>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">NET DRIFT VARIANCE</p>
+            <p className="text-xl font-black text-[#041F56] font-mono mt-1">
+              KES {kpis.netDrift.toLocaleString('en-KE')}
+            </p>
+            <p className="text-[11px] text-slate-500 mt-0.5">Cumulative Over/Short</p>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+            <Coins className="h-5 w-5" />
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200/70 p-5 shadow-xs flex justify-between items-center">
+          <div>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">AUDITED BREACHES</p>
+            <p className="text-xl font-black text-rose-600 mt-1">{kpis.breaches}</p>
+            <p className="text-[11px] text-rose-500 mt-0.5">&gt; KES {BREACH_TOLERANCE} Tolerance</p>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+            <ShieldAlert className="h-5 w-5" />
+          </div>
+        </div>
+      </div>
+
+      {/* Filter Tabs & Search */}
+      <div className="bg-white rounded-2xl border border-slate-200/70 shadow-xs overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-slate-100 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3">
+          <div className="inline-flex items-center bg-slate-100/80 p-1 rounded-xl">
+            {[
+              { key: 'ALL', label: 'All Shifts' },
+              { key: 'OPEN', label: 'In Service (Open)' },
+              { key: 'CLOSED', label: 'Reconciled (Closed)' },
+            ].map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key as any)}
+                className={`px-3.5 py-1.5 rounded-lg text-xs cursor-pointer ${
+                  tab === t.key ? 'bg-white text-[#041F56] font-bold shadow-xs' : 'text-slate-500'
+                }`}
+              >
+                {t.label}
+              </button>
             ))}
           </div>
-        )}
 
-        {/* Manage Till Modal */}
-        {selectedTill && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-6 overflow-y-auto custom-scrollbar">
-            <div className="bg-white w-full max-w-md lg:max-w-lg rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col my-auto">
-              
-              <div className="flex items-center justify-between p-5 sm:p-6 lg:p-8 border-b border-slate-100 bg-white sticky top-0 z-10">
-                <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900 flex items-center gap-3">
-                  <Inbox className="h-6 w-6 text-blue-600" /> Till Management
-                </h3>
-                <button 
-                  onClick={() => setSelectedTill(null)} 
-                  className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-2 rounded-full transition-colors"
-                >
-                  <X className="h-6 w-6" />
-                </button>
-              </div>
-
-              <div className="p-5 sm:p-6 lg:p-8">
-                <div className="text-center mb-8 sm:mb-10">
-                  <div className={`h-20 w-20 sm:h-24 sm:w-24 rounded-3xl mx-auto flex items-center justify-center mb-4 sm:mb-5 shadow-inner border ${
-                    selectedTill.status === 'Open' ? 'bg-green-50 text-green-600 border-green-100/50' : 'bg-slate-100 text-slate-500 border-slate-200/50'
-                  }`}>
-                    {selectedTill.status === 'Open' ? <Unlock className="h-10 w-10 sm:h-12 sm:w-12" /> : <Lock className="h-10 w-10 sm:h-12 sm:w-12" />}
-                  </div>
-                  <h4 className="text-2xl sm:text-3xl font-black text-slate-900">{selectedTill.name}</h4>
-                  <p className="text-xs sm:text-sm font-mono text-slate-400 mt-2 truncate">ID: {selectedTill.id}</p>
-                  <span className={`mt-4 inline-flex items-center rounded-lg px-3 py-1.5 text-xs sm:text-sm font-bold ring-1 ring-inset ${
-                    selectedTill.status === 'Open' ? 'bg-green-50 text-green-700 ring-green-600/20' : 'bg-slate-100 text-slate-700 ring-slate-400/20'
-                  }`}>
-                    Status: {selectedTill.status}
-                  </span>
-                </div>
-
-                <div className="space-y-4 sm:space-y-5 bg-slate-50 p-5 sm:p-6 lg:p-8 rounded-2xl sm:rounded-3xl ring-1 ring-slate-200/60 mb-8 sm:mb-10">
-                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center border-b border-slate-200 pb-4 gap-2 sm:gap-0">
-                    <span className="text-sm sm:text-base font-bold text-slate-500">Current Float</span>
-                    <span className="text-base sm:text-lg font-black text-slate-900">KES {selectedTill.floatAmount.toLocaleString()}</span>
-                  </div>
-                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-0">
-                    <span className="text-sm sm:text-base font-bold text-slate-500">Active Cashier</span>
-                    <span className="text-base sm:text-lg font-bold text-slate-900">{selectedTill.cashier || 'None'}</span>
-                  </div>
-                </div>
-
-                <div className="mt-auto">
-                  {selectedTill.status === 'Closed' ? (
-                    <button 
-                      onClick={() => toggleTillStatus(selectedTill)} 
-                      className="w-full py-4 sm:py-5 bg-blue-600 text-white font-bold rounded-xl sm:rounded-2xl flex items-center justify-center hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/30 text-sm sm:text-base active:scale-[0.98] touch-manipulation"
-                    >
-                      <Unlock className="mr-2.5 h-5 w-5 sm:h-6 sm:w-6" /> Open Register (Set Float: KES 5,000)
-                    </button>
-                  ) : (
-                    <button 
-                      onClick={() => toggleTillStatus(selectedTill)} 
-                      className="w-full py-4 sm:py-5 bg-red-600 text-white font-bold rounded-xl sm:rounded-2xl flex items-center justify-center hover:bg-red-700 transition-colors shadow-lg shadow-red-600/30 text-sm sm:text-base active:scale-[0.98] touch-manipulation"
-                    >
-                      <Lock className="mr-2.5 h-5 w-5 sm:h-6 sm:w-6" /> Close Register & Z-Read
-                    </button>
-                  )}
-                </div>
-              </div>
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Search className="h-3.5 w-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search cashier..."
+                className="pl-8 pr-3 py-1.5 border border-slate-200 rounded-xl text-xs outline-none focus:border-[#0554F4]"
+              />
             </div>
+            <span className="text-[11px] text-slate-400 font-medium whitespace-nowrap">
+              {filtered.length} Recorded Shifts
+            </span>
           </div>
-        )}
+        </div>
 
-        {/* Add Till Modal */}
-        {isAddModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-6 overflow-y-auto custom-scrollbar">
-            <div className="bg-white w-full max-w-sm sm:max-w-md rounded-2xl sm:rounded-3xl shadow-2xl p-6 sm:p-8 text-center my-auto">
-              <div className="mx-auto flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-full bg-blue-50 mb-5 sm:mb-6 shadow-inner border border-blue-100/50">
-                <Inbox className="h-8 w-8 sm:h-10 sm:w-10 text-blue-600" />
+        {/* Shifts Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1080px] divide-y divide-slate-100 text-left text-xs">
+            <thead className="bg-slate-50/70">
+              <tr>
+                <th className="px-5 py-3.5 text-[10px] font-bold text-[#176E84] uppercase">SHIFT ID</th>
+                <th className="px-4 py-3.5 text-[10px] font-bold text-[#176E84] uppercase">CASHIER CUSTODIAN</th>
+                <th className="px-4 py-3.5 text-[10px] font-bold text-[#176E84] uppercase">BRANCH OUTLET</th>
+                <th className="px-4 py-3.5 text-[10px] font-bold text-[#176E84] uppercase text-right">OPENING FLOAT</th>
+                <th className="px-4 py-3.5 text-[10px] font-bold text-[#176E84] uppercase text-right">POS SALES SO FAR</th>
+                <th className="px-4 py-3.5 text-[10px] font-bold text-[#176E84] uppercase text-right">EXPECTED CASH</th>
+                <th className="px-4 py-3.5 text-[10px] font-bold text-[#176E84] uppercase text-right">COUNTED CASH</th>
+                <th className="px-4 py-3.5 text-[10px] font-bold text-[#176E84] uppercase text-right">VARIANCE</th>
+                <th className="px-4 py-3.5 text-[10px] font-bold text-[#176E84] uppercase">AUDIT STATUS</th>
+                <th className="px-4 py-3.5 text-[10px] font-bold text-[#176E84] uppercase">TIMELINE &amp; SIGN-OFF</th>
+                <th className="px-5 py-3.5 text-[10px] font-bold text-[#176E84] uppercase text-right">ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {loading ? (
+                <tr>
+                  <td colSpan={11} className="p-14 text-center">
+                    <Loader2 className="h-7 w-7 animate-spin text-[#0554F4] mx-auto" />
+                  </td>
+                </tr>
+              ) : filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={11} className="p-14 text-center text-slate-400 font-semibold">
+                    No cashier shift sessions recorded yet.
+                  </td>
+                </tr>
+              ) : (
+                filtered.map((s) => {
+                  const isClosed = s.status === 'CLOSED';
+                  const isDiscrepancy = isClosed && Math.abs(Number(s.variance || 0)) > BREACH_TOLERANCE;
+                  return (
+                    <tr key={s.id} className="hover:bg-slate-50/60">
+                      <td className="px-5 py-4 font-mono font-bold text-[#041F56]">#{s.shiftSeq}</td>
+                      <td className="px-4 py-4">
+                        <p className="font-bold text-[#041F56]">{s.cashierName}</p>
+                        <p className="text-[10px] text-slate-400">
+                          {s.cashierRole} &bull; {s.cashierEmail || s.registerName}
+                        </p>
+                      </td>
+                      <td className="px-4 py-4">
+                        <p className="font-medium text-slate-700">{s.branchName}</p>
+                        <p className="text-[10px] text-slate-400">{s.shiftRotation}</p>
+                      </td>
+                      <td className="px-4 py-4 text-right font-mono font-bold text-slate-700">
+                        KES {Number(s.openingFloat || 0).toLocaleString('en-KE')}
+                      </td>
+                      <td className="px-4 py-4 text-right font-mono font-bold text-emerald-600">
+                        +KES {Number(s.cashSales || 0).toLocaleString('en-KE')}
+                      </td>
+                      <td className="px-4 py-4 text-right font-mono font-bold text-[#0554F4]">
+                        KES {Number(s.expectedCash || 0).toLocaleString('en-KE')}
+                      </td>
+                      <td className="px-4 py-4 text-right font-mono font-bold text-purple-700">
+                        {isClosed ? `KES ${Number(s.countedCash || 0).toLocaleString('en-KE')}` : '—'}
+                      </td>
+                      <td
+                        className={`px-4 py-4 text-right font-mono font-bold ${
+                          !isClosed
+                            ? 'text-slate-400'
+                            : Number(s.variance) === 0
+                              ? 'text-emerald-600'
+                              : Number(s.variance) > 0
+                                ? 'text-amber-600'
+                                : 'text-rose-600'
+                        }`}
+                      >
+                        {isClosed
+                          ? `${Number(s.variance) > 0 ? '+' : ''}KES ${Number(s.variance || 0).toLocaleString('en-KE')}`
+                          : '—'}
+                      </td>
+                      <td className="px-4 py-4">
+                        {!isClosed ? (
+                          <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-blue-50 text-[#0554F4] border border-blue-200">
+                            IN SERVICE
+                          </span>
+                        ) : isDiscrepancy ? (
+                          <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-rose-50 text-rose-600 border border-rose-200">
+                            DISCREPANCY
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <CheckCircle2 className="h-3 w-3" /> BALANCED
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-4 text-[10px] text-slate-500">
+                        <p>
+                          In:{' '}
+                          {new Date(s.openedAt).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </p>
+                        {isClosed && (
+                          <p className="text-slate-400">Closed by: {s.supervisorSignoff || 'Supervisor'}</p>
+                        )}
+                      </td>
+                      <td className="px-5 py-4 text-right">
+                        {!isClosed ? (
+                          <button
+                            onClick={() => {
+                              setClosingShift(s);
+                              setCountedCash(String(s.expectedCash || 0));
+                            }}
+                            className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold cursor-pointer"
+                          >
+                            Close Shift
+                          </button>
+                        ) : (
+                          <span className="text-[11px] font-mono text-slate-400">Settled</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* OPEN CASHIER SHIFT SESSION MODAL */}
+      {isOpenModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-[2px] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl space-y-5">
+            <div className="flex justify-between items-start pb-3 border-b border-slate-100">
+              <div>
+                <h2 className="text-lg font-extrabold text-[#041F56]">Open Cashier Shift Session</h2>
+                <p className="text-xs text-[#176E84] mt-0.5">
+                  Assign staff custodian, cash drawer &amp; starting float
+                </p>
               </div>
-              <h3 className="text-xl sm:text-2xl font-black text-slate-900 mb-2 sm:mb-3">Create New Register</h3>
-              <p className="text-sm sm:text-base text-slate-500 mb-8 sm:mb-10 leading-relaxed px-2">
-                Instantly provision a new digital till for the Nairobi CBD Flagship branch.
-              </p>
-              
-              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-                <button 
-                  onClick={() => setIsAddModalOpen(false)} 
-                  className="flex-1 py-3.5 sm:py-4 bg-slate-100 text-slate-700 text-sm sm:text-base font-bold rounded-xl sm:rounded-2xl hover:bg-slate-200 transition-colors"
+              <button onClick={() => setIsOpenModal(false)} className="text-slate-400 p-1 cursor-pointer">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleOpenShift} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-[#041F56] mb-1">
+                  Cashier Custodian (Leave blank for yourself)
+                </label>
+                <select
+                  value={cashierUserId}
+                  onChange={(e) => setCashierUserId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs font-semibold bg-white"
+                >
+                  <option value="">Myself (Current Authenticated Session)</option>
+                  {staff.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name || u.email} ({u.role})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div>
+                  <label className="block text-xs font-bold text-[#041F56] mb-1">Cash Drawer Register</label>
+                  <select
+                    value={registerName}
+                    onChange={(e) => setRegisterName(e.target.value)}
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs font-semibold bg-white"
+                  >
+                    <option value="No Physical Drawer">No Physical Drawer</option>
+                    {registers.map((r) => (
+                      <option key={r.id} value={`${r.name} [${r.terminalCode}]`}>
+                        {r.name} [{r.terminalCode}]
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#041F56] mb-1">Shift Rotation</label>
+                  <select
+                    value={shiftRotation}
+                    onChange={(e) => setShiftRotation(e.target.value)}
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs font-semibold bg-white"
+                  >
+                    {ROTATIONS.map((rot) => (
+                      <option key={rot} value={rot}>
+                        {rot}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div>
+                  <label className="block text-xs font-bold text-[#041F56] mb-1">Opening Float (KES) *</label>
+                  <input
+                    required
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={openingFloat}
+                    onChange={(e) => setOpeningFloat(e.target.value)}
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs font-mono"
+                  />
+                </div>
+                {branches.length > 0 && (
+                  <div>
+                    <label className="block text-xs font-bold text-[#041F56] mb-1">Branch Outlet</label>
+                    <select
+                      value={branchId}
+                      onChange={(e) => setBranchId(e.target.value)}
+                      className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs font-semibold bg-white"
+                    >
+                      <option value="">Default Active Branch</option>
+                      {branches.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#041F56] mb-1">
+                  Handover / Float Verification Notes
+                </label>
+                <input
+                  type="text"
+                  value={handoverNotes}
+                  onChange={(e) => setHandoverNotes(e.target.value)}
+                  placeholder="e.g. Verified KES 5,000 change denominations"
+                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsOpenModal(false)}
+                  className="py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 cursor-pointer"
                 >
                   Cancel
                 </button>
-                <form onSubmit={handleAddTill} className="flex-1">
-                  <button 
-                    type="submit" 
-                    className="w-full py-3.5 sm:py-4 bg-blue-600 text-white text-sm sm:text-base font-bold rounded-xl sm:rounded-2xl hover:bg-blue-700 transition-colors flex items-center justify-center shadow-md shadow-blue-600/20 active:scale-[0.98] touch-manipulation"
-                  >
-                    <CheckCircle2 className="mr-2 h-5 w-5" /> Create
-                  </button>
-                </form>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="py-2.5 rounded-xl bg-[#0554F4] hover:bg-[#0441c4] text-white text-xs font-bold inline-flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                >
+                  {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  Confirm &amp; Open Shift
+                </button>
               </div>
-            </div>
+            </form>
           </div>
-        )}
+        </div>
+      )}
 
-      </div>
+      {/* BLIND Z-REPORT CLOSEOUT MODAL */}
+      {closingShift && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-[2px] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex justify-between items-start pb-3 border-b border-slate-100">
+              <div>
+                <h2 className="text-lg font-extrabold text-[#041F56]">Close Shift #{closingShift.shiftSeq}</h2>
+                <p className="text-xs text-[#176E84]">
+                  {closingShift.cashierName} &bull; {closingShift.registerName}
+                </p>
+              </div>
+              <button onClick={() => setClosingShift(null)} className="text-slate-400 p-1 cursor-pointer">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCloseShift} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-[#041F56] mb-1">Physical Counted Cash (KES) *</label>
+                <input
+                  required
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={countedCash}
+                  onChange={(e) => setCountedCash(e.target.value)}
+                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-mono font-bold"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-[#041F56] mb-1">Supervisor Sign-Off Notes</label>
+                <input
+                  type="text"
+                  value={closingNotes}
+                  onChange={(e) => setClosingNotes(e.target.value)}
+                  placeholder="e.g. Safe drop verified and sealed"
+                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs"
+                />
+              </div>
+              <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setClosingShift(null)}
+                  className="text-xs font-bold text-slate-500 px-3 py-2 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={closing}
+                  className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl inline-flex items-center gap-1.5 cursor-pointer"
+                >
+                  {closing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  Confirm Closeout
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
