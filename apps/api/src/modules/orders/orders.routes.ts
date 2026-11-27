@@ -8,6 +8,7 @@ router.use(requireAuth);
 
 router.get('/', OrdersController.getOrders);
 router.post('/', OrdersController.createOrder);
+router.patch('/:id/status', OrdersController.updateStatus);
 
 export const ordersRoutes = router;
 export default router;

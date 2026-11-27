@@ -1,13 +1,15 @@
 import { Request, Response } from 'express';
 import { db } from '../../db';
 import { orders, orderItems, products, branches } from '../../db/schema';
-import { eq, and, desc, inArray, sql } from 'drizzle-orm';
+import { eq, and, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 type AuthRequest = Request & {
-  auth?: { tenantId?: string; userId?: string; branchId?: string | null; role?: string };
-  user?: { tenantId?: string; userId?: string; branchId?: string | null; role?: string };
+  auth?: { tenantId?: string; userId?: string; branchId?: string | null; role?: string; email?: string };
+  user?: { tenantId?: string; userId?: string; branchId?: string | null; role?: string; email?: string };
 };
+
+const rowsOf = (result: any): any[] => (Array.isArray(result) ? result : result?.rows || []);
 
 const orderItemSchema = z.object({
   productId: z.string().uuid(),
@@ -18,7 +20,11 @@ const createOrderSchema = z.object({
   orderNum: z.string().min(1).optional(),
   customerId: z.string().uuid().nullable().optional(),
   customer: z.string().min(1).default('Walk-in Customer'),
-  saleChannel: z.enum(['Over The Counter', 'Delivery', 'Wholesale']).optional().default('Over The Counter'),
+  customerPin: z.string().max(40).nullable().optional(),
+  saleChannel: z
+    .enum(['Over The Counter', 'Wholesale Dispatch', 'Delivery', 'Click & Collect', 'Wholesale'])
+    .optional()
+    .default('Over The Counter'),
   method: z.enum(['cash', 'mpesa', 'card', 'credit', 'bank']).default('cash'),
   isRefund: z.boolean().optional().default(false),
   items: z.array(orderItemSchema).min(1, 'At least one item is required'),
@@ -33,18 +39,77 @@ export class OrdersController {
         return res.status(401).json({ success: false, message: 'Unauthorized: missing tenant context' });
       }
 
-      const rows = await db
-        .select()
-        .from(orders)
-        .where(eq(orders.tenantId, tenantId))
-        .orderBy(desc(orders.createdAt));
+      const [ordersRes, itemsRes, branchesRes] = await Promise.all([
+        db.execute(sql`
+          SELECT o.id,
+                 o.order_number AS "orderNum",
+                 o.branch_id AS "branchId",
+                 COALESCE(b.name, 'Main Branch') AS "branchName",
+                 COALESCE(
+                   NULLIF(TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')), ''),
+                   u.email,
+                   'POS Cashier'
+                 ) AS "custodianName",
+                 COALESCE(NULLIF(TRIM(o.customer_name), ''), 'Walk-in Customer') AS customer,
+                 o.customer_pin AS "customerPin",
+                 COALESCE(NULLIF(TRIM(o.sale_channel), ''), 'Over The Counter') AS "saleChannel",
+                 COALESCE(o.status, 'completed') AS status,
+                 COALESCE(o.payment_method, 'cash') AS method,
+                 COALESCE(o.subtotal, 0)::float AS subtotal,
+                 COALESCE(o.tax, 0)::float AS tax,
+                 COALESCE(o.total, 0)::float AS total,
+                 o.etims_cu_no AS "etimsCuNo",
+                 o.created_at AS "createdAt"
+          FROM orders o
+          LEFT JOIN branches b ON b.id = o.branch_id AND b.tenant_id = o.tenant_id
+          LEFT JOIN users u ON u.id = o.user_id AND u.tenant_id = o.tenant_id
+          WHERE o.tenant_id = ${tenantId}
+          ORDER BY o.created_at DESC
+          LIMIT 250
+        `),
+        db.execute(sql`
+          SELECT oi.order_id AS "orderId",
+                 oi.product_id AS "productId",
+                 COALESCE(p.name, 'SKU Item') AS "productName",
+                 COALESCE(p.sku, '') AS sku,
+                 oi.quantity::int AS quantity,
+                 COALESCE(oi.unit_price, 0)::float AS "unitPrice",
+                 COALESCE(oi.subtotal, 0)::float AS subtotal
+          FROM order_items oi
+          INNER JOIN orders o ON o.id = oi.order_id
+          LEFT JOIN products p ON p.id = oi.product_id AND p.tenant_id = o.tenant_id
+          WHERE o.tenant_id = ${tenantId}
+        `),
+        db.execute(sql`
+          SELECT id, name
+          FROM branches
+          WHERE tenant_id = ${tenantId}
+          ORDER BY name ASC
+        `),
+      ]);
 
-      return res.status(200).json({ success: true, data: rows });
+      const itemsByOrder = new Map<string, any[]>();
+      for (const item of rowsOf(itemsRes)) {
+        const list = itemsByOrder.get(item.orderId) || [];
+        list.push(item);
+        itemsByOrder.set(item.orderId, list);
+      }
+
+      const enrichedOrders = rowsOf(ordersRes).map((o: any) => ({
+        ...o,
+        items: itemsByOrder.get(o.id) || [],
+      }));
+
+      return res.status(200).json({
+        success: true,
+        data: enrichedOrders,
+        branches: rowsOf(branchesRes),
+      });
     } catch (error: any) {
       console.error('[ORDERS GET ERROR]', error);
       return res.status(500).json({
         success: false,
-        message: error.message || 'Failed to load orders from database',
+        message: error?.cause?.message || error?.message || 'Failed to load orders from database',
       });
     }
   }
@@ -68,9 +133,8 @@ export class OrdersController {
         });
       }
 
-      const { orderNum, customerId, customer, saleChannel, method, isRefund, items } = parsed.data;
+      const { orderNum, customerId, customer, customerPin, saleChannel, method, isRefund, items } = parsed.data;
 
-      // Resolve valid branchId for this tenant (required by orders.branchId NOT NULL)
       let branchId = req.auth?.branchId || req.user?.branchId || null;
       if (!branchId) {
         const [firstBranch] = await db
@@ -85,8 +149,6 @@ export class OrdersController {
       }
 
       const productIds = Array.from(new Set(items.map((i) => i.productId)));
-
-      // Fetch authoritative products strictly scoped to this tenant
       const dbProducts = await db
         .select()
         .from(products)
@@ -121,7 +183,6 @@ export class OrdersController {
       const finalReceiptNum = orderNum || `SOKO-${Math.floor(Math.random() * 900000) + 100000}`;
 
       const createdOrder = await db.transaction(async (tx) => {
-        // 1. Insert Order Header
         const [insertedOrder] = await tx
           .insert(orders)
           .values({
@@ -138,7 +199,15 @@ export class OrdersController {
           })
           .returning();
 
-        // 2. Insert Order Line Items & Sync Inventory Central Stock
+        // Persist retail/wholesale metadata columns
+        await tx.execute(sql`
+          UPDATE orders
+          SET sale_channel = ${saleChannel},
+              customer_name = ${customer.trim()},
+              customer_pin = ${customerPin ? customerPin.trim().toUpperCase() : null}
+          WHERE id = ${insertedOrder.id} AND tenant_id = ${tenantId}
+        `);
+
         for (const item of pricedItems) {
           await tx.insert(orderItems).values({
             orderId: insertedOrder.id,
@@ -148,7 +217,6 @@ export class OrdersController {
             subtotal: item.subtotal.toFixed(2),
           });
 
-          // Atomic stock adjustment: positive quantity reduces stock, negative (refund) restores stock
           await tx
             .update(products)
             .set({
@@ -177,7 +245,43 @@ export class OrdersController {
       console.error('[ORDERS POST ERROR]', error);
       return res.status(400).json({
         success: false,
-        message: error.message || 'Failed to persist order',
+        message: error?.cause?.message || error?.message || 'Failed to persist order',
+      });
+    }
+  }
+
+  // PATCH /api/v1/orders/:id/status
+  static async updateStatus(req: AuthRequest, res: Response) {
+    try {
+      const tenantId = req.auth?.tenantId || req.user?.tenantId;
+      if (!tenantId) return res.status(401).json({ success: false, message: 'Unauthorized' });
+
+      const orderId = String(req.params.id);
+      const nextStatus = String(req.body?.status || '').toLowerCase().trim();
+      const allowed = ['pending', 'packing', 'dispatched', 'completed', 'cancelled', 'refunded'];
+
+      if (!allowed.includes(nextStatus)) {
+        return res.status(400).json({ success: false, message: 'Invalid fulfillment status.' });
+      }
+
+      const updRes = await db.execute(sql`
+        UPDATE orders
+        SET status = ${nextStatus}
+        WHERE id = ${orderId} AND tenant_id = ${tenantId}
+        RETURNING id, order_number AS "orderNum", status
+      `);
+
+      const updated = rowsOf(updRes)[0];
+      if (!updated) {
+        return res.status(404).json({ success: false, message: 'Order not found.' });
+      }
+
+      return res.status(200).json({ success: true, data: updated });
+    } catch (error: any) {
+      console.error('[ORDERS STATUS ERROR]', error);
+      return res.status(400).json({
+        success: false,
+        message: error?.cause?.message || error?.message || 'Failed to update order status',
       });
     }
   }
