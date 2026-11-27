@@ -29,6 +29,7 @@ import { analyticsRoutes } from './modules/analytics/analytics.routes';
 import { settingsRoutes } from './modules/settings/settings.routes';
 import { auditRoutes } from './modules/audit/audit.routes';
 import { systemAuditMiddleware } from './middleware/auditMiddleware';
+import { notificationsRoutes } from './modules/notifications/notifications.routes';
 export const createApp = () => {
   const app = express();
 
@@ -92,6 +93,7 @@ export const createApp = () => {
   app.use('/api/v1/analytics', analyticsRoutes);
   app.use('/api/v1/settings', settingsRoutes);
   app.use('/api/v1/audit', auditRoutes);
+  app.use('/api/v1/notifications', notificationsRoutes);
 
   // Aliases
   app.use('/api/v1/ai', aiRoutes);
