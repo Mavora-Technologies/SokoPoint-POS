@@ -14,5 +14,9 @@ router.delete('/schedules/:id', AnalyticsController.deleteSchedule);
 router.get('/margins', AnalyticsController.getMargins);
 router.patch('/margins/sku/:productId', AnalyticsController.updateSkuPricing);
 
+// Inventory Valuation & Depletion Analysis
+router.get('/inventory', AnalyticsController.getInventoryAnalytics);
+router.patch('/inventory/:productId', AnalyticsController.adjustInventoryStock);
+
 export const analyticsRoutes = router;
 export default router;

@@ -370,8 +370,6 @@ export class AnalyticsController {
         db.execute(sql`
           SELECT id, name FROM branches WHERE tenant_id = ${tenantId} ORDER BY name ASC
         `),
-
-        // Daily Revenue vs COGS vs Gross Profit
         db.execute(sql`
           SELECT
             TO_CHAR(DATE(o.created_at), 'YYYY-MM-DD') AS period,
@@ -389,8 +387,6 @@ export class AnalyticsController {
           GROUP BY DATE(o.created_at)
           ORDER BY DATE(o.created_at) ASC
         `),
-
-        // Category Profitability
         db.execute(sql`
           SELECT
             COALESCE(NULLIF(TRIM(c.name), ''), 'General Merchandise') AS category,
@@ -410,8 +406,6 @@ export class AnalyticsController {
           ORDER BY revenue DESC
           LIMIT 10
         `),
-
-        // Branch Margin Comparison
         db.execute(sql`
           SELECT
             COALESCE(b.name, 'Main Branch') AS "branchName",
@@ -430,8 +424,6 @@ export class AnalyticsController {
           ORDER BY revenue DESC
           LIMIT 8
         `),
-
-        // SKU-Level Margin Breakdown
         db.execute(sql`
           SELECT
             p.id AS "productId",
@@ -515,7 +507,7 @@ export class AnalyticsController {
     }
   }
 
-  // PATCH /api/v1/analytics/margins/sku/:productId (Bidirectional Cost / Selling Price Sync)
+  // PATCH /api/v1/analytics/margins/sku/:productId
   static async updateSkuPricing(req: AuthRequest, res: Response) {
     try {
       const tenantId = req.auth?.tenantId || req.user?.tenantId;
@@ -552,6 +544,213 @@ export class AnalyticsController {
       return res.status(400).json({
         success: false,
         message: error?.cause?.message || error?.message || 'Failed to update SKU pricing',
+      });
+    }
+  }
+
+  // =========================================================================
+  // INVENTORY VALUATION & DEPLETION ANALYSIS (/api/v1/analytics/inventory)
+  // =========================================================================
+  static async getInventoryAnalytics(req: AuthRequest, res: Response) {
+    try {
+      const tenantId = req.auth?.tenantId || req.user?.tenantId;
+      if (!tenantId) return res.status(401).json({ success: false, message: 'Unauthorized' });
+
+      const startDate = String(req.query.startDate || '').slice(0, 10);
+      const endDate = String(req.query.endDate || '').slice(0, 10);
+      const categoryFilter = String(req.query.category || 'ALL');
+      const hasDates = Boolean(startDate && endDate);
+
+      const [branchesRes, categoriesRes, productsRes] = await Promise.all([
+        db.execute(sql`
+          SELECT id, name FROM branches WHERE tenant_id = ${tenantId} ORDER BY name ASC
+        `),
+        db.execute(sql`
+          SELECT id, name FROM categories WHERE tenant_id = ${tenantId} ORDER BY name ASC
+        `),
+        db.execute(sql`
+          SELECT
+            p.id,
+            p.name,
+            COALESCE(NULLIF(TRIM(p.sku), ''), 'N/A') AS sku,
+            COALESCE(NULLIF(TRIM(c.name), ''), 'General Merchandise') AS category,
+            COALESCE(p.reorder_level, 0)::float AS "physicalStock",
+            COALESCE(p.minimum_stock, 0)::float AS "parMin",
+            COALESCE(p.cost_price, 0)::float AS "unitCost",
+            COALESCE(p.selling_price, 0)::float AS "sellingPrice",
+            COALESCE(NULLIF(TRIM(p.unit), ''), 'pcs') AS "baseUnit"
+          FROM products p
+          LEFT JOIN categories c ON c.id = p.category_id AND c.tenant_id = p.tenant_id
+          WHERE p.tenant_id = ${tenantId}
+          ORDER BY (COALESCE(p.reorder_level, 0) * COALESCE(p.cost_price, 0)) DESC, p.name ASC
+        `),
+      ]);
+
+      // Optional Wastage / Spoilage table lookup (safe if table not yet populated)
+      let wasteLoss = 0;
+      let wasteCount = 0;
+      try {
+        const wTableRes = await db.execute(sql`
+          SELECT table_name FROM information_schema.tables
+          WHERE table_schema = 'public' AND table_name IN ('wastage_logs', 'stock_wastage', 'wastage')
+          LIMIT 1
+        `);
+        const wTable = rowsOf(wTableRes)[0]?.table_name;
+        if (wTable) {
+          const wRes = await db.execute(sql`
+            SELECT COUNT(*)::int AS cnt,
+                   COALESCE(SUM(COALESCE(total_cost, cost_loss, amount, 0)), 0)::float AS loss
+            FROM ${sql.raw(wTable)}
+            WHERE tenant_id = ${tenantId}
+              ${hasDates ? sql`AND created_at >= ${`${startDate} 00:00:00`}::timestamp AND created_at <= ${`${endDate} 23:59:59`}::timestamp` : sql``}
+          `);
+          wasteCount = rowsOf(wRes)[0]?.cnt || 0;
+          wasteLoss = Number(rowsOf(wRes)[0]?.loss || 0);
+        }
+      } catch {
+        // Ignore if wastage table has different schema
+      }
+
+      // Optional Batch Expiry Radar lookup (safe if expiry_date exists on products or batches)
+      let expiringBatches: any[] = [];
+      try {
+        const expColRes = await db.execute(sql`
+          SELECT table_name, column_name FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name IN ('inventory_batches', 'product_batches', 'products')
+            AND column_name IN ('expiry_date', 'expires_at')
+          LIMIT 1
+        `);
+        const expMeta = rowsOf(expColRes)[0];
+        if (expMeta && expMeta.table_name === 'products') {
+          const eRes = await db.execute(sql`
+            SELECT id,
+                   name,
+                   COALESCE(sku, 'LOT-N/A') AS "lotRef",
+                   COALESCE(reorder_level, 0)::float AS qty,
+                   (COALESCE(reorder_level, 0) * COALESCE(cost_price, 0))::float AS "bookValue",
+                   (${sql.raw(expMeta.column_name)}::date - CURRENT_DATE)::int AS "daysLeft"
+            FROM products
+            WHERE tenant_id = ${tenantId}
+              AND ${sql.raw(expMeta.column_name)} IS NOT NULL
+              AND ${sql.raw(expMeta.column_name)}::date <= (CURRENT_DATE + INTERVAL '30 days')
+            ORDER BY ${sql.raw(expMeta.column_name)} ASC
+            LIMIT 12
+          `);
+          expiringBatches = rowsOf(eRes);
+        }
+      } catch {
+        // Ignore if no expiry column exists
+      }
+
+      let allItems = rowsOf(productsRes).map((p: any) => {
+        const stock = Number(p.physicalStock || 0);
+        const parMin = Number(p.parMin || 0);
+        const unitCost = Number(p.unitCost || 0);
+        const bookValue = Number((stock * unitCost).toFixed(2));
+        const status = stock <= 0 ? 'DEPLETED' : stock <= parMin ? 'REORDER' : 'ADEQUATE';
+        return {
+          ...p,
+          physicalStock: stock,
+          parMin,
+          unitCost,
+          bookValue,
+          status,
+        };
+      });
+
+      if (categoryFilter !== 'ALL') {
+        allItems = allItems.filter((i) => i.category.toLowerCase() === categoryFilter.toLowerCase());
+      }
+
+      const totalAssetValuation = Number(
+        allItems.reduce((acc, i) => acc + Number(i.bookValue || 0), 0).toFixed(2)
+      );
+      const depletedCount = allItems.filter((i) => i.status === 'DEPLETED').length;
+      const reorderCount = allItems.filter((i) => i.status === 'REORDER').length;
+      const adequateCount = allItems.filter((i) => i.status === 'ADEQUATE').length;
+
+      // Capitalization by Category
+      const catMap = new Map<string, { category: string; skuCount: number; totalUnits: number; totalValue: number }>();
+      for (const item of allItems) {
+        const curr = catMap.get(item.category) || {
+          category: item.category,
+          skuCount: 0,
+          totalUnits: 0,
+          totalValue: 0,
+        };
+        curr.skuCount += 1;
+        curr.totalUnits += Number(item.physicalStock || 0);
+        curr.totalValue = Number((curr.totalValue + Number(item.bookValue || 0)).toFixed(2));
+        catMap.set(item.category, curr);
+      }
+      const capitalizationByCategory = Array.from(catMap.values()).sort((a, b) => b.totalValue - a.totalValue);
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          branches: rowsOf(branchesRes),
+          categories: rowsOf(categoriesRes),
+          kpis: {
+            totalAssetValuation,
+            totalSkus: allItems.length,
+            depletedCount,
+            reorderCount,
+            adequateCount,
+            wasteLoss,
+            wasteCount,
+          },
+          expiringBatches,
+          capitalizationByCategory,
+          items: allItems,
+        },
+      });
+    } catch (error: any) {
+      console.error('[ANALYTICS INVENTORY ERROR]', error);
+      return res.status(500).json({
+        success: false,
+        message: error?.cause?.message || error?.message || 'Failed to load inventory valuation analysis',
+      });
+    }
+  }
+
+  // PATCH /api/v1/analytics/inventory/:productId (Bidirectional Stock & Par Min Sync)
+  static async adjustInventoryStock(req: AuthRequest, res: Response) {
+    try {
+      const tenantId = req.auth?.tenantId || req.user?.tenantId;
+      if (!tenantId) return res.status(401).json({ success: false, message: 'Unauthorized' });
+
+      const productId = String(req.params.productId);
+      const physicalStock = Number(req.body?.physicalStock);
+      const parMin = Number(req.body?.parMin);
+
+      if (!Number.isFinite(physicalStock) || physicalStock < 0 || !Number.isFinite(parMin) || parMin < 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Enter valid non-negative stock count and par minimum threshold.',
+        });
+      }
+
+      const updRes = await db.execute(sql`
+        UPDATE products
+        SET reorder_level = ${Math.round(physicalStock)},
+            minimum_stock = ${Math.round(parMin)},
+            updated_at = NOW()
+        WHERE id = ${productId} AND tenant_id = ${tenantId}
+        RETURNING id, name, reorder_level::int AS "physicalStock", minimum_stock::int AS "parMin"
+      `);
+
+      const updated = rowsOf(updRes)[0];
+      if (!updated) {
+        return res.status(404).json({ success: false, message: 'SKU not found in tenant catalog.' });
+      }
+
+      return res.status(200).json({ success: true, data: updated });
+    } catch (error: any) {
+      console.error('[ANALYTICS INVENTORY ADJUST ERROR]', error);
+      return res.status(400).json({
+        success: false,
+        message: error?.cause?.message || error?.message || 'Failed to adjust stock level',
       });
     }
   }
